@@ -1,6 +1,7 @@
 """設備參數調整工具 CLI — 互動式繁體中文選單"""
 
 import os
+import re
 import sys
 
 from src.main.python.models.device_config import (
@@ -20,6 +21,11 @@ from src.main.python.utils.validators import (
     validate_positive_int,
     validate_transport,
 )
+
+
+def _validate_float(val) -> float:
+    """Convert any input to float (allows negative values for offset distances)."""
+    return float(val)
 
 _DEFAULT_CONFIG = os.path.join(
     os.path.dirname(__file__),
@@ -52,7 +58,11 @@ def _ask(msg: str, validator=None, default=None):
             print(f"  ✗ 輸入不合法: {e}")
 
 
-def _separator():
+def _mask_url(url: str) -> str:
+    """Replace credentials in a URL (user:password@) with asterisks."""
+    return re.sub(r"(://)[^@/]+@", r"\1****@", url)
+
+
     print("─" * 42)
 
 
@@ -74,7 +84,7 @@ def _camera_list(svc: ConfigService):
     for cam in cams:
         print(f"  [{cam.camera_id}] {cam.name}  {cam.resolution} {cam.fps}fps")
         print(f"      位置: {cam.latitude}, {cam.longitude}  方向: {cam.orientation_degree}° ({cam.orientation_label})")
-        print(f"      RTSP: {cam.rtsp_url}")
+        print(f"      RTSP: {_mask_url(cam.rtsp_url)}")
 
 
 def _camera_add(svc: ConfigService):
@@ -289,7 +299,7 @@ def _lidar_add(svc: ConfigService):
         return
     lanes_input = _ask("負責車道 ID (用逗號分隔，例如 LANE_001,LANE_002)")
     assigned = [x.strip() for x in lanes_input.split(",") if x.strip()]
-    offset = _ask("偏差距離 (正=偏右，負=偏左)", validator=float, default=0.0)
+    offset = _ask("偏差距離 (正=偏右，負=偏左)", _validate_float, 0.0)
     center = _ask("中心點距離 (公尺)", validate_non_negative_float, 0.0)
     auto_calc = input("  是否啟用自動計算有效區？(Y/n): ").strip().lower() != "n"
     if auto_calc:
@@ -326,7 +336,7 @@ def _lidar_edit(svc: ConfigService):
         default=",".join(unit.assigned_lanes),
     )
     params["assigned_lanes"] = [x.strip() for x in lanes_input.split(",") if x.strip()]
-    params["offset_distance"] = _ask("偏差距離", validator=float, default=unit.offset_distance)
+    params["offset_distance"] = _ask("偏差距離", _validate_float, unit.offset_distance)
     params["center_distance"] = _ask("中心點距離", validate_non_negative_float, unit.center_distance)
     auto_str = input(f"  目前自動計算: {'是' if unit.auto_calculate else '否'}  啟用自動計算？(y/n/Enter 保持不變): ").strip().lower()
     if auto_str == "y":
