@@ -74,7 +74,7 @@ def _make_config() -> dict:
                     "lanes_covered": 1,
                     "offset_distance": 0.0,
                     "center_distance": 16500.0,
-                    "effective_left": 1400.0,
+                    "effective_left": 1900.0,
                     "effective_right": 2000.0,
                     "auto_calculate": True,
                     "description": "第三組Lidar - Lane4",

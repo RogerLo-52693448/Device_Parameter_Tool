@@ -340,6 +340,11 @@ def _lidar_edit(svc: ConfigService):
         print(f"  ✗ 找不到 Lidar {lidar_id}")
         return
     params = {}
+    params["center_distance"] = _ask(
+        "中心點距離 (Lidar 到內路肩護欄，mm)",
+        validate_non_negative_float,
+        unit.center_distance,
+    )
     lanes_input = _ask(
         "負責車道 ID (最多 2 個，逗號分隔)",
         default=",".join(unit.assigned_lanes),
@@ -350,11 +355,6 @@ def _lidar_edit(svc: ConfigService):
         return
     params["assigned_lanes"] = assigned
     params["offset_distance"] = _ask("偏差距離 (mm，保留欄位)", _validate_float, unit.offset_distance)
-    params["center_distance"] = _ask(
-        "中心點距離 (Lidar 到內路肩護欄，mm)",
-        validate_non_negative_float,
-        unit.center_distance,
-    )
     auto_str = input(f"  目前自動計算: {'是' if unit.auto_calculate else '否'}  啟用自動計算？(y/n/Enter 保持不變): ").strip().lower()
     if auto_str == "y":
         params["auto_calculate"] = True
