@@ -14,7 +14,13 @@ Lidar 有效區計算驗證工具
   - scan 警告: 超過 5500mm 需拆分車道
 """
 
-SCAN_LIMIT = 5500.0  # mm, 超過此值需警告
+import json
+import os
+from datetime import datetime
+
+SCAN_LIMIT = 5500.0          # mm, 超過此值需警告
+MAX_RECORDS_PER_SITE = 5     # 每個點位最多保留筆數
+RECORDS_FILE = "lidar_records.json"
 
 
 def calculate_lidar_results(
@@ -120,6 +126,83 @@ def calculate_lidar_results(
         })
 
     return results
+
+
+def save_result(site_name, all_lanes, lidar_assignments, lidar_centers, results,
+                records_file=None):
+    """
+    儲存一筆計算記錄，每個點位最多保留 MAX_RECORDS_PER_SITE 筆（超過自動刪除最早的）。
+
+    Args:
+        site_name: 點位名稱
+        all_lanes: [(lane_num, width_mm), ...]
+        lidar_assignments: [[lane_numbers], ...]
+        lidar_centers: [center_distance, ...]
+        results: calculate_lidar_results() 的回傳值
+        records_file: 儲存檔案路徑 (預設 RECORDS_FILE)
+
+    Returns:
+        timestamp (str): 此筆記錄的時間戳記 (YYYYMMDDHHMM)
+    """
+    if records_file is None:
+        records_file = RECORDS_FILE
+
+    all_records = {}
+    if os.path.exists(records_file) and os.path.getsize(records_file) > 0:
+        try:
+            with open(records_file, "r", encoding="utf-8") as f:
+                all_records = json.load(f)
+        except json.JSONDecodeError:
+            all_records = {}
+
+    if site_name not in all_records:
+        all_records[site_name] = []
+
+    timestamp = datetime.now().strftime("%Y%m%d%H%M")
+    record = {
+        "timestamp": timestamp,
+        "all_lanes": [list(lane) for lane in all_lanes],
+        "lidar_assignments": lidar_assignments,
+        "lidar_centers": lidar_centers,
+        "results": results,
+    }
+
+    all_records[site_name].append(record)
+
+    if len(all_records[site_name]) > MAX_RECORDS_PER_SITE:
+        all_records[site_name] = all_records[site_name][-MAX_RECORDS_PER_SITE:]
+
+    with open(records_file, "w", encoding="utf-8") as f:
+        json.dump(all_records, f, ensure_ascii=False, indent=2)
+
+    return timestamp
+
+
+def load_records(site_name, records_file=None):
+    """
+    讀取指定點位的所有歷史記錄。
+
+    Args:
+        site_name: 點位名稱
+        records_file: 儲存檔案路徑 (預設 RECORDS_FILE)
+
+    Returns:
+        list of record dicts (oldest first), or [] if none
+    """
+    if records_file is None:
+        records_file = RECORDS_FILE
+
+    if not os.path.exists(records_file):
+        return []
+
+    try:
+        with open(records_file, "r", encoding="utf-8") as f:
+            all_records = json.load(f)
+    except json.JSONDecodeError:
+        return []
+
+    return all_records.get(site_name, [])
+
 
 
 def main():
@@ -316,6 +399,17 @@ def main():
     print("=" * 90)
     print("  完成！")
     print("=" * 90)
+
+    # ── 8. 儲存結果 ──────────────────────────────────────────────
+    print()
+    save_yn = input("  是否儲存此次結果？(y/n，預設 y): ").strip().lower()
+    if save_yn in ("", "y", "yes"):
+        ts = save_result(site_name, all_lanes, lidar_assignments, lidar_centers, results)
+        records = load_records(site_name)
+        print(f"  ✓ 已儲存！時間: {ts}，{site_name} 共 {len(records)} 筆記錄")
+    else:
+        print("  ✗ 略過儲存")
+    print()
 
 
 if __name__ == "__main__":

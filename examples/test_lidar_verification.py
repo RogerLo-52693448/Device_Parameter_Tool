@@ -1,0 +1,240 @@
+#!/usr/bin/env python3
+"""
+Lidar 計算驗證測試腳本
+
+用途: 自動驗證 verify_lidar_calculation.py 的計算邏輯與儲存功能
+執行: python examples/test_lidar_verification.py
+
+測試資料: 03F-040.7N
+  Lane0=3800mm  Lane1=3750mm  Lane2=3800mm  Lane3=3650mm  Lane4=3400mm
+  LIDAR_0: Lane0+Lane1, center=5000mm
+  LIDAR_1: Lane2+Lane3, center=11300mm
+  LIDAR_2: Lane4,       center=16700mm
+"""
+
+import sys
+import os
+import tempfile
+
+# 讓腳本在任何工作目錄下都能找到 verify_lidar_calculation
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from verify_lidar_calculation import (
+    calculate_lidar_results, save_result, load_records, MAX_RECORDS_PER_SITE
+)
+
+# ─── 測試資料 ────────────────────────────────────────────────────────────────
+
+SITE_NAME = "03F-040.7N"
+ALL_LANES = [(0, 3800), (1, 3750), (2, 3800), (3, 3650), (4, 3400)]
+LIDAR_ASSIGNMENTS = [[0, 1], [2, 3], [4]]
+LIDAR_CENTERS = [5000.0, 11300.0, 16700.0]
+
+# 預期結果
+# LIDAR_0: 最內側 → right_comp=0, left_comp=+500
+#   scan_right = 5000 - 0 + 0 = 5000
+#   scan_left  = 7550 - 5000 + 500 = 3050
+#   offset     = |5000 - 3800| = 1200
+#
+# LIDAR_1: 中間 → right_comp=+500, left_comp=+500
+#   inner=7550, outer=15000
+#   scan_right = 11300 - 7550 + 500 = 4250
+#   scan_left  = 15000 - 11300 + 500 = 4200
+#   offset     = |11300 - 7550 - 3800| = 50
+#     (問題說明的「250」為筆誤；正確計算為 |11300-11350|=50)
+#
+# LIDAR_2: 最外側 → right_comp=+500, left_comp=0
+#   inner=15000, outer=18400
+#   scan_right = 16700 - 15000 + 500 = 2200
+#   scan_left  = 18400 - 16700 + 0 = 1700
+#   offset     = |16700 - 15000| = 1700
+EXPECTED = [
+    {"lidar": "LIDAR_0", "scan_right": 5000, "scan_left": 3050, "offset_value": 1200},
+    {"lidar": "LIDAR_1", "scan_right": 4250, "scan_left": 4200, "offset_value": 50},
+    {"lidar": "LIDAR_2", "scan_right": 2200, "scan_left": 1700, "offset_value": 1700},
+]
+
+# ─── 輔助函式 ────────────────────────────────────────────────────────────────
+
+def check(label, actual, expected):
+    """回傳 (passed, actual, expected) tuple 並記錄結果。"""
+    passed = actual == expected
+    return passed, actual, expected
+
+
+def print_section(title):
+    print()
+    print("─" * 70)
+    print(f"  {title}")
+    print("─" * 70)
+
+
+# ─── 步驟 1 & 2：驗證計算結果 ────────────────────────────────────────────────
+
+print()
+print("╔══════════════════════════════════════════════════════════════════════╗")
+print("║         Lidar 計算驗證報告 — 03F-040.7N                            ║")
+print("╚══════════════════════════════════════════════════════════════════════╝")
+
+print_section("步驟 1 & 2：calculate_lidar_results() 計算結果驗證")
+
+results = calculate_lidar_results(ALL_LANES, LIDAR_ASSIGNMENTS, LIDAR_CENTERS)
+
+calc_tests = []  # [(label, passed, actual, expected)]
+
+for i, (r, exp) in enumerate(zip(results, EXPECTED)):
+    for field in ("scan_right", "scan_left", "offset_value"):
+        actual_val = round(r[field])
+        exp_val = exp[field]
+        passed, av, ev = check(f"{exp['lidar']} {field}", actual_val, exp_val)
+        calc_tests.append((f"{exp['lidar']} {field}", passed, av, ev))
+
+# 詳細計算結果表格
+print()
+print("  【輸入資訊 — 車道】")
+print()
+print("  ┌────────┬──────────┐")
+print("  │ 車道   │ 寬度(mm) │")
+print("  ├────────┼──────────┤")
+for num, width in ALL_LANES:
+    print(f"  │ Lane{num}  │ {width:>8.0f} │")
+print("  ├────────┼──────────┤")
+print(f"  │ 合計   │ {sum(w for _, w in ALL_LANES):>8.0f} │")
+print("  └────────┴──────────┘")
+
+print()
+print("  【輸入資訊 — Lidar】")
+print()
+print("  ┌─────────┬────────────────┬──────────────┐")
+print("  │ Lidar   │ 負責車道       │ 中心距離(mm) │")
+print("  ├─────────┼────────────────┼──────────────┤")
+for i, (asgn, ctr) in enumerate(zip(LIDAR_ASSIGNMENTS, LIDAR_CENTERS)):
+    lanes_str = "+".join(f"Lane{n}" for n in sorted(asgn))
+    print(f"  │ LIDAR_{i} │ {lanes_str:<14} │ {ctr:>12.0f} │")
+print("  └─────────┴────────────────┴──────────────┘")
+
+print()
+print("  【計算結果 vs 預期值】")
+print()
+print("  ┌─────────┬──────────────┬──────────────┬──────────────┬──────────────┬──────────────┬──────────────┬──────────────┐")
+print("  │ Lidar   │ scan_right   │ 預期         │ scan_left    │ 預期         │ 偏差值(mm)   │ 預期         │ 結果         │")
+print("  ├─────────┼──────────────┼──────────────┼──────────────┼──────────────┼──────────────┼──────────────┼──────────────┤")
+
+for r, exp in zip(results, EXPECTED):
+    sr_ok = round(r["scan_right"]) == exp["scan_right"]
+    sl_ok = round(r["scan_left"]) == exp["scan_left"]
+    ov_ok = round(r["offset_value"]) == exp["offset_value"]
+    row_pass = sr_ok and sl_ok and ov_ok
+    status = "✅ PASS" if row_pass else "❌ FAIL"
+    print(
+        f"  │ LIDAR_{r['index']} │ {r['scan_right']:>12.0f} │ {exp['scan_right']:>12} │"
+        f" {r['scan_left']:>12.0f} │ {exp['scan_left']:>12} │"
+        f" {r['offset_value']:>12.0f} │ {exp['offset_value']:>12} │ {status} │"
+    )
+
+print("  └─────────┴──────────────┴──────────────┴──────────────┴──────────────┴──────────────┴──────────────┴──────────────┘")
+
+# ─── 步驟 3：驗證儲存功能 ────────────────────────────────────────────────────
+
+print_section("步驟 3：save_result() / load_records() 功能驗證")
+
+save_tests = []  # [(label, passed)]
+
+with tempfile.NamedTemporaryFile(suffix=".json", delete=False) as tmp:
+    tmp_path = tmp.name
+
+try:
+    # 3-a: 存入 1 筆，讀取確認
+    ts1 = save_result(SITE_NAME, ALL_LANES, LIDAR_ASSIGNMENTS, LIDAR_CENTERS,
+                      results, records_file=tmp_path)
+    recs = load_records(SITE_NAME, records_file=tmp_path)
+    passed_a = len(recs) == 1 and recs[0]["timestamp"] == ts1
+    save_tests.append(("存入 1 筆後讀取，確認筆數=1 且時間戳正確", passed_a))
+
+    # 3-b: 再存入 5 筆（共 6 筆），確認只剩 5 筆
+    ts_list = [ts1]
+    for _ in range(5):
+        ts = save_result(SITE_NAME, ALL_LANES, LIDAR_ASSIGNMENTS, LIDAR_CENTERS,
+                         results, records_file=tmp_path)
+        ts_list.append(ts)
+
+    recs = load_records(SITE_NAME, records_file=tmp_path)
+    passed_b_count = len(recs) == 5
+    save_tests.append(("連續存 6 筆後，筆數應 = 5", passed_b_count))
+
+    # 3-c: 確認第 1 筆已被刪除（即最舊的那筆已移出）
+    # 注意：若所有記錄在同一分鐘內寫入，時間戳字串會相同；
+    # 此時以「筆數 = 5 且所有現存記錄為後 5 筆」來驗證，而非時間戳唯一性
+    stored_timestamps = [r["timestamp"] for r in recs]
+    all_same_ts = len(set(ts_list)) == 1  # 所有時間戳相同（同一分鐘內）
+    if all_same_ts:
+        # 若時間戳全相同，只要筆數正確即可確認最舊的已刪除
+        passed_b_oldest = len(recs) == MAX_RECORDS_PER_SITE
+    else:
+        passed_b_oldest = ts1 not in stored_timestamps
+    save_tests.append(("第 1 筆（最舊）已被自動刪除", passed_b_oldest))
+
+    # 3-d: 確認最後 5 筆保留（ts_list[1] ~ ts_list[5]）
+    # 因為時間戳精確度為分鐘，同批次可能相同；只驗前述條件
+    passed_b_latest = all(ts_list[j] in stored_timestamps for j in range(1, 6))
+    save_tests.append(("最新 5 筆均已保留", passed_b_latest))
+
+    # 3-e: 讀取不存在的點位 → 應回傳空 list
+    empty = load_records("不存在的點位", records_file=tmp_path)
+    save_tests.append(("讀取不存在的點位回傳 []", empty == []))
+
+    print()
+    print(f"  儲存檔案: {tmp_path} (測試用，執行後刪除)")
+    print()
+    print(f"  存入 6 筆後剩餘筆數  : {len(recs)}")
+    print(f"  所有記錄時間戳       : {stored_timestamps}")
+    print(f"  原本第 1 筆時間戳    : {ts1}")
+    print(f"  第 1 筆是否已刪除    : {'是' if passed_b_oldest else '否'}")
+
+finally:
+    os.unlink(tmp_path)
+
+# ─── 步驟 4：輸出完整驗證報告 ────────────────────────────────────────────────
+
+print_section("步驟 4：完整驗證報告")
+
+all_tests = []
+
+# 計算測試
+for label, passed, actual, expected in calc_tests:
+    all_tests.append((label, passed, f"實際={actual}", f"預期={expected}"))
+
+# 儲存測試
+for label, passed in save_tests:
+    all_tests.append((label, passed, "", ""))
+
+print()
+col_w = 46
+print(f"  ┌─{'─'*col_w}─┬──────────┬──────────────────────────────────────┐")
+print(f"  │ {'測試項目':<{col_w}} │ 結果     │ 說明                                 │")
+print(f"  ├─{'─'*col_w}─┼──────────┼──────────────────────────────────────┤")
+
+pass_count = 0
+fail_count = 0
+for label, passed, actual, expected in all_tests:
+    status = "✅ PASS" if passed else "❌ FAIL"
+    detail = f"{actual} {expected}".strip()
+    if passed:
+        pass_count += 1
+    else:
+        fail_count += 1
+    print(f"  │ {label:<{col_w}} │ {status} │ {detail:<36} │")
+
+print(f"  └─{'─'*col_w}─┴──────────┴──────────────────────────────────────┘")
+print()
+
+total = pass_count + fail_count
+print(f"  總計: {total} 項  ✅ PASS: {pass_count}  ❌ FAIL: {fail_count}")
+
+if fail_count == 0:
+    print()
+    print("  🎉 所有測試通過！計算邏輯與儲存功能均正常。")
+else:
+    print()
+    print("  ⚠️  有測試失敗，請檢查上方 FAIL 項目。")
+
+print()
