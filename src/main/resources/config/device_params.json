@@ -1,0 +1,67 @@
+{
+  "cameras": [
+    {
+      "camera_id": "CAM_001",
+      "name": "入口相機",
+      "latitude": 25.0330,
+      "longitude": 121.5654,
+      "orientation_degree": 45,
+      "orientation_label": "N45E",
+      "resolution": "1920x1080",
+      "fps": 30,
+      "exposure": "auto",
+      "white_balance": "auto",
+      "gain": 0,
+      "shutter_speed": "1/100",
+      "rtsp_url": "rtsp://<user>:<password>@192.168.50.152/rtsp_tunnel",
+      "custom_params": {}
+    }
+  ],
+  "lanes": [
+    {
+      "lane_id": "LANE_001",
+      "lane_number": 1,
+      "width": 3.5,
+      "description": "內車道"
+    },
+    {
+      "lane_id": "LANE_002",
+      "lane_number": 2,
+      "width": 3.5,
+      "description": "外車道"
+    }
+  ],
+  "lidars": {
+    "lidar_count": 1,
+    "units": [
+      {
+        "lidar_id": "LIDAR_001",
+        "assigned_lanes": ["LANE_001", "LANE_002"],
+        "lanes_covered": 2,
+        "offset_distance": 0.5,
+        "center_distance": 3.0,
+        "effective_left": 4.0,
+        "effective_right": 3.0,
+        "auto_calculate": true,
+        "description": "第一組Lidar - 涵蓋內外車道"
+      }
+    ]
+  },
+  "host": {
+    "mqtt_ip": "127.0.0.1",
+    "mqtt_port": 1883,
+    "mqtt_timeout": 60,
+    "rtsp_transport": "tcp",
+    "save_root": "C:\\Bosch",
+    "buffer_seconds": 4.0,
+    "max_retries": 10,
+    "log_level": "INFO",
+    "log_dir": "logs",
+    "trigger_topic": "LPR/Response/#",
+    "trigger_conditions": {
+      "topic_contains": "onvif-ej/VideoSource/MotionAlarm",
+      "source": "1",
+      "state": "true"
+    }
+  }
+}
