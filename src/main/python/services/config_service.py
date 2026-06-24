@@ -52,7 +52,8 @@ class ConfigService:
         """Save configuration to JSON file (backs up existing file first)."""
         if os.path.exists(self.config_path):
             shutil.copy2(self.config_path, self.config_path + ".bak")
-        os.makedirs(os.path.dirname(self.config_path), exist_ok=True)
+        dirpath = os.path.dirname(os.path.abspath(self.config_path))
+        os.makedirs(dirpath, exist_ok=True)
         with open(self.config_path, "w", encoding="utf-8") as f:
             json.dump(self.config.to_dict(), f, ensure_ascii=False, indent=2)
 

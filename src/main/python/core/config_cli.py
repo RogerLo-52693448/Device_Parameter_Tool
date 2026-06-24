@@ -1,7 +1,6 @@
 """設備參數調整工具 CLI — 互動式繁體中文選單"""
 
 import os
-import re
 import sys
 
 from src.main.python.models.device_config import (
@@ -58,11 +57,6 @@ def _ask(msg: str, validator=None, default=None):
             print(f"  ✗ 輸入不合法: {e}")
 
 
-def _mask_url(url: str) -> str:
-    """Replace credentials in a URL (user:password@) with asterisks."""
-    return re.sub(r"(://)[^@/]+@", r"\1****@", url)
-
-
 def _separator():
     print("─" * 42)
 
@@ -83,10 +77,8 @@ def _camera_list(svc: ConfigService):
         print("  目前無相機設定。")
         return
     for cam in cams:
-        print(f"  [{cam.camera_id}] {cam.name}  {cam.resolution} {cam.fps}fps")
-        print(f"      位置: {cam.latitude}, {cam.longitude}  方向: {cam.orientation_degree}° ({cam.orientation_label})")
         rtsp_status = "已設定" if cam.rtsp_url else "未設定"
-        print(f"      RTSP: {rtsp_status}")
+        print(f"  [{cam.camera_id}] {cam.name}  {cam.resolution} {cam.fps}fps  RTSP: {rtsp_status}")
 
 
 def _camera_add(svc: ConfigService):
