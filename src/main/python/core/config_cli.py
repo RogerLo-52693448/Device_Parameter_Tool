@@ -84,10 +84,9 @@ def _camera_list(svc: ConfigService):
         return
     for cam in cams:
         print(f"  [{cam.camera_id}] {cam.name}  {cam.resolution} {cam.fps}fps")
-        location = f"{cam.latitude}, {cam.longitude}"
-        orientation = f"{cam.orientation_degree}° ({cam.orientation_label})"
-        print(f"      位置: {location}  方向: {orientation}")
-        print(f"      RTSP: {_mask_url(cam.rtsp_url)}")
+        print(f"      位置: {cam.latitude}, {cam.longitude}  方向: {cam.orientation_degree}° ({cam.orientation_label})")
+        rtsp_status = "已設定" if cam.rtsp_url else "未設定"
+        print(f"      RTSP: {rtsp_status}")
 
 
 def _camera_add(svc: ConfigService):

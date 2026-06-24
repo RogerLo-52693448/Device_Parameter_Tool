@@ -262,8 +262,7 @@ class ConfigService:
     def export_config(self, filepath: str) -> None:
         """Export current config to a specified file path."""
         dirpath = os.path.dirname(os.path.abspath(filepath))
-        if dirpath:
-            os.makedirs(dirpath, exist_ok=True)
+        os.makedirs(dirpath, exist_ok=True)
         with open(filepath, "w", encoding="utf-8") as f:
             json.dump(self.config.to_dict(), f, ensure_ascii=False, indent=2)
 
