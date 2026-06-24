@@ -398,11 +398,11 @@ def _lidar_delete(svc: ConfigService):
 def _lidar_quick_setup(svc: ConfigService):
     print("\n【Lidar 快速設定】")
     lane_group_name = _ask("車道群組名稱", default=svc.config.lane_group_name)
-    lane_count = _ask("車道數量", validate_positive_int)
-    lidar_count = _ask("Lidar 數量", validate_positive_int)
+    new_lane_count = _ask("車道數量", validate_positive_int)
+    new_lidar_count = _ask("Lidar 數量", validate_positive_int)
 
     lanes = []
-    for idx in range(lane_count):
+    for idx in range(new_lane_count):
         width = _ask(f"Lane{idx} 寬度 (mm)", validate_positive_float)
         lanes.append(
             LaneConfig(
@@ -415,7 +415,7 @@ def _lidar_quick_setup(svc: ConfigService):
 
     units = []
     print("\n  請輸入每個 Lidar 的中心距離與負責車道（最多 2 個）")
-    for idx in range(lidar_count):
+    for idx in range(new_lidar_count):
         lidar_id = f"LIDAR_{idx:03d}"
         center_distance = _ask(f"{lidar_id} 中心點距離 (mm)", validate_non_negative_float)
         lane_numbers_raw = _ask(
@@ -428,7 +428,7 @@ def _lidar_quick_setup(svc: ConfigService):
         assigned_lanes = []
         for lane_num in lane_numbers:
             lane_idx = validate_non_negative_int(lane_num)
-            if lane_idx >= lane_count:
+            if lane_idx >= new_lane_count:
                 print(f"  ✗ Lane{lane_idx} 不存在。")
                 return
             assigned_lanes.append(f"LANE_{lane_idx:03d}")
