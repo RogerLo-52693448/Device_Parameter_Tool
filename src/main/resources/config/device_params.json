@@ -1,4 +1,5 @@
 {
+  "lane_group_name": "03F-040.7N",
   "cameras": [
     {
       "camera_id": "CAM_001",
@@ -19,31 +20,71 @@
   ],
   "lanes": [
     {
+      "lane_id": "LANE_000",
+      "lane_number": 0,
+      "width": 3800,
+      "description": "Lane0"
+    },
+    {
       "lane_id": "LANE_001",
       "lane_number": 1,
-      "width": 3.5,
-      "description": "內車道"
+      "width": 3750,
+      "description": "Lane1"
     },
     {
       "lane_id": "LANE_002",
       "lane_number": 2,
-      "width": 3.5,
-      "description": "外車道"
+      "width": 3800,
+      "description": "Lane2"
+    },
+    {
+      "lane_id": "LANE_003",
+      "lane_number": 3,
+      "width": 3650,
+      "description": "Lane3"
+    },
+    {
+      "lane_id": "LANE_004",
+      "lane_number": 4,
+      "width": 3400,
+      "description": "Lane4"
     }
   ],
   "lidars": {
-    "lidar_count": 1,
+    "lidar_count": 3,
     "units": [
       {
-        "lidar_id": "LIDAR_001",
-        "assigned_lanes": ["LANE_001", "LANE_002"],
+        "lidar_id": "LIDAR_000",
+        "assigned_lanes": ["LANE_000", "LANE_001"],
         "lanes_covered": 2,
-        "offset_distance": 0.5,
-        "center_distance": 3.0,
-        "effective_left": 4.0,
-        "effective_right": 3.0,
+        "offset_distance": 0,
+        "center_distance": 5000,
+        "effective_left": 3050,
+        "effective_right": 5000,
         "auto_calculate": true,
-        "description": "第一組Lidar - 涵蓋內外車道"
+        "description": "第一組Lidar - Lane0+Lane1"
+      },
+      {
+        "lidar_id": "LIDAR_001",
+        "assigned_lanes": ["LANE_002", "LANE_003"],
+        "lanes_covered": 2,
+        "offset_distance": 0,
+        "center_distance": 11300,
+        "effective_left": 4200,
+        "effective_right": 4250,
+        "auto_calculate": true,
+        "description": "第二組Lidar - Lane2+Lane3"
+      },
+      {
+        "lidar_id": "LIDAR_002",
+        "assigned_lanes": ["LANE_004"],
+        "lanes_covered": 1,
+        "offset_distance": 0,
+        "center_distance": 16500,
+        "effective_left": 1400,
+        "effective_right": 2000,
+        "auto_calculate": true,
+        "description": "第三組Lidar - Lane4"
       }
     ]
   },

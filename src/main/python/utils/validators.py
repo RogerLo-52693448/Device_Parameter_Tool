@@ -57,6 +57,14 @@ def validate_positive_int(val: Any) -> int:
     return val
 
 
+def validate_non_negative_int(val: Any) -> int:
+    """Validate value is a non-negative integer (>= 0)."""
+    val = int(val)
+    if val < 0:
+        raise ValueError(f"值必須大於等於 0，輸入值: {val}")
+    return val
+
+
 def validate_log_level(val: Any) -> str:
     """Validate log level: DEBUG/INFO/WARNING/ERROR."""
     val = str(val).upper()

@@ -17,6 +17,7 @@ from src.main.python.services.config_service import ConfigService
 
 def _make_config() -> dict:
     return {
+        "lane_group_name": "03F-040.7N",
         "cameras": [
             {
                 "camera_id": "CAM_001",
@@ -36,23 +37,48 @@ def _make_config() -> dict:
             }
         ],
         "lanes": [
-            {"lane_id": "LANE_001", "lane_number": 1, "width": 3.5, "description": "內車道"},
-            {"lane_id": "LANE_002", "lane_number": 2, "width": 3.5, "description": "外車道"},
+            {"lane_id": "LANE_000", "lane_number": 0, "width": 3800, "description": "Lane0"},
+            {"lane_id": "LANE_001", "lane_number": 1, "width": 3750, "description": "Lane1"},
+            {"lane_id": "LANE_002", "lane_number": 2, "width": 3800, "description": "Lane2"},
+            {"lane_id": "LANE_003", "lane_number": 3, "width": 3650, "description": "Lane3"},
+            {"lane_id": "LANE_004", "lane_number": 4, "width": 3400, "description": "Lane4"},
         ],
         "lidars": {
-            "lidar_count": 1,
+            "lidar_count": 3,
             "units": [
                 {
-                    "lidar_id": "LIDAR_001",
-                    "assigned_lanes": ["LANE_001", "LANE_002"],
+                    "lidar_id": "LIDAR_000",
+                    "assigned_lanes": ["LANE_000", "LANE_001"],
                     "lanes_covered": 2,
-                    "offset_distance": 0.5,
-                    "center_distance": 3.0,
-                    "effective_left": 4.0,
-                    "effective_right": 3.0,
+                    "offset_distance": 0.0,
+                    "center_distance": 5000.0,
+                    "effective_left": 3050.0,
+                    "effective_right": 5000.0,
                     "auto_calculate": True,
-                    "description": "測試Lidar",
-                }
+                    "description": "第一組Lidar - Lane0+Lane1",
+                },
+                {
+                    "lidar_id": "LIDAR_001",
+                    "assigned_lanes": ["LANE_002", "LANE_003"],
+                    "lanes_covered": 2,
+                    "offset_distance": 0.0,
+                    "center_distance": 11300.0,
+                    "effective_left": 4200.0,
+                    "effective_right": 4250.0,
+                    "auto_calculate": True,
+                    "description": "第二組Lidar - Lane2+Lane3",
+                },
+                {
+                    "lidar_id": "LIDAR_002",
+                    "assigned_lanes": ["LANE_004"],
+                    "lanes_covered": 1,
+                    "offset_distance": 0.0,
+                    "center_distance": 16500.0,
+                    "effective_left": 1400.0,
+                    "effective_right": 2000.0,
+                    "auto_calculate": True,
+                    "description": "第三組Lidar - Lane4",
+                },
             ],
         },
         "host": {
@@ -95,16 +121,17 @@ def svc(config_file):
 class TestLoadSave:
     def test_load_returns_device_config(self, svc):
         assert isinstance(svc.config, DeviceConfig)
+        assert svc.config.lane_group_name == "03F-040.7N"
 
     def test_load_cameras(self, svc):
         assert len(svc.config.cameras) == 1
         assert svc.config.cameras[0].camera_id == "CAM_001"
 
     def test_load_lanes(self, svc):
-        assert len(svc.config.lanes) == 2
+        assert len(svc.config.lanes) == 5
 
     def test_load_lidars(self, svc):
-        assert svc.config.lidars.lidar_count == 1
+        assert svc.config.lidars.lidar_count == 3
 
     def test_load_host(self, svc):
         assert svc.config.host.mqtt_ip == "127.0.0.1"
@@ -178,98 +205,103 @@ class TestCameraCRUD:
 
 class TestLaneCRUD:
     def test_get_existing_lane(self, svc):
-        lane = svc.get_lane("LANE_001")
+        lane = svc.get_lane("LANE_000")
         assert lane is not None
-        assert lane.width == 3.5
+        assert lane.width == 3800
 
     def test_add_lane(self, svc):
-        lane = LaneConfig(lane_id="LANE_003", lane_number=3, width=4.0, description="外側")
+        lane = LaneConfig(lane_id="LANE_005", lane_number=5, width=3500, description="外側")
         svc.add_lane(lane)
-        assert svc.get_lane("LANE_003") is not None
+        assert svc.get_lane("LANE_005") is not None
 
     def test_add_duplicate_lane_raises(self, svc):
-        lane = LaneConfig(lane_id="LANE_001", lane_number=1, width=3.5)
+        lane = LaneConfig(lane_id="LANE_000", lane_number=0, width=3800)
         with pytest.raises(ValueError):
             svc.add_lane(lane)
 
     def test_update_lane(self, svc):
-        svc.update_lane("LANE_001", {"width": 4.0})
-        assert svc.get_lane("LANE_001").width == 4.0
+        svc.update_lane("LANE_000", {"width": 3900})
+        assert svc.get_lane("LANE_000").width == 3900
 
     def test_delete_lane(self, svc):
-        svc.delete_lane("LANE_001")
-        assert svc.get_lane("LANE_001") is None
+        svc.delete_lane("LANE_000")
+        assert svc.get_lane("LANE_000") is None
 
 
 # ── Lidar CRUD ────────────────────────────────────────────────────────────────
 
 class TestLidarCRUD:
     def test_get_existing_lidar(self, svc):
-        unit = svc.get_lidar("LIDAR_001")
+        unit = svc.get_lidar("LIDAR_000")
         assert unit is not None
 
     def test_lanes_covered_property(self, svc):
-        unit = svc.get_lidar("LIDAR_001")
+        unit = svc.get_lidar("LIDAR_000")
         assert unit.lanes_covered == 2
 
     def test_add_lidar(self, svc):
         unit = LidarUnit(
-            lidar_id="LIDAR_002",
-            assigned_lanes=["LANE_001"],
+            lidar_id="LIDAR_003",
+            assigned_lanes=["LANE_004"],
             offset_distance=0.0,
-            center_distance=2.0,
-            effective_left=1.75,
-            effective_right=1.75,
+            center_distance=17000,
+            effective_left=1400,
+            effective_right=2500,
         )
         svc.add_lidar(unit)
-        assert svc.get_lidar("LIDAR_002") is not None
+        assert svc.get_lidar("LIDAR_003") is not None
 
     def test_update_lidar(self, svc):
-        svc.update_lidar("LIDAR_001", {"offset_distance": 1.0})
-        assert svc.get_lidar("LIDAR_001").offset_distance == 1.0
+        svc.update_lidar("LIDAR_000", {"offset_distance": 100.0})
+        assert svc.get_lidar("LIDAR_000").offset_distance == 100.0
 
     def test_delete_lidar(self, svc):
-        svc.delete_lidar("LIDAR_001")
-        assert svc.get_lidar("LIDAR_001") is None
+        svc.delete_lidar("LIDAR_000")
+        assert svc.get_lidar("LIDAR_000") is None
 
 
 # ── Lidar auto-calculation ────────────────────────────────────────────────────
 
 class TestLidarCalculation:
-    def test_calculate_effective_range(self, svc):
-        # LANE_001 (3.5m) + LANE_002 (3.5m) = 7.0m total
-        # offset_distance = 0.5
-        # effective_left  = (7/2) + 0.5 = 4.0
-        # effective_right = (7/2) - 0.5 = 3.0
-        unit = svc.calculate_lidar_effective_range("LIDAR_001")
-        assert unit.effective_left == pytest.approx(4.0)
-        assert unit.effective_right == pytest.approx(3.0)
+    def test_calculate_innermost_lidar(self, svc):
+        unit = svc.calculate_lidar_effective_range("LIDAR_000")
+        assert unit.effective_right == pytest.approx(5000)
+        assert unit.effective_left == pytest.approx(3050)
 
-    def test_calculate_with_zero_offset(self, svc):
-        svc.update_lidar("LIDAR_001", {"offset_distance": 0.0})
+    def test_calculate_middle_lidar(self, svc):
         unit = svc.calculate_lidar_effective_range("LIDAR_001")
-        assert unit.effective_left == pytest.approx(3.5)
-        assert unit.effective_right == pytest.approx(3.5)
+        assert unit.effective_right == pytest.approx(4250)
+        assert unit.effective_left == pytest.approx(4200)
 
-    def test_calculate_with_negative_offset(self, svc):
-        svc.update_lidar("LIDAR_001", {"offset_distance": -0.5})
-        unit = svc.calculate_lidar_effective_range("LIDAR_001")
-        assert unit.effective_left == pytest.approx(3.0)
-        assert unit.effective_right == pytest.approx(4.0)
+    def test_calculate_outermost_lidar(self, svc):
+        unit = svc.calculate_lidar_effective_range("LIDAR_002")
+        assert unit.effective_right == pytest.approx(2000)
+        assert unit.effective_left == pytest.approx(1900)
 
     def test_calculate_invalid_lane_raises(self, svc):
-        svc.update_lidar("LIDAR_001", {"assigned_lanes": ["LANE_999"]})
+        svc.update_lidar("LIDAR_000", {"assigned_lanes": ["LANE_999"]})
         with pytest.raises(ValueError):
-            svc.calculate_lidar_effective_range("LIDAR_001")
+            svc.calculate_lidar_effective_range("LIDAR_000")
+
+    def test_assigned_lanes_max_two_validation(self, svc):
+        svc.update_lidar("LIDAR_000", {"assigned_lanes": ["LANE_000", "LANE_001", "LANE_002"]})
+        with pytest.raises(ValueError):
+            svc.calculate_lidar_effective_range("LIDAR_000")
+
+    def test_cross_lane_compensation_boundaries(self, svc):
+        innermost = svc.calculate_lidar_effective_range("LIDAR_000")
+        outermost = svc.calculate_lidar_effective_range("LIDAR_002")
+        assert innermost.effective_right == pytest.approx(5000)
+        assert outermost.effective_left == pytest.approx(1900)
 
     def test_recalculate_all_returns_ids(self, svc):
         updated = svc.recalculate_all_lidars()
         assert "LIDAR_001" in updated
 
     def test_recalculate_skips_manual(self, svc):
-        svc.update_lidar("LIDAR_001", {"auto_calculate": False})
+        svc.update_lidar("LIDAR_000", {"auto_calculate": False})
         updated = svc.recalculate_all_lidars()
-        assert "LIDAR_001" not in updated
+        assert "LIDAR_000" not in updated
 
 
 # ── Host ──────────────────────────────────────────────────────────────────────

@@ -14,6 +14,7 @@ from src.main.python.utils.validators import (
     validate_log_level,
     validate_longitude,
     validate_non_negative_float,
+    validate_non_negative_int,
     validate_orientation,
     validate_port,
     validate_positive_float,
@@ -184,7 +185,7 @@ def _lane_list(svc: ConfigService):
         print("  目前無車道設定。")
         return
     for lane in lanes:
-        print(f"  [{lane.lane_id}] 車道{lane.lane_number}  寬度: {lane.width}m  {lane.description}")
+        print(f"  [{lane.lane_id}] 車道{lane.lane_number}  寬度: {lane.width}mm  {lane.description}")
 
 
 def _lane_add(svc: ConfigService):
@@ -193,8 +194,8 @@ def _lane_add(svc: ConfigService):
     if svc.get_lane(lane_id):
         print(f"  ✗ 車道 ID {lane_id} 已存在")
         return
-    number = _ask("車道編號 (由內到外)", validate_positive_int, 1)
-    width = _ask("車道寬度 (公尺)", validate_positive_float)
+    number = _ask("車道編號 (由內到外，起始可為 0)", validate_non_negative_int, 0)
+    width = _ask("車道寬度 (mm)", validate_positive_float)
     desc = _ask("備註說明", default="")
     lane = LaneConfig(lane_id=lane_id, lane_number=number, width=width, description=desc)
     svc.add_lane(lane)
@@ -211,8 +212,8 @@ def _lane_edit(svc: ConfigService):
         print(f"  ✗ 找不到車道 {lane_id}")
         return
     params = {}
-    params["lane_number"] = _ask("車道編號", validate_positive_int, lane.lane_number)
-    params["width"] = _ask("車道寬度 (公尺)", validate_positive_float, lane.width)
+    params["lane_number"] = _ask("車道編號", validate_non_negative_int, lane.lane_number)
+    params["width"] = _ask("車道寬度 (mm)", validate_positive_float, lane.width)
     params["description"] = _ask("備註說明", default=lane.description)
     svc.update_lane(lane_id, params)
     svc.save_config()
@@ -280,27 +281,36 @@ def _lidar_list(svc: ConfigService):
         print("  目前無 Lidar 設定。")
         return
     for unit in units:
-        print(f"  [{unit.lidar_id}] 負責車道: {unit.assigned_lanes}  偏差: {unit.offset_distance}m")
-        print(f"      中心距: {unit.center_distance}m  有效左: {unit.effective_left}m  有效右: {unit.effective_right}m")
+        print(f"  [{unit.lidar_id}] 負責車道: {unit.assigned_lanes}  偏差: {unit.offset_distance}mm")
+        print(f"      中心距: {unit.center_distance}mm  有效左: {unit.effective_left}mm  有效右: {unit.effective_right}mm")
         print(f"      自動計算: {'是' if unit.auto_calculate else '否'}  {unit.description}")
 
 
 def _lidar_add(svc: ConfigService):
     print("\n【新增 Lidar】")
+    lane_count = len(svc.config.lanes)
+    lidar_count = len(svc.config.lidars.units)
+    print(f"  目前車道數量: {lane_count}，目前 Lidar 數量: {lidar_count}")
+    if lane_count == 0:
+        print("  ✗ 尚未設定車道，請先完成車道設定。")
+        return
     lidar_id = _ask("Lidar ID (例如 LIDAR_002)")
     if svc.get_lidar(lidar_id):
         print(f"  ✗ Lidar ID {lidar_id} 已存在")
         return
-    lanes_input = _ask("負責車道 ID (用逗號分隔，例如 LANE_001,LANE_002)")
+    center = _ask("中心點距離 (Lidar 到內路肩護欄，mm)", validate_non_negative_float, 0.0)
+    lanes_input = _ask("負責車道 ID (最多 2 個，逗號分隔，例如 LANE_000,LANE_001)")
     assigned = [x.strip() for x in lanes_input.split(",") if x.strip()]
-    offset = _ask("偏差距離 (正=偏右，負=偏左)", _validate_float, 0.0)
-    center = _ask("中心點距離 (公尺)", validate_non_negative_float, 0.0)
+    if len(assigned) > 2:
+        print("  ✗ 每個 Lidar 最多只能負責 2 個車道。")
+        return
+    offset = _ask("偏差距離 (mm，保留欄位)", _validate_float, 0.0)
     auto_calc = input("  是否啟用自動計算有效區？(Y/n): ").strip().lower() != "n"
     if auto_calc:
         eff_left, eff_right = 0.0, 0.0
     else:
-        eff_left = _ask("往左有效區距離 (公尺)", validate_non_negative_float, 0.0)
-        eff_right = _ask("往右有效區距離 (公尺)", validate_non_negative_float, 0.0)
+        eff_left = _ask("往左有效區距離 (mm)", validate_non_negative_float, 0.0)
+        eff_right = _ask("往右有效區距離 (mm)", validate_non_negative_float, 0.0)
     desc = _ask("備註說明", default="")
     unit = LidarUnit(
         lidar_id=lidar_id, assigned_lanes=assigned, offset_distance=offset,
@@ -311,6 +321,11 @@ def _lidar_add(svc: ConfigService):
     if auto_calc:
         try:
             svc.calculate_lidar_effective_range(lidar_id)
+            calculated = svc.get_lidar(lidar_id)
+            print(
+                f"  計算結果: 有效左={calculated.effective_left}mm, "
+                f"有效右={calculated.effective_right}mm"
+            )
         except ValueError as e:
             print(f"  ⚠ 無法自動計算: {e}")
     svc.save_config()
@@ -326,12 +341,20 @@ def _lidar_edit(svc: ConfigService):
         return
     params = {}
     lanes_input = _ask(
-        "負責車道 ID (逗號分隔)",
+        "負責車道 ID (最多 2 個，逗號分隔)",
         default=",".join(unit.assigned_lanes),
     )
-    params["assigned_lanes"] = [x.strip() for x in lanes_input.split(",") if x.strip()]
-    params["offset_distance"] = _ask("偏差距離", _validate_float, unit.offset_distance)
-    params["center_distance"] = _ask("中心點距離", validate_non_negative_float, unit.center_distance)
+    assigned = [x.strip() for x in lanes_input.split(",") if x.strip()]
+    if len(assigned) > 2:
+        print("  ✗ 每個 Lidar 最多只能負責 2 個車道。")
+        return
+    params["assigned_lanes"] = assigned
+    params["offset_distance"] = _ask("偏差距離 (mm，保留欄位)", _validate_float, unit.offset_distance)
+    params["center_distance"] = _ask(
+        "中心點距離 (Lidar 到內路肩護欄，mm)",
+        validate_non_negative_float,
+        unit.center_distance,
+    )
     auto_str = input(f"  目前自動計算: {'是' if unit.auto_calculate else '否'}  啟用自動計算？(y/n/Enter 保持不變): ").strip().lower()
     if auto_str == "y":
         params["auto_calculate"] = True
@@ -342,11 +365,16 @@ def _lidar_edit(svc: ConfigService):
     if svc.get_lidar(lidar_id).auto_calculate:
         try:
             svc.calculate_lidar_effective_range(lidar_id)
+            calculated = svc.get_lidar(lidar_id)
+            print(
+                f"  計算結果: 有效左={calculated.effective_left}mm, "
+                f"有效右={calculated.effective_right}mm"
+            )
         except ValueError as e:
             print(f"  ⚠ 無法自動計算: {e}")
     else:
-        eff_left = _ask("往左有效區距離", validate_non_negative_float, unit.effective_left)
-        eff_right = _ask("往右有效區距離", validate_non_negative_float, unit.effective_right)
+        eff_left = _ask("往左有效區距離 (mm)", validate_non_negative_float, unit.effective_left)
+        eff_right = _ask("往右有效區距離 (mm)", validate_non_negative_float, unit.effective_right)
         svc.update_lidar(lidar_id, {"effective_left": eff_left, "effective_right": eff_right})
     svc.save_config()
     print(f"  ✓ Lidar {lidar_id} 已更新。")
@@ -367,6 +395,85 @@ def _lidar_delete(svc: ConfigService):
         print("  已取消。")
 
 
+def _lidar_quick_setup(svc: ConfigService):
+    print("\n【Lidar 快速設定】")
+    lane_group_name = _ask("車道群組名稱", default=svc.config.lane_group_name)
+    lane_count = _ask("車道數量", validate_positive_int)
+    lidar_count = _ask("Lidar 數量", validate_positive_int)
+
+    lanes = []
+    for idx in range(lane_count):
+        width = _ask(f"Lane{idx} 寬度 (mm)", validate_positive_float)
+        lanes.append(
+            LaneConfig(
+                lane_id=f"LANE_{idx:03d}",
+                lane_number=idx,
+                width=width,
+                description=f"Lane{idx}",
+            )
+        )
+
+    units = []
+    print("\n  請輸入每個 Lidar 的中心距離與負責車道（最多 2 個）")
+    for idx in range(lidar_count):
+        lidar_id = f"LIDAR_{idx:03d}"
+        center_distance = _ask(f"{lidar_id} 中心點距離 (mm)", validate_non_negative_float)
+        lane_numbers_raw = _ask(
+            f"{lidar_id} 負責車道編號 (逗號分隔，例如 0,1)"
+        )
+        lane_numbers = [x.strip() for x in lane_numbers_raw.split(",") if x.strip()]
+        if not lane_numbers or len(lane_numbers) > 2:
+            print("  ✗ 每個 Lidar 必須指定 1~2 個車道。")
+            return
+        assigned_lanes = []
+        for lane_num in lane_numbers:
+            lane_idx = validate_non_negative_int(lane_num)
+            if lane_idx >= lane_count:
+                print(f"  ✗ Lane{lane_idx} 不存在。")
+                return
+            assigned_lanes.append(f"LANE_{lane_idx:03d}")
+        units.append(
+            LidarUnit(
+                lidar_id=lidar_id,
+                assigned_lanes=assigned_lanes,
+                offset_distance=0.0,
+                center_distance=center_distance,
+                effective_left=0.0,
+                effective_right=0.0,
+                auto_calculate=True,
+                description=f"快速設定 {lidar_id}",
+            )
+        )
+
+    old_group_name = svc.config.lane_group_name
+    old_lanes = svc.config.lanes
+    old_units = svc.config.lidars.units
+    svc.config.lane_group_name = lane_group_name
+    svc.config.lanes = lanes
+    svc.config.lidars.units = units
+
+    try:
+        for unit in units:
+            svc.calculate_lidar_effective_range(unit.lidar_id)
+    except ValueError as e:
+        svc.config.lane_group_name = old_group_name
+        svc.config.lanes = old_lanes
+        svc.config.lidars.units = old_units
+        print(f"  ✗ 快速設定失敗: {e}")
+        return
+
+    print("\n  計算結果預覽:")
+    _lidar_list(svc)
+    if input("  確認套用並存檔？(y/N): ").strip().lower() == "y":
+        svc.save_config()
+        print("  ✓ 快速設定已完成。")
+    else:
+        svc.config.lane_group_name = old_group_name
+        svc.config.lanes = old_lanes
+        svc.config.lidars.units = old_units
+        print("  已取消，未套用變更。")
+
+
 def menu_lidar(svc: ConfigService):
     while True:
         _separator()
@@ -376,8 +483,9 @@ def menu_lidar(svc: ConfigService):
         print("  3. 修改 Lidar")
         print("  4. 刪除 Lidar")
         print("  5. 重新計算指定 Lidar 有效區")
+        print("  6. 快速設定 (車道 + Lidar)")
         print("  0. 返回主選單")
-        choice = input("請選擇 [0-5]: ").strip()
+        choice = input("請選擇 [0-6]: ").strip()
         if choice == "1":
             _lidar_list(svc)
         elif choice == "2":
@@ -392,9 +500,11 @@ def menu_lidar(svc: ConfigService):
                 svc.calculate_lidar_effective_range(lidar_id)
                 svc.save_config()
                 unit = svc.get_lidar(lidar_id)
-                print(f"  ✓ 計算完成  有效左: {unit.effective_left}m  有效右: {unit.effective_right}m")
+                print(f"  ✓ 計算完成  有效左: {unit.effective_left}mm  有效右: {unit.effective_right}mm")
             except ValueError as e:
                 print(f"  ✗ {e}")
+        elif choice == "6":
+            _lidar_quick_setup(svc)
         elif choice == "0":
             break
         else:

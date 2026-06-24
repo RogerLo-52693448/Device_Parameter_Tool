@@ -5,6 +5,7 @@ from src.main.python.utils.validators import (
     validate_log_level,
     validate_longitude,
     validate_non_negative_float,
+    validate_non_negative_int,
     validate_orientation,
     validate_port,
     validate_positive_float,
@@ -115,6 +116,16 @@ class TestValidatePositiveInt:
     def test_invalid_negative(self):
         with pytest.raises(ValueError):
             validate_positive_int(-1)
+
+
+class TestValidateNonNegativeInt:
+    def test_valid(self):
+        assert validate_non_negative_int(0) == 0
+        assert validate_non_negative_int(30) == 30
+
+    def test_invalid_negative(self):
+        with pytest.raises(ValueError):
+            validate_non_negative_int(-1)
 
 
 class TestValidateLogLevel:

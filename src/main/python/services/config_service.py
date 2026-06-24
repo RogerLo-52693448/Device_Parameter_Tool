@@ -17,6 +17,7 @@ from src.main.python.utils.validators import (
     validate_log_level,
     validate_longitude,
     validate_non_negative_float,
+    validate_non_negative_int,
     validate_orientation,
     validate_port,
     validate_positive_float,
@@ -84,7 +85,7 @@ class ConfigService:
             except ValueError as e:
                 errors.append(f"車道 {lane.lane_id}: {e}")
             try:
-                validate_positive_int(lane.lane_number)
+                validate_non_negative_int(lane.lane_number)
             except ValueError as e:
                 errors.append(f"車道 {lane.lane_id} 車道編號: {e}")
 
@@ -103,6 +104,8 @@ class ConfigService:
                 errors.append(f"Lidar {unit.lidar_id} 往右有效區: {e}")
             if unit.lanes_covered < 1:
                 errors.append(f"Lidar {unit.lidar_id}: 負責車道數必須 >= 1")
+            if unit.lanes_covered > 2:
+                errors.append(f"Lidar {unit.lidar_id}: 負責車道數最多 2 個")
 
         if self.config.host:
             host = self.config.host
@@ -237,16 +240,51 @@ class ConfigService:
         if unit is None:
             raise ValueError(f"找不到 Lidar ID: {lidar_id}")
 
+        if unit.lanes_covered > 2:
+            raise ValueError(f"Lidar {lidar_id} 負責車道數最多 2 個")
+        if unit.lanes_covered < 1:
+            raise ValueError(f"Lidar {lidar_id} 至少要指定 1 個車道")
+
+        all_lanes_sorted = sorted(self.config.lanes, key=lambda lane: lane.lane_number)
+        if not all_lanes_sorted:
+            raise ValueError("尚未設定任何車道，無法計算 Lidar 有效區")
+
         lane_map: Dict[str, LaneConfig] = {l.lane_id: l for l in self.config.lanes}
-        total_width = 0.0
+        assigned_lane_objs: List[LaneConfig] = []
         for lid in unit.assigned_lanes:
             lane = lane_map.get(lid)
             if lane is None:
                 raise ValueError(f"Lidar {lidar_id} 引用了不存在的車道 ID: {lid}")
-            total_width += lane.width
+            assigned_lane_objs.append(lane)
 
-        unit.effective_left = (total_width / 2) + unit.offset_distance
-        unit.effective_right = (total_width / 2) - unit.offset_distance
+        assigned_lane_objs.sort(key=lambda lane: lane.lane_number)
+        min_assigned = assigned_lane_objs[0].lane_number
+        max_assigned = assigned_lane_objs[-1].lane_number
+
+        inner_boundary = sum(
+            lane.width for lane in all_lanes_sorted if lane.lane_number < min_assigned
+        )
+        assigned_width = sum(lane.width for lane in assigned_lane_objs)
+        outer_boundary = inner_boundary + assigned_width
+
+        min_lane_number = all_lanes_sorted[0].lane_number
+        max_lane_number = all_lanes_sorted[-1].lane_number
+        is_innermost = min_assigned == min_lane_number
+        is_outermost = max_assigned == max_lane_number
+
+        right_compensation = 0.0 if is_innermost else 500.0
+        left_compensation = 0.0 if is_outermost else 500.0
+
+        effective_right = unit.center_distance - inner_boundary + right_compensation
+        effective_left = outer_boundary - unit.center_distance + left_compensation
+
+        if effective_right < 0 or effective_left < 0:
+            raise ValueError(
+                f"Lidar {lidar_id} center_distance 超出負責車道範圍，請確認中心距離與車道設定"
+            )
+
+        unit.effective_right = effective_right
+        unit.effective_left = effective_left
         return unit
 
     def recalculate_all_lidars(self) -> List[str]:

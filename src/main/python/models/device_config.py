@@ -215,6 +215,7 @@ class HostConfig:
 
 @dataclass
 class DeviceConfig:
+    lane_group_name: str = ""
     cameras: List[CameraConfig] = field(default_factory=list)
     lanes: List[LaneConfig] = field(default_factory=list)
     lidars: LidarConfig = field(default_factory=LidarConfig)
@@ -222,6 +223,7 @@ class DeviceConfig:
 
     def to_dict(self) -> dict:
         return {
+            "lane_group_name": self.lane_group_name,
             "cameras": [c.to_dict() for c in self.cameras],
             "lanes": [l.to_dict() for l in self.lanes],
             "lidars": self.lidars.to_dict(),
@@ -235,4 +237,10 @@ class DeviceConfig:
         lidars = LidarConfig.from_dict(data.get("lidars", {}))
         host_data = data.get("host")
         host = HostConfig.from_dict(host_data) if host_data else None
-        return cls(cameras=cameras, lanes=lanes, lidars=lidars, host=host)
+        return cls(
+            lane_group_name=data.get("lane_group_name", ""),
+            cameras=cameras,
+            lanes=lanes,
+            lidars=lidars,
+            host=host,
+        )
