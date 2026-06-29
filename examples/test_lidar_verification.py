@@ -29,6 +29,9 @@ SITE_NAME = "03F-040.7N"
 ALL_LANES = [(0, 3800), (1, 3750), (2, 3800), (3, 3650), (4, 3400)]
 LIDAR_ASSIGNMENTS = [[0, 1], [2, 3], [4]]
 LIDAR_CENTERS = [5000.0, 11300.0, 16700.0]
+# 最後一顆 Lidar (LIDAR_2) 到外側護欄的距離
+# 18400 - 16700 = 1700mm → 總計 16700+1700=18400 vs 車道總寬 18400 → 差距 0mm (正常)
+LAST_LIDAR_OUTER_DIST = 1700.0
 
 # 預期結果
 # LIDAR_0: 最內側 → right_comp=0, left_comp=+500
@@ -146,16 +149,20 @@ with tempfile.NamedTemporaryFile(suffix=".json", delete=False) as tmp:
 try:
     # 3-a: 存入 1 筆，讀取確認
     ts1 = save_result(SITE_NAME, ALL_LANES, LIDAR_ASSIGNMENTS, LIDAR_CENTERS,
-                      results, records_file=tmp_path)
+                      results, records_file=tmp_path, last_lidar_outer_dist=LAST_LIDAR_OUTER_DIST)
     recs = load_records(SITE_NAME, records_file=tmp_path)
     passed_a = len(recs) == 1 and recs[0]["timestamp"] == ts1
     save_tests.append(("存入 1 筆後讀取，確認筆數=1 且時間戳正確", passed_a))
+
+    # 3-a2: 驗證 last_lidar_outer_dist 已正確儲存並讀取
+    passed_outer = recs[0].get("last_lidar_outer_dist") == LAST_LIDAR_OUTER_DIST
+    save_tests.append(("last_lidar_outer_dist 欄位正確儲存並讀取", passed_outer))
 
     # 3-b: 再存入 5 筆（共 6 筆），確認只剩 5 筆
     ts_list = [ts1]
     for _ in range(5):
         ts = save_result(SITE_NAME, ALL_LANES, LIDAR_ASSIGNMENTS, LIDAR_CENTERS,
-                         results, records_file=tmp_path)
+                         results, records_file=tmp_path, last_lidar_outer_dist=LAST_LIDAR_OUTER_DIST)
         ts_list.append(ts)
 
     recs = load_records(SITE_NAME, records_file=tmp_path)
@@ -208,14 +215,16 @@ try:
     # note 欄位寫入與讀取
     note_text = "現場重新量測"
     save_result(SITE_NAME, ALL_LANES, LIDAR_ASSIGNMENTS, LIDAR_CENTERS,
-                results, records_file=tmp2_path, note=note_text)
+                results, records_file=tmp2_path, note=note_text,
+                last_lidar_outer_dist=LAST_LIDAR_OUTER_DIST)
     recs2 = load_records(SITE_NAME, records_file=tmp2_path)
     passed_note = len(recs2) == 1 and recs2[0].get("note") == note_text
     note_tests.append(("note 欄位正確寫入並讀取", passed_note))
 
     # 空 note 預設為空字串
     save_result(SITE_NAME, ALL_LANES, LIDAR_ASSIGNMENTS, LIDAR_CENTERS,
-                results, records_file=tmp2_path)
+                results, records_file=tmp2_path,
+                last_lidar_outer_dist=LAST_LIDAR_OUTER_DIST)
     recs2 = load_records(SITE_NAME, records_file=tmp2_path)
     passed_empty_note = recs2[-1].get("note", None) == ""
     note_tests.append(("空 note 預設為空字串", passed_empty_note))
@@ -226,6 +235,7 @@ try:
     base_assignments = base_rec["lidar_assignments"]
     base_centers = base_rec["lidar_centers"]
     base_results = base_rec["results"]
+    base_outer_dist = base_rec.get("last_lidar_outer_dist")
 
     # 修改 Lane0 從 3800 → 3900 (+100mm)
     modified_lanes = list(base_lanes)
@@ -243,7 +253,8 @@ try:
 
     # 儲存修改後的記錄（含 note）
     save_result(SITE_NAME, modified_lanes, base_assignments, base_centers,
-                new_results, records_file=tmp2_path, note="調整 Lane0 路寬")
+                new_results, records_file=tmp2_path, note="調整 Lane0 路寬",
+                last_lidar_outer_dist=base_outer_dist)
     recs2_final = load_records(SITE_NAME, records_file=tmp2_path)
     passed_save_mod = len(recs2_final) == 3 and recs2_final[-1].get("note") == "調整 Lane0 路寬"
     note_tests.append(("修改後存入新一筆，note 正確", passed_save_mod))
@@ -253,18 +264,47 @@ try:
     print(f"  最後一筆備註: {recs2_final[-1].get('note', '')}")
     print(f"  LIDAR_0 scan_left 基底={sl0_base}  修改後={sl0_new}  差異={sl0_new - sl0_base:+d}mm")
 
-    # 驗證 _print_result_tables 可以執行（不拋例外）
+    # 驗證 _print_result_tables 可以執行（不拋例外），傳入 last_lidar_outer_dist
     try:
         import io, contextlib
         buf = io.StringIO()
         with contextlib.redirect_stdout(buf):
             _print_result_tables(SITE_NAME, modified_lanes, base_assignments, base_centers,
-                                 new_results, prev_results=base_results)
+                                 new_results, prev_results=base_results,
+                                 last_lidar_outer_dist=base_outer_dist)
         passed_print = True
     except Exception as e:
         passed_print = False
         print(f"  ✗ _print_result_tables 拋出例外: {e}")
     note_tests.append(("_print_result_tables 差異模式可正常執行", passed_print))
+
+    # 路寬一致性檢核測試：差距 0mm → 無警告
+    # LIDAR_2 center=16700, outer_dist=1700 → 合計 18400 == 車道總寬 18400
+    total_measured_ok = LIDAR_CENTERS[-1] + LAST_LIDAR_OUTER_DIST
+    total_lanes_ok = sum(w for _, w in ALL_LANES)
+    diff_ok = abs(total_measured_ok - total_lanes_ok)
+    passed_width_ok = diff_ok < 500
+    note_tests.append((f"路寬一致性：差距={diff_ok:.0f}mm < 500mm，無需警告", passed_width_ok))
+
+    # 路寬一致性檢核測試：差距 600mm → 應觸發警告
+    outer_dist_bad = LAST_LIDAR_OUTER_DIST + 600  # 故意超出 500mm
+    total_measured_bad = LIDAR_CENTERS[-1] + outer_dist_bad
+    diff_bad = abs(total_measured_bad - total_lanes_ok)
+    passed_width_warn = diff_bad >= 500
+    note_tests.append((f"路寬一致性：差距={diff_bad:.0f}mm ≥ 500mm，應觸發警告", passed_width_warn))
+
+    # 驗證 _print_result_tables 在差距≥500mm 時回傳包含路寬警告訊息
+    try:
+        buf2 = io.StringIO()
+        with contextlib.redirect_stdout(buf2):
+            warn_list = _print_result_tables(
+                SITE_NAME, ALL_LANES, LIDAR_ASSIGNMENTS, LIDAR_CENTERS,
+                results, last_lidar_outer_dist=outer_dist_bad)
+        passed_warn_msg = any("路寬一致性" in w for w in warn_list)
+    except Exception as e:
+        passed_warn_msg = False
+        print(f"  ✗ _print_result_tables 路寬警告測試拋出例外: {e}")
+    note_tests.append(("差距≥500mm 時 warnings 清單包含路寬一致性警告", passed_warn_msg))
 
 finally:
     os.unlink(tmp2_path)

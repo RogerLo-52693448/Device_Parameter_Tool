@@ -129,7 +129,7 @@ def calculate_lidar_results(
 
 
 def save_result(site_name, all_lanes, lidar_assignments, lidar_centers, results,
-                records_file=None, note=""):
+                records_file=None, note="", last_lidar_outer_dist=None):
     """
     儲存一筆計算記錄，每個點位最多保留 MAX_RECORDS_PER_SITE 筆（超過自動刪除最早的）。
 
@@ -141,6 +141,7 @@ def save_result(site_name, all_lanes, lidar_assignments, lidar_centers, results,
         results: calculate_lidar_results() 的回傳值
         records_file: 儲存檔案路徑 (預設 RECORDS_FILE)
         note: 備註字串，記錄此次儲存的原因（可留空）
+        last_lidar_outer_dist: 最後一顆 Lidar 到外側護欄的距離 (mm)，可為 None
 
     Returns:
         timestamp (str): 此筆記錄的時間戳記 (YYYYMMDDHHMM)
@@ -166,6 +167,7 @@ def save_result(site_name, all_lanes, lidar_assignments, lidar_centers, results,
         "all_lanes": [list(lane) for lane in all_lanes],
         "lidar_assignments": lidar_assignments,
         "lidar_centers": lidar_centers,
+        "last_lidar_outer_dist": last_lidar_outer_dist,
         "results": results,
     }
 
@@ -208,7 +210,7 @@ def load_records(site_name, records_file=None):
 
 
 def _print_result_tables(site_name, all_lanes, lidar_assignments, lidar_centers,
-                          results, prev_results=None):
+                          results, prev_results=None, last_lidar_outer_dist=None):
     """共用的結果顯示函式（可選傳入 prev_results 以顯示差異）。"""
     lidar_count = len(lidar_assignments)
 
@@ -313,6 +315,28 @@ def _print_result_tables(site_name, all_lanes, lidar_assignments, lidar_centers,
         print(f"    scan_left  = {r['outer_boundary']:.0f} - {r['center']:.0f} + {r['left_compensation']:.0f} = {r['scan_left']:.0f}mm")
         print(f"    偏差值     = {r['offset_formula']} = {r['offset_value']:.0f}mm")
 
+    # 路寬一致性檢核
+    if last_lidar_outer_dist is not None:
+        last_center = lidar_centers[-1]
+        total_measured = last_center + last_lidar_outer_dist
+        total_lanes = sum(w for _, w in all_lanes)
+        diff = abs(total_measured - total_lanes)
+        print()
+        print("  【路寬一致性檢核】")
+        print()
+        print(f"    最後一顆 Lidar 中心距離 (到內側護欄) : {last_center:.0f} mm")
+        print(f"    最後一顆 Lidar 到外側護欄距離        : {last_lidar_outer_dist:.0f} mm")
+        print(f"    實測合計 (中心 + 外側)               : {total_measured:.0f} mm")
+        print(f"    所有車道寬度加總                     : {total_lanes:.0f} mm")
+        print(f"    差距                                 : {diff:.0f} mm")
+        if diff >= 500:
+            print()
+            print("  ⚠️  注意！實測合計與車道總寬差距達 {:.0f} mm (≥ 500 mm)，請確認量測資料是否正確。".format(diff))
+            warnings.append(f"路寬一致性: 實測合計={total_measured:.0f}mm vs 車道總寬={total_lanes:.0f}mm，差距={diff:.0f}mm (≥500mm)")
+        else:
+            print()
+            print("  ✓ 路寬一致性正常，差距 {:.0f} mm < 500 mm。".format(diff))
+
     print()
     print("=" * 100)
     print("  完成！")
@@ -364,6 +388,7 @@ def load_and_modify():
     lidar_assignments = base_rec["lidar_assignments"]
     lidar_centers = base_rec["lidar_centers"]
     prev_results = base_rec["results"]
+    last_lidar_outer_dist = base_rec.get("last_lidar_outer_dist")
 
     print()
     print(f"  已載入第 {choice} 筆記錄（{base_rec.get('timestamp', '')}）")
@@ -408,10 +433,31 @@ def load_and_modify():
             except ValueError:
                 print("   ✗ 請輸入數字")
 
+    # ── 修改最後一顆 Lidar 到外側護欄的距離 ─────────────────────
+    print()
+    last_lidar_idx = len(lidar_assignments) - 1
+    outer_display = f"{last_lidar_outer_dist:.0f}mm" if last_lidar_outer_dist is not None else "未設定"
+    print(f"  【修改 LIDAR_{last_lidar_idx} 到外側護欄的距離】（直接 Enter 保留原值）")
+    new_last_lidar_outer_dist = last_lidar_outer_dist
+    while True:
+        raw = input(f"   LIDAR_{last_lidar_idx} 目前外側護欄距離: {outer_display}，新距離 (Enter 保留): ").strip()
+        if raw == "":
+            break
+        try:
+            new_val = float(raw)
+            if new_val < 0:
+                print("   ✗ 距離不可為負數")
+                continue
+            new_last_lidar_outer_dist = new_val
+            break
+        except ValueError:
+            print("   ✗ 請輸入數字")
+
     # ── 重新計算 ─────────────────────────────────────────────────
     new_results = calculate_lidar_results(new_lanes, lidar_assignments, new_centers)
     _print_result_tables(site_name, new_lanes, lidar_assignments, new_centers,
-                         new_results, prev_results=prev_results)
+                         new_results, prev_results=prev_results,
+                         last_lidar_outer_dist=new_last_lidar_outer_dist)
 
     # ── 儲存 ─────────────────────────────────────────────────────
     print()
@@ -419,7 +465,7 @@ def load_and_modify():
     if save_yn in ("", "y", "yes"):
         note = input("  備註（說明調整原因，可留空）: ").strip()
         ts = save_result(site_name, new_lanes, lidar_assignments, new_centers,
-                         new_results, note=note)
+                         new_results, note=note, last_lidar_outer_dist=new_last_lidar_outer_dist)
         records_now = load_records(site_name)
         print(f"  ✓ 已儲存！時間: {ts}，{site_name} 共 {len(records_now)} 筆記錄")
     else:
@@ -543,11 +589,26 @@ def main():
                 break
             except ValueError:
                 print("   ✗ 請輸入數字")
+
+    # 最後一顆 Lidar 到外側護欄的距離
+    last_lidar_outer_dist = None
+    while True:
+        try:
+            raw = input(f"   LIDAR_{lidar_count - 1} 到外側護欄的距離 (mm): ")
+            val = float(raw)
+            if val < 0:
+                print("   ✗ 距離不可為負數")
+                continue
+            last_lidar_outer_dist = val
+            break
+        except ValueError:
+            print("   ✗ 請輸入數字")
     print()
 
     # ── 7. 計算並顯示結果 ────────────────────────────────────────
     results = calculate_lidar_results(all_lanes, lidar_assignments, lidar_centers)
-    _print_result_tables(site_name, all_lanes, lidar_assignments, lidar_centers, results)
+    _print_result_tables(site_name, all_lanes, lidar_assignments, lidar_centers, results,
+                         last_lidar_outer_dist=last_lidar_outer_dist)
 
     # ── 8. 儲存結果 ──────────────────────────────────────────────
     print()
@@ -555,7 +616,7 @@ def main():
     if save_yn in ("", "y", "yes"):
         note = input("  備註（說明此次輸入原因，可留空）: ").strip()
         ts = save_result(site_name, all_lanes, lidar_assignments, lidar_centers,
-                         results, note=note)
+                         results, note=note, last_lidar_outer_dist=last_lidar_outer_dist)
         records = load_records(site_name)
         print(f"  ✓ 已儲存！時間: {ts}，{site_name} 共 {len(records)} 筆記錄")
     else:
