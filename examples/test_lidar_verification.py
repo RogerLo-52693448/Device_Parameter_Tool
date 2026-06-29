@@ -19,7 +19,8 @@ import tempfile
 # 讓腳本在任何工作目錄下都能找到 verify_lidar_calculation
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from verify_lidar_calculation import (
-    calculate_lidar_results, save_result, load_records, MAX_RECORDS_PER_SITE
+    calculate_lidar_results, save_result, load_records,
+    MAX_RECORDS_PER_SITE, _print_result_tables
 )
 
 # ─── 測試資料 ────────────────────────────────────────────────────────────────
@@ -193,6 +194,81 @@ try:
 finally:
     os.unlink(tmp_path)
 
+
+# ─── 步驟 3b：note 欄位 + 載入修改邏輯驗證 ──────────────────────────────────
+
+print_section("步驟 3b：note 欄位 & 載入修改邏輯驗證")
+
+note_tests = []
+
+with tempfile.NamedTemporaryFile(suffix=".json", delete=False) as tmp2:
+    tmp2_path = tmp2.name
+
+try:
+    # note 欄位寫入與讀取
+    note_text = "現場重新量測"
+    save_result(SITE_NAME, ALL_LANES, LIDAR_ASSIGNMENTS, LIDAR_CENTERS,
+                results, records_file=tmp2_path, note=note_text)
+    recs2 = load_records(SITE_NAME, records_file=tmp2_path)
+    passed_note = len(recs2) == 1 and recs2[0].get("note") == note_text
+    note_tests.append(("note 欄位正確寫入並讀取", passed_note))
+
+    # 空 note 預設為空字串
+    save_result(SITE_NAME, ALL_LANES, LIDAR_ASSIGNMENTS, LIDAR_CENTERS,
+                results, records_file=tmp2_path)
+    recs2 = load_records(SITE_NAME, records_file=tmp2_path)
+    passed_empty_note = recs2[-1].get("note", None) == ""
+    note_tests.append(("空 note 預設為空字串", passed_empty_note))
+
+    # 模擬「載入並修改」：讀取基底記錄，修改車道寬度，重新計算，確認差異
+    base_rec = recs2[0]
+    base_lanes = [tuple(lane) for lane in base_rec["all_lanes"]]
+    base_assignments = base_rec["lidar_assignments"]
+    base_centers = base_rec["lidar_centers"]
+    base_results = base_rec["results"]
+
+    # 修改 Lane0 從 3800 → 3900 (+100mm)
+    modified_lanes = list(base_lanes)
+    modified_lanes[0] = (0, 3900.0)
+    new_results = calculate_lidar_results(modified_lanes, base_assignments, base_centers)
+
+    # scan_right 應增加 100mm（因為 inner_boundary 沒變，outer_boundary 增加 100）
+    # LIDAR_0: outer_boundary 3900+3750=7650 → scan_left = 7650-5000+500 = 3150 (+100)
+    sr0_new = round(new_results[0]["scan_right"])
+    sl0_new = round(new_results[0]["scan_left"])
+    sr0_base = round(base_results[0]["scan_right"])
+    sl0_base = round(base_results[0]["scan_left"])
+    passed_diff = (sr0_new == sr0_base) and (sl0_new == sl0_base + 100)
+    note_tests.append(("修改 Lane0 +100mm 後 LIDAR_0 scan_left 增加 100mm", passed_diff))
+
+    # 儲存修改後的記錄（含 note）
+    save_result(SITE_NAME, modified_lanes, base_assignments, base_centers,
+                new_results, records_file=tmp2_path, note="調整 Lane0 路寬")
+    recs2_final = load_records(SITE_NAME, records_file=tmp2_path)
+    passed_save_mod = len(recs2_final) == 3 and recs2_final[-1].get("note") == "調整 Lane0 路寬"
+    note_tests.append(("修改後存入新一筆，note 正確", passed_save_mod))
+
+    print()
+    print(f"  測試記錄數量: {len(recs2_final)}")
+    print(f"  最後一筆備註: {recs2_final[-1].get('note', '')}")
+    print(f"  LIDAR_0 scan_left 基底={sl0_base}  修改後={sl0_new}  差異={sl0_new - sl0_base:+d}mm")
+
+    # 驗證 _print_result_tables 可以執行（不拋例外）
+    try:
+        import io, contextlib
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            _print_result_tables(SITE_NAME, modified_lanes, base_assignments, base_centers,
+                                 new_results, prev_results=base_results)
+        passed_print = True
+    except Exception as e:
+        passed_print = False
+        print(f"  ✗ _print_result_tables 拋出例外: {e}")
+    note_tests.append(("_print_result_tables 差異模式可正常執行", passed_print))
+
+finally:
+    os.unlink(tmp2_path)
+
 # ─── 步驟 4：輸出完整驗證報告 ────────────────────────────────────────────────
 
 print_section("步驟 4：完整驗證報告")
@@ -205,6 +281,10 @@ for label, passed, actual, expected in calc_tests:
 
 # 儲存測試
 for label, passed in save_tests:
+    all_tests.append((label, passed, "", ""))
+
+# note + 載入修改測試
+for label, passed in note_tests:
     all_tests.append((label, passed, "", ""))
 
 print()

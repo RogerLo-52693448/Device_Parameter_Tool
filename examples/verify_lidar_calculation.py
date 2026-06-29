@@ -129,7 +129,7 @@ def calculate_lidar_results(
 
 
 def save_result(site_name, all_lanes, lidar_assignments, lidar_centers, results,
-                records_file=None):
+                records_file=None, note=""):
     """
     儲存一筆計算記錄，每個點位最多保留 MAX_RECORDS_PER_SITE 筆（超過自動刪除最早的）。
 
@@ -140,6 +140,7 @@ def save_result(site_name, all_lanes, lidar_assignments, lidar_centers, results,
         lidar_centers: [center_distance, ...]
         results: calculate_lidar_results() 的回傳值
         records_file: 儲存檔案路徑 (預設 RECORDS_FILE)
+        note: 備註字串，記錄此次儲存的原因（可留空）
 
     Returns:
         timestamp (str): 此筆記錄的時間戳記 (YYYYMMDDHHMM)
@@ -161,6 +162,7 @@ def save_result(site_name, all_lanes, lidar_assignments, lidar_centers, results,
     timestamp = datetime.now().strftime("%Y%m%d%H%M")
     record = {
         "timestamp": timestamp,
+        "note": note,
         "all_lanes": [list(lane) for lane in all_lanes],
         "lidar_assignments": lidar_assignments,
         "lidar_centers": lidar_centers,
@@ -205,13 +207,250 @@ def load_records(site_name, records_file=None):
 
 
 
+def _print_result_tables(site_name, all_lanes, lidar_assignments, lidar_centers,
+                          results, prev_results=None):
+    """共用的結果顯示函式（可選傳入 prev_results 以顯示差異）。"""
+    lidar_count = len(lidar_assignments)
+
+    print()
+    print("=" * 100)
+    print(f"  計算結果 — {site_name}")
+    print("=" * 100)
+
+    # 車道資訊
+    print()
+    print("  【車道資訊】")
+    print()
+    print("  ┌────────┬──────────┐")
+    print("  │ 車道   │ 寬度(mm) │")
+    print("  ├────────┼──────────┤")
+    for num, width in all_lanes:
+        print(f"  │ Lane{num}  │ {width:>8.0f} │")
+    print("  ├────────┼──────────┤")
+    print(f"  │ 合計   │ {sum(w for _, w in all_lanes):>8.0f} │")
+    print("  └────────┴──────────┘")
+    print()
+
+    print("  [護欄]", end="")
+    for num, width in all_lanes:
+        print(f" |← Lane{num}:{width:.0f} →|", end="")
+    print(" [外側]")
+    print()
+
+    # Lidar 輸入資訊
+    print("  【Lidar 輸入資訊】")
+    print()
+    print("  ┌─────────┬────────────────┬──────────────┐")
+    print("  │ Lidar   │ 負責車道       │ 中心距離(mm) │")
+    print("  ├─────────┼────────────────┼──────────────┤")
+    for i in range(lidar_count):
+        lanes_str = "+".join([f"Lane{n}" for n in sorted(lidar_assignments[i])])
+        print(f"  │ LIDAR_{i} │ {lanes_str:<14} │ {lidar_centers[i]:>12.0f} │")
+    print("  └─────────┴────────────────┴──────────────┘")
+    print()
+
+    # 計算結果表格（含差異欄）
+    print("  【計算結果】")
+    print()
+    if prev_results:
+        print("  ┌─────────┬────────────────┬──────────────┬──────────────────────┬──────────────────────┬──────────────────────┬────────┐")
+        print("  │ Lidar   │ 負責車道       │ 中心距離(mm) │ scan_right (差異)    │ scan_left (差異)     │ 偏差值(mm) (差異)    │ 狀態   │")
+        print("  ├─────────┼────────────────┼──────────────┼──────────────────────┼──────────────────────┼──────────────────────┼────────┤")
+    else:
+        print("  ┌─────────┬────────────────┬──────────────┬──────────────┬──────────────┬──────────────┬────────┐")
+        print("  │ Lidar   │ 負責車道       │ 中心距離(mm) │ scan_right   │ scan_left    │ 偏差值(mm)   │ 狀態   │")
+        print("  ├─────────┼────────────────┼──────────────┼──────────────┼──────────────┼──────────────┼────────┤")
+
+    def _diff(new_val, old_val):
+        d = new_val - old_val
+        return f"{new_val:.0f} ({'+' if d >= 0 else ''}{d:.0f})"
+
+    warnings = []
+    for r in results:
+        lanes_str = "+".join([f"Lane{n}" for n in r["assigned"]])
+        status = "✓ 正常"
+        if r["scan_right"] > SCAN_LIMIT or r["scan_left"] > SCAN_LIMIT:
+            status = "⚠ 警告"
+            if r["scan_right"] > SCAN_LIMIT:
+                warnings.append(f"LIDAR_{r['index']}: scan_right={r['scan_right']:.0f}mm 超過 {SCAN_LIMIT:.0f}mm 偵測上限")
+            if r["scan_left"] > SCAN_LIMIT:
+                warnings.append(f"LIDAR_{r['index']}: scan_left={r['scan_left']:.0f}mm 超過 {SCAN_LIMIT:.0f}mm 偵測上限")
+        if r["scan_right"] < 0 or r["scan_left"] < 0:
+            status = "✗ 錯誤"
+
+        if prev_results:
+            pr = next((p for p in prev_results if p["index"] == r["index"]), None)
+            sr_str = _diff(r["scan_right"], pr["scan_right"]) if pr else f"{r['scan_right']:.0f}"
+            sl_str = _diff(r["scan_left"], pr["scan_left"]) if pr else f"{r['scan_left']:.0f}"
+            ov_str = _diff(r["offset_value"], pr["offset_value"]) if pr else f"{r['offset_value']:.0f}"
+            print(f"  │ LIDAR_{r['index']} │ {lanes_str:<14} │ {r['center']:>12.0f} │ {sr_str:<20} │ {sl_str:<20} │ {ov_str:<20} │ {status} │")
+        else:
+            print(f"  │ LIDAR_{r['index']} │ {lanes_str:<14} │ {r['center']:>12.0f} │ {r['scan_right']:>12.0f} │ {r['scan_left']:>12.0f} │ {r['offset_value']:>12.0f} │ {status} │")
+
+    if prev_results:
+        print("  └─────────┴────────────────┴──────────────┴──────────────────────┴──────────────────────┴──────────────────────┴────────┘")
+    else:
+        print("  └─────────┴────────────────┴──────────────┴──────────────┴──────────────┴──────────────┴────────┘")
+
+    if warnings:
+        print()
+        print("  ⚠️  警告訊息:")
+        for w in warnings:
+            print(f"    → {w}")
+            print(f"      建議: 需要再拆分車道，增加 Lidar 數量以縮小偵測範圍")
+
+    # 詳細計算過程
+    print()
+    print("  【詳細計算過程】")
+    for r in results:
+        lanes_str = "+".join([f"Lane{n}" for n in r["assigned"]])
+        print()
+        print(f"  LIDAR_{r['index']} ({lanes_str}, center={r['center']:.0f}mm):")
+        print(f"    負責車道邊界: {r['inner_boundary']:.0f}mm ~ {r['outer_boundary']:.0f}mm")
+        print(f"    最內側: {'是' if r['is_innermost'] else '否'} (右補償 +{r['right_compensation']:.0f}mm)")
+        print(f"    最外側: {'是' if r['is_outermost'] else '否'} (左補償 +{r['left_compensation']:.0f}mm)")
+        print(f"    scan_right = {r['center']:.0f} - {r['inner_boundary']:.0f} + {r['right_compensation']:.0f} = {r['scan_right']:.0f}mm")
+        print(f"    scan_left  = {r['outer_boundary']:.0f} - {r['center']:.0f} + {r['left_compensation']:.0f} = {r['scan_left']:.0f}mm")
+        print(f"    偏差值     = {r['offset_formula']} = {r['offset_value']:.0f}mm")
+
+    print()
+    print("=" * 100)
+    print("  完成！")
+    print("=" * 100)
+
+    return warnings
+
+
+def load_and_modify():
+    """載入既有記錄並修改車道/中心點，重新計算後存為新一筆。"""
+    print()
+    site_name = input("請輸入點位名稱: ").strip()
+    if not site_name:
+        print("   ✗ 點位名稱不能為空")
+        return
+
+    records = load_records(site_name)
+    if not records:
+        print(f"   ✗ 找不到點位「{site_name}」的記錄，請先使用「全新輸入」建立資料。")
+        return
+
+    # 顯示歷史記錄清單
+    print()
+    print(f"  點位「{site_name}」共有 {len(records)} 筆記錄：")
+    print()
+    print("  ┌────┬──────────────┬──────────────────────────────────────────┬────────────┐")
+    print("  │ #  │ 時間戳       │ 備註                                     │ 車道總寬   │")
+    print("  ├────┼──────────────┼──────────────────────────────────────────┼────────────┤")
+    for idx, rec in enumerate(records):
+        ts = rec.get("timestamp", "未知")
+        note = rec.get("note", "")
+        total_w = sum(lane[1] for lane in rec["all_lanes"])
+        print(f"  │ {idx+1:<2} │ {ts:<12} │ {note:<40} │ {total_w:>10.0f} │")
+    print("  └────┴──────────────┴──────────────────────────────────────────┴────────────┘")
+    print()
+
+    # 選擇記錄
+    while True:
+        try:
+            choice = int(input(f"  請選擇要載入的記錄編號 (1~{len(records)}): ").strip())
+            if 1 <= choice <= len(records):
+                break
+            print(f"   ✗ 請輸入 1 到 {len(records)} 之間的數字")
+        except ValueError:
+            print("   ✗ 請輸入數字")
+
+    base_rec = records[choice - 1]
+    all_lanes = [tuple(lane) for lane in base_rec["all_lanes"]]
+    lidar_assignments = base_rec["lidar_assignments"]
+    lidar_centers = base_rec["lidar_centers"]
+    prev_results = base_rec["results"]
+
+    print()
+    print(f"  已載入第 {choice} 筆記錄（{base_rec.get('timestamp', '')}）")
+
+    # ── 修改車道寬度 ──────────────────────────────────────────────
+    print()
+    print("  【修改車道寬度】（直接 Enter 保留原值）")
+    new_lanes = []
+    for num, width in all_lanes:
+        while True:
+            raw = input(f"   Lane{num} 目前寬度: {width:.0f}mm，新寬度 (Enter 保留): ").strip()
+            if raw == "":
+                new_lanes.append((num, width))
+                break
+            try:
+                new_w = float(raw)
+                if new_w <= 0:
+                    print("   ✗ 寬度必須大於 0")
+                    continue
+                new_lanes.append((num, new_w))
+                break
+            except ValueError:
+                print("   ✗ 請輸入數字")
+
+    # ── 修改 Lidar 中心點距離 ────────────────────────────────────
+    print()
+    print("  【修改 Lidar 中心點距離】（直接 Enter 保留原值）")
+    new_centers = []
+    for i, center in enumerate(lidar_centers):
+        while True:
+            raw = input(f"   LIDAR_{i} 目前中心距離: {center:.0f}mm，新距離 (Enter 保留): ").strip()
+            if raw == "":
+                new_centers.append(center)
+                break
+            try:
+                new_c = float(raw)
+                if new_c < 0:
+                    print("   ✗ 距離不可為負數")
+                    continue
+                new_centers.append(new_c)
+                break
+            except ValueError:
+                print("   ✗ 請輸入數字")
+
+    # ── 重新計算 ─────────────────────────────────────────────────
+    new_results = calculate_lidar_results(new_lanes, lidar_assignments, new_centers)
+    _print_result_tables(site_name, new_lanes, lidar_assignments, new_centers,
+                         new_results, prev_results=prev_results)
+
+    # ── 儲存 ─────────────────────────────────────────────────────
+    print()
+    save_yn = input("  是否儲存此次結果？(y/n，預設 y): ").strip().lower()
+    if save_yn in ("", "y", "yes"):
+        note = input("  備註（說明調整原因，可留空）: ").strip()
+        ts = save_result(site_name, new_lanes, lidar_assignments, new_centers,
+                         new_results, note=note)
+        records_now = load_records(site_name)
+        print(f"  ✓ 已儲存！時間: {ts}，{site_name} 共 {len(records_now)} 筆記錄")
+    else:
+        print("  ✗ 略過儲存")
+    print()
+
+
 def main():
     print()
     print("╔══════════════════════════════════════════════╗")
-    print("║   Lidar 有效區計算驗證工具 v1.2             ║")
+    print("║   Lidar 有效區計算驗證工具 v1.3             ║")
     print("╚══════════════════════════════════════════════╝")
     print()
+    print("  請選擇操作模式：")
+    print("  [1] 全新輸入")
+    print("  [2] 載入既有記錄並修改")
+    print()
+    while True:
+        mode = input("  請輸入選項 (1 或 2，預設 1): ").strip()
+        if mode in ("", "1"):
+            mode = "1"
+            break
+        if mode == "2":
+            break
+        print("   ✗ 請輸入 1 或 2")
 
+    if mode == "2":
+        load_and_modify()
+        return
+
+    print()
     # ── 1. 建立點位名稱 ──────────────────────────────────────────
     site_name = input("1. 請輸入點位名稱 (例如 03F-040.7N): ").strip()
     if not site_name:
@@ -308,103 +547,15 @@ def main():
 
     # ── 7. 計算並顯示結果 ────────────────────────────────────────
     results = calculate_lidar_results(all_lanes, lidar_assignments, lidar_centers)
-
-    print()
-    print("=" * 90)
-    print(f"  計算結果 — {site_name}")
-    print("=" * 90)
-
-    # ── 輸入資訊: 車道 ───────────────────────────────────────────
-    print()
-    print("  【車道資訊】")
-    print()
-    print("  ┌────────┬──────────┐")
-    print("  │ 車道   │ 寬度(mm) │")
-    print("  ├────────┼──────────┤")
-    for num, width in all_lanes:
-        print(f"  │ Lane{num}  │ {width:>8.0f} │")
-    print("  ├────────┼──────────┤")
-    print(f"  │ 合計   │ {sum(w for _, w in all_lanes):>8.0f} │")
-    print("  └────────┴──────────┘")
-    print()
-
-    # 車道配置圖
-    print("  [護欄]", end="")
-    for num, width in all_lanes:
-        print(f" |← Lane{num}:{width:.0f} →|", end="")
-    print(" [外側]")
-    print()
-
-    # ── 輸入資訊: Lidar ──────────────────────────────────────────
-    print("  【Lidar 輸入資訊】")
-    print()
-    print("  ┌─────────┬────────────────┬──────────────┐")
-    print("  │ Lidar   │ 負責車道       │ 中心距離(mm) │")
-    print("  ├─────────┼────────────────┼──────────────┤")
-    for i in range(lidar_count):
-        lanes_str = "+".join([f"Lane{n}" for n in sorted(lidar_assignments[i])])
-        print(f"  │ LIDAR_{i} │ {lanes_str:<14} │ {lidar_centers[i]:>12.0f} │")
-    print("  └─────────┴────────────────┴──────────────┘")
-    print()
-
-    # ── 計算結果表格 ─────────────────────────────────────────────
-    print("  【計算結果】")
-    print()
-    print("  ┌─────────┬────────────────┬──────────────┬──────────────┬──────────────┬──────────────┬────────┐")
-    print("  │ Lidar   │ 負責車道       │ 中心距離(mm) │ scan_right   │ scan_left    │ 偏差值(mm)   │ 狀態   │")
-    print("  ├─────────┼────────────────┼──────────────┼──────────────┼──────────────┼──────────────┼────────┤")
-
-    warnings = []
-    for r in results:
-        lanes_str = "+".join([f"Lane{n}" for n in r["assigned"]])
-
-        # 狀態判斷
-        status = "✓ 正常"
-        if r["scan_right"] > SCAN_LIMIT or r["scan_left"] > SCAN_LIMIT:
-            status = "⚠ 警告"
-            if r["scan_right"] > SCAN_LIMIT:
-                warnings.append(f"LIDAR_{r['index']}: scan_right={r['scan_right']:.0f}mm 超過 {SCAN_LIMIT:.0f}mm 偵測上限")
-            if r["scan_left"] > SCAN_LIMIT:
-                warnings.append(f"LIDAR_{r['index']}: scan_left={r['scan_left']:.0f}mm 超過 {SCAN_LIMIT:.0f}mm 偵測上限")
-        if r["scan_right"] < 0 or r["scan_left"] < 0:
-            status = "✗ 錯誤"
-
-        print(f"  │ LIDAR_{r['index']} │ {lanes_str:<14} │ {r['center']:>12.0f} │ {r['scan_right']:>12.0f} │ {r['scan_left']:>12.0f} │ {r['offset_value']:>12.0f} │ {status} │")
-
-    print("  └─────────┴────────────────┴──────────────┴──────────────┴──────────────┴──────────────┴────────┘")
-
-    # ── 警告訊息 ─────────────────────────────────────────────────
-    if warnings:
-        print()
-        print("  ⚠️  警告訊息:")
-        for w in warnings:
-            print(f"    → {w}")
-            print(f"      建議: 需要再拆分車道，增加 Lidar 數量以縮小偵測範圍")
-
-    # ── 詳細計算過程 ─────────────────────────────────────────────
-    print()
-    print("  【詳細計算過程】")
-    for r in results:
-        lanes_str = "+".join([f"Lane{n}" for n in r["assigned"]])
-        print()
-        print(f"  LIDAR_{r['index']} ({lanes_str}, center={r['center']:.0f}mm):")
-        print(f"    負責車道邊界: {r['inner_boundary']:.0f}mm ~ {r['outer_boundary']:.0f}mm")
-        print(f"    最內側: {'是' if r['is_innermost'] else '否'} (右補償 +{r['right_compensation']:.0f}mm)")
-        print(f"    最外側: {'是' if r['is_outermost'] else '否'} (左補償 +{r['left_compensation']:.0f}mm)")
-        print(f"    scan_right = {r['center']:.0f} - {r['inner_boundary']:.0f} + {r['right_compensation']:.0f} = {r['scan_right']:.0f}mm")
-        print(f"    scan_left  = {r['outer_boundary']:.0f} - {r['center']:.0f} + {r['left_compensation']:.0f} = {r['scan_left']:.0f}mm")
-        print(f"    偏差值     = {r['offset_formula']} = {r['offset_value']:.0f}mm")
-
-    print()
-    print("=" * 90)
-    print("  完成！")
-    print("=" * 90)
+    _print_result_tables(site_name, all_lanes, lidar_assignments, lidar_centers, results)
 
     # ── 8. 儲存結果 ──────────────────────────────────────────────
     print()
     save_yn = input("  是否儲存此次結果？(y/n，預設 y): ").strip().lower()
     if save_yn in ("", "y", "yes"):
-        ts = save_result(site_name, all_lanes, lidar_assignments, lidar_centers, results)
+        note = input("  備註（說明此次輸入原因，可留空）: ").strip()
+        ts = save_result(site_name, all_lanes, lidar_assignments, lidar_centers,
+                         results, note=note)
         records = load_records(site_name)
         print(f"  ✓ 已儲存！時間: {ts}，{site_name} 共 {len(records)} 筆記錄")
     else:
