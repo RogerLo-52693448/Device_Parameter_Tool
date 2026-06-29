@@ -331,11 +331,11 @@ def _print_result_tables(site_name, all_lanes, lidar_assignments, lidar_centers,
         print(f"    差距                                 : {diff:.0f} mm")
         if diff >= 500:
             print()
-            print("  ⚠️  注意！實測合計與車道總寬差距達 {:.0f} mm (≥ 500 mm)，請確認量測資料是否正確。".format(diff))
+            print(f"  ⚠️  注意！實測合計與車道總寬差距達 {diff:.0f} mm (≥ 500 mm)，請確認量測資料是否正確。")
             warnings.append(f"路寬一致性: 實測合計={total_measured:.0f}mm vs 車道總寬={total_lanes:.0f}mm，差距={diff:.0f}mm (≥500mm)")
         else:
             print()
-            print("  ✓ 路寬一致性正常，差距 {:.0f} mm < 500 mm。".format(diff))
+            print(f"  ✓ 路寬一致性正常，差距 {diff:.0f} mm < 500 mm。")
 
     print()
     print("=" * 100)
