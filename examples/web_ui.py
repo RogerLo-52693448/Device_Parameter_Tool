@@ -747,7 +747,11 @@ class Handler(BaseHTTPRequestHandler):
         if content_length < 0 or content_length > MAX_BODY_SIZE:
             self._send_html(_render_page(error=f"請求內容過大，限制 {MAX_BODY_SIZE} bytes"))
             return
-        raw = self.rfile.read(content_length).decode("utf-8")
+        try:
+            raw = self.rfile.read(content_length).decode("utf-8")
+        except UnicodeDecodeError:
+            self._send_html(_render_page(error="請求格式錯誤：內容需為 UTF-8 編碼"))
+            return
         payload = parse_qs(raw)
         form = {
             "site_name": payload.get("site_name", [""])[0].strip(),
