@@ -698,19 +698,14 @@ def _render_page(
           <form method="post" action="/calculate">
             <label>點位名稱</label>
             <input name="site_name" value="{escape(form['site_name'])}" />
-   
             <label>車道寬度 (mm, 逗號分隔)</label>
             <input name="lane_widths" value="{escape(form['lane_widths'])}" />
-   
             <label>Lidar 負責車道 (每行一顆 Lidar，逗號分隔 lane index)</label>
             <textarea name="lidar_assignments" rows="4">{escape(form['lidar_assignments'])}</textarea>
-   
             <label>Lidar 中心距離 (mm, 逗號分隔)</label>
             <input name="lidar_centers" value="{escape(form['lidar_centers'])}" />
-   
             <label>最後一顆 Lidar 到外側護欄距離 (mm，可留空)</label>
             <input name="last_lidar_outer_dist" value="{escape(form['last_lidar_outer_dist'])}" />
-   
             <button type="submit">產生測試報表</button>
           </form>
         </div>
