@@ -12,6 +12,8 @@ from urllib.parse import parse_qs
 
 from verify_lidar_calculation import SCAN_LIMIT, calculate_lidar_results
 
+MAX_BODY_SIZE = 16 * 1024
+
 
 def _parse_float_list(raw: str, field_name: str):
     vals = [x.strip() for x in raw.split(",") if x.strip()]
@@ -167,7 +169,14 @@ class Handler(BaseHTTPRequestHandler):
             self.send_error(404, "Not Found")
             return
 
-        content_length = int(self.headers.get("Content-Length", "0"))
+        try:
+            content_length = int(self.headers.get("Content-Length", "0"))
+        except ValueError:
+            self._send_html(_render_page(error="請求格式錯誤：Content-Length 無效"))
+            return
+        if content_length < 0 or content_length > MAX_BODY_SIZE:
+            self._send_html(_render_page(error=f"請求內容過大，限制 {MAX_BODY_SIZE} bytes"))
+            return
         raw = self.rfile.read(content_length).decode("utf-8")
         payload = parse_qs(raw)
         form = {
@@ -201,7 +210,10 @@ class Handler(BaseHTTPRequestHandler):
 
             last_lidar_outer_dist = None
             if form["last_lidar_outer_dist"]:
-                last_lidar_outer_dist = float(form["last_lidar_outer_dist"])
+                try:
+                    last_lidar_outer_dist = float(form["last_lidar_outer_dist"])
+                except ValueError as exc:
+                    raise ValueError("最後一顆 Lidar 到外側護欄距離需為數字") from exc
                 if last_lidar_outer_dist < 0:
                     raise ValueError("最後一顆 Lidar 到外側護欄距離不可為負數")
 
