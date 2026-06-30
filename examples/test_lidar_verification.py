@@ -20,7 +20,7 @@ import tempfile
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from verify_lidar_calculation import (
     calculate_lidar_results, save_result, load_records,
-    MAX_RECORDS_PER_SITE, _print_result_tables
+    MAX_RECORDS_PER_SITE, WIDTH_CONSISTENCY_WARNING_THRESHOLD, _print_result_tables
 )
 
 # ─── 測試資料 ────────────────────────────────────────────────────────────────
@@ -283,15 +283,21 @@ try:
     total_measured_ok = LIDAR_CENTERS[-1] + LAST_LIDAR_OUTER_DIST
     total_lanes_ok = sum(w for _, w in ALL_LANES)
     diff_ok = abs(total_measured_ok - total_lanes_ok)
-    passed_width_ok = diff_ok < 500
-    note_tests.append((f"路寬一致性：差距={diff_ok:.0f}mm < 500mm，無需警告", passed_width_ok))
+    passed_width_ok = diff_ok < WIDTH_CONSISTENCY_WARNING_THRESHOLD
+    note_tests.append((
+        f"路寬一致性：差距={diff_ok:.0f}mm < {WIDTH_CONSISTENCY_WARNING_THRESHOLD:.0f}mm，無需警告",
+        passed_width_ok
+    ))
 
     # 路寬一致性檢核測試：差距 600mm → 應觸發警告
-    outer_dist_bad = LAST_LIDAR_OUTER_DIST + 600  # 故意超出 500mm
+    outer_dist_bad = LAST_LIDAR_OUTER_DIST + 600  # 故意超出警告門檻
     total_measured_bad = LIDAR_CENTERS[-1] + outer_dist_bad
     diff_bad = abs(total_measured_bad - total_lanes_ok)
-    passed_width_warn = diff_bad >= 500
-    note_tests.append((f"路寬一致性：差距={diff_bad:.0f}mm ≥ 500mm，應觸發警告", passed_width_warn))
+    passed_width_warn = diff_bad >= WIDTH_CONSISTENCY_WARNING_THRESHOLD
+    note_tests.append((
+        f"路寬一致性：差距={diff_bad:.0f}mm ≥ {WIDTH_CONSISTENCY_WARNING_THRESHOLD:.0f}mm，應觸發警告",
+        passed_width_warn
+    ))
 
     # 驗證 _print_result_tables 在差距≥500mm 時回傳包含路寬警告訊息
     try:

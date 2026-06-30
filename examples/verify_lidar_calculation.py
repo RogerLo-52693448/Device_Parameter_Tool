@@ -19,6 +19,7 @@ import os
 from datetime import datetime
 
 SCAN_LIMIT = 5500.0          # mm, 超過此值需警告
+WIDTH_CONSISTENCY_WARNING_THRESHOLD = 500.0  # mm, 超過此值需提示量測差異
 MAX_RECORDS_PER_SITE = 5     # 每個點位最多保留筆數
 RECORDS_FILE = "lidar_records.json"
 
@@ -329,13 +330,22 @@ def _print_result_tables(site_name, all_lanes, lidar_assignments, lidar_centers,
         print(f"    實測合計 (中心 + 外側)               : {total_measured:.0f} mm")
         print(f"    所有車道寬度加總                     : {total_lanes:.0f} mm")
         print(f"    差距                                 : {diff:.0f} mm")
-        if diff >= 500:
+        if diff >= WIDTH_CONSISTENCY_WARNING_THRESHOLD:
             print()
-            print(f"  ⚠️  注意！實測合計與車道總寬差距達 {diff:.0f} mm (≥ 500 mm)，請確認量測資料是否正確。")
-            warnings.append(f"路寬一致性: 實測合計={total_measured:.0f}mm vs 車道總寬={total_lanes:.0f}mm，差距={diff:.0f}mm (≥500mm)")
+            print(
+                f"  ⚠️  注意！實測合計與車道總寬差距達 {diff:.0f} mm "
+                f"(≥ {WIDTH_CONSISTENCY_WARNING_THRESHOLD:.0f} mm)，請確認量測資料是否正確。"
+            )
+            warnings.append(
+                f"路寬一致性: 實測合計={total_measured:.0f}mm vs 車道總寬={total_lanes:.0f}mm，"
+                f"差距={diff:.0f}mm (≥{WIDTH_CONSISTENCY_WARNING_THRESHOLD:.0f}mm)"
+            )
         else:
             print()
-            print(f"  ✓ 路寬一致性正常，差距 {diff:.0f} mm < 500 mm。")
+            print(
+                f"  ✓ 路寬一致性正常，差距 {diff:.0f} mm "
+                f"< {WIDTH_CONSISTENCY_WARNING_THRESHOLD:.0f} mm。"
+            )
 
     print()
     print("=" * 100)

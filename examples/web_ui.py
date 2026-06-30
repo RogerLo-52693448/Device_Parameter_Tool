@@ -10,7 +10,11 @@ from html import escape
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs
 
-from verify_lidar_calculation import SCAN_LIMIT, calculate_lidar_results
+from verify_lidar_calculation import (
+    SCAN_LIMIT,
+    WIDTH_CONSISTENCY_WARNING_THRESHOLD,
+    calculate_lidar_results,
+)
 
 MAX_BODY_SIZE = 16 * 1024
 
@@ -64,7 +68,7 @@ def _build_warnings(results, all_lanes, lidar_centers, last_lidar_outer_dist):
         total_lanes = sum(w for _, w in all_lanes)
         measured = lidar_centers[-1] + last_lidar_outer_dist
         diff = abs(measured - total_lanes)
-        if diff >= 500:
+        if diff >= WIDTH_CONSISTENCY_WARNING_THRESHOLD:
             warnings.append(
                 f"路寬一致性警告: 實測合計={measured:.0f}mm、車道總寬={total_lanes:.0f}mm、差距={diff:.0f}mm"
             )
@@ -136,7 +140,7 @@ def _render_results_sections(
         total_measured = lidar_centers[-1] + last_lidar_outer_dist
         total_lanes = sum(w for _, w in all_lanes)
         diff = abs(total_measured - total_lanes)
-        status = "正常" if diff < 500 else "警告"
+        status = "正常" if diff < WIDTH_CONSISTENCY_WARNING_THRESHOLD else "警告"
         width_rows = [
             ["最後一顆 Lidar 中心距離", f"{lidar_centers[-1]:.0f} mm"],
             ["最後一顆 Lidar 到外側護欄距離", f"{last_lidar_outer_dist:.0f} mm"],
