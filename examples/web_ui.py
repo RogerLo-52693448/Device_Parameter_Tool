@@ -255,10 +255,12 @@ def _render_table(headers, rows):
             "<tr>" + "".join(f"<td>{escape(str(cell))}</td>" for cell in row) + "</tr>"
         )
     return (
+        "<div class='table-scroll'>"
         "<table class='report-table'>"
         f"<thead><tr>{head_html}</tr></thead>"
         f"<tbody>{''.join(row_html)}</tbody>"
         "</table>"
+        "</div>"
     )
 
 
@@ -301,6 +303,7 @@ def _render_result_table(results):
             "</tr>"
         )
     return (
+        "<div class='table-scroll'>"
         "<table class='report-table result-table'>"
         "<thead><tr>"
         "<th>Lidar</th><th>負責車道</th><th>scan_right(mm)</th>"
@@ -308,6 +311,7 @@ def _render_result_table(results):
         "</tr></thead>"
         f"<tbody>{''.join(row_html)}</tbody>"
         "</table>"
+        "</div>"
     )
 
 
@@ -530,6 +534,28 @@ def _render_history_table(site_name, records):
         "</table>"
         "</section>"
     )
+
+
+def _compute_results_from_record(record):
+    """從歷史記錄計算 lidar_groups 與 all_lanes，供載入時直接輸出結果。"""
+    raw_lanes = record.get("all_lanes", [])
+    lidar_assignments = [list(a) for a in record.get("lidar_assignments", [])]
+    lidar_centers = [float(c) for c in record.get("lidar_centers", [])]
+    if not raw_lanes or not lidar_assignments or not lidar_centers:
+        return None, None, []
+    all_lanes = [(int(lane[0]), float(lane[1])) for lane in raw_lanes]
+    last_outer_raw = record.get("last_lidar_outer_dist")
+    last_lidar_outer_dist = float(last_outer_raw) if last_outer_raw is not None else None
+    results = calculate_lidar_results(all_lanes, lidar_assignments, lidar_centers)
+    warnings = _build_warnings(results, all_lanes, lidar_centers, last_lidar_outer_dist)
+    lidar_groups = [{
+        "label": "主要 Lidar",
+        "lidar_assignments": lidar_assignments,
+        "lidar_centers": lidar_centers,
+        "results": results,
+        "last_lidar_outer_dist": last_lidar_outer_dist,
+    }]
+    return lidar_groups, all_lanes, warnings
 
 
 def _form_from_record(site_name, record):
@@ -876,6 +902,10 @@ def _render_page(
       margin-top: 12px;
       font-size: 0.96rem;
     }}
+    .table-scroll {{
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+    }}
     .btn-secondary {{
       background: #4d5f78;
       margin-top: 10px;
@@ -1004,10 +1034,6 @@ def _render_page(
       .detail-card-header {{
         flex-direction: column;
         align-items: start;
-      }}
-      .report-table {{
-        display: block;
-        overflow-x: auto;
       }}
       .lane-selects {{ grid-template-columns: 1fr; }}
     }}
@@ -1203,9 +1229,13 @@ class Handler(BaseHTTPRequestHandler):
                 self._send_html(_render_page(error="記錄編號超出範圍"))
                 return
             form = _form_from_record(site_name, records[record_index])
+            lidar_groups, all_lanes, calc_warnings = _compute_results_from_record(records[record_index])
             self._send_html(
                 _render_page(
                     form=form,
+                    lidar_groups=lidar_groups,
+                    warnings=calc_warnings or [],
+                    all_lanes=all_lanes,
                     history_table=_render_history_table(site_name, records),
                     info=[f"已載入第 {record_index + 1} 筆歷史設定，請確認後可直接產生報表。"],
                 )
