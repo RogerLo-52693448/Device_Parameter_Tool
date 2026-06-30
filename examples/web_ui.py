@@ -426,11 +426,17 @@ def _render_history_table(site_name, records):
 
 
 def _form_from_record(site_name, record):
+    def _format_number_for_input(value):
+        num = float(value)
+        if num.is_integer():
+            return str(int(num))
+        return format(num, ".15g")
+
     all_lanes = record.get("all_lanes", [])
     lidar_centers = record.get("lidar_centers", [])
     lidar_assignments = record.get("lidar_assignments", [])
-    lane_widths = [str(float(lane[1])).rstrip("0").rstrip(".") for lane in all_lanes]
-    centers = [str(float(c)).rstrip("0").rstrip(".") for c in lidar_centers]
+    lane_widths = [_format_number_for_input(lane[1]) for lane in all_lanes]
+    centers = [_format_number_for_input(c) for c in lidar_centers]
     lanes_a = [int(assigned[0]) if assigned else 0 for assigned in lidar_assignments]
     lanes_b = [int(assigned[1]) if len(assigned) > 1 else -1 for assigned in lidar_assignments]
     last_outer = record.get("last_lidar_outer_dist")
@@ -442,7 +448,7 @@ def _form_from_record(site_name, record):
         "lidar_centers": centers or [""],
         "lidar_lanes_a": lanes_a or [0],
         "lidar_lanes_b": lanes_b or [-1],
-        "last_lidar_outer_dist": "" if last_outer is None else str(float(last_outer)).rstrip("0").rstrip("."),
+        "last_lidar_outer_dist": "" if last_outer is None else _format_number_for_input(last_outer),
     }
 
 
