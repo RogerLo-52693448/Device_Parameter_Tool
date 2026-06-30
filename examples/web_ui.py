@@ -1104,7 +1104,7 @@ def _render_page(
             <label>車道數</label>
             <select name="lane_count" id="lane-count">{lane_count_opts}</select>
             <div class="checkbox-row">
-              <input id="has-backup" name="has_backup" type="checkbox" value="1" {"checked" if form.get("has_backup") else ""} />
+              <input id="has-backup" name="has_backup" type="checkbox" value="1" aria-label="啟用備援 Lidar" {"checked" if form.get("has_backup") else ""} />
               <label for="has-backup" class="checkbox-label">啟用備援 Lidar</label>
             </div>
             <label>Lidar 總數量</label>
