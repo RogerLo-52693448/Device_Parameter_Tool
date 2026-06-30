@@ -80,7 +80,7 @@ def _render_table(headers, rows):
     row_html = []
     for row in rows:
         row_html.append(
-            "<tr>" + "".join(f"<td>{cell}</td>" for cell in row) + "</tr>"
+            "<tr>" + "".join(f"<td>{escape(str(cell))}</td>" for cell in row) + "</tr>"
         )
     return (
         "<table>"
@@ -98,9 +98,7 @@ def _render_results_sections(
 
     lidar_rows = []
     for i, (assigned, center) in enumerate(zip(lidar_assignments, lidar_centers)):
-        lidar_rows.append(
-            [f"LIDAR_{i}", escape("+".join(f"Lane{n}" for n in assigned)), f"{center:.0f}"]
-        )
+        lidar_rows.append([f"LIDAR_{i}", "+".join(f"Lane{n}" for n in assigned), f"{center:.0f}"])
 
     result_rows = []
     for r in results:
@@ -112,7 +110,7 @@ def _render_results_sections(
         result_rows.append(
             [
                 f"LIDAR_{r['index']}",
-                escape("+".join(f"Lane{n}" for n in r["assigned"])),
+                "+".join(f"Lane{n}" for n in r["assigned"]),
                 f"{r['scan_right']:.0f}",
                 f"{r['scan_left']:.0f}",
                 f"{r['offset_value']:.0f}",
