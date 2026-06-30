@@ -9,6 +9,7 @@
 from html import escape
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs
+import json
 
 from verify_lidar_calculation import (
     SCAN_LIMIT,
@@ -17,6 +18,110 @@ from verify_lidar_calculation import (
 )
 
 MAX_BODY_SIZE = 16 * 1024
+
+_FORM_JS = """
+(function () {
+  var S = FORM_INIT;
+  var laneWidths = S.laneWidths.slice();
+  var lidarCenters = S.lidarCenters.slice();
+  var lidarLanesA = S.lidarLanesA.slice();
+  var lidarLanesB = S.lidarLanesB.slice();
+
+  function getLaneCount() {
+    return parseInt(document.getElementById('lane-count').value, 10);
+  }
+  function getLidarCount() {
+    return parseInt(document.getElementById('lidar-count').value, 10);
+  }
+
+  function saveState() {
+    var n = getLaneCount();
+    var m = getLidarCount();
+    for (var i = 0; i < n; i++) {
+      var el = document.getElementById('lane_width_' + i);
+      if (el) laneWidths[i] = el.value;
+    }
+    for (var j = 0; j < m; j++) {
+      var ea = document.getElementById('lidar_lane_' + j + '_a');
+      var eb = document.getElementById('lidar_lane_' + j + '_b');
+      var ec = document.getElementById('lidar_center_' + j);
+      if (ea) lidarLanesA[j] = parseInt(ea.value, 10);
+      if (eb) lidarLanesB[j] = parseInt(eb.value, 10);
+      if (ec) lidarCenters[j] = ec.value;
+    }
+  }
+
+  function laneOpts(n, sel) {
+    var html = '';
+    for (var i = 0; i < n; i++) {
+      html += '<option value="' + i + '"' + (sel === i ? ' selected' : '') + '>Lane' + i + '</option>';
+    }
+    return html;
+  }
+
+  function laneOptsNone(n, sel) {
+    var html = '<option value="-1"' + (sel === -1 ? ' selected' : '') + '>（無）</option>';
+    for (var i = 0; i < n; i++) {
+      html += '<option value="' + i + '"' + (sel === i ? ' selected' : '') + '>Lane' + i + '</option>';
+    }
+    return html;
+  }
+
+  function renderLaneWidths() {
+    var n = getLaneCount();
+    var html = '';
+    for (var i = 0; i < n; i++) {
+      var val = laneWidths[i] !== undefined ? laneWidths[i] : '';
+      html += '<div class="lw-item">'
+        + '<span class="lw-label">Lane' + i + '</span>'
+        + '<input id="lane_width_' + i + '" name="lane_width_' + i
+        + '" type="number" min="1" step="1" placeholder="mm" value="' + val + '" />'
+        + '</div>';
+    }
+    document.getElementById('lane-widths-section').innerHTML = html;
+  }
+
+  function renderLidarSection() {
+    var n = getLaneCount();
+    var m = getLidarCount();
+    var html = '';
+    for (var j = 0; j < m; j++) {
+      var selA = lidarLanesA[j] !== undefined ? lidarLanesA[j] : 0;
+      var selB = lidarLanesB[j] !== undefined ? lidarLanesB[j] : -1;
+      var ctr = lidarCenters[j] !== undefined ? lidarCenters[j] : '';
+      html += '<div class="lidar-group">'
+        + '<div class="lidar-group-title">LIDAR_' + j + '</div>'
+        + '<div class="lane-selects">'
+        + '<div><label>第一車道</label>'
+        + '<select id="lidar_lane_' + j + '_a" name="lidar_lane_' + j + '_a">'
+        + laneOpts(n, selA) + '</select></div>'
+        + '<div><label>第二車道</label>'
+        + '<select id="lidar_lane_' + j + '_b" name="lidar_lane_' + j + '_b">'
+        + laneOptsNone(n, selB) + '</select></div>'
+        + '</div>'
+        + '<label>中心距離 (mm)</label>'
+        + '<input id="lidar_center_' + j + '" name="lidar_center_' + j
+        + '" type="number" min="0" step="1" placeholder="mm" value="' + ctr + '" />'
+        + '</div>';
+    }
+    document.getElementById('lidar-section').innerHTML = html;
+  }
+
+  document.getElementById('lane-count').addEventListener('change', function () {
+    saveState();
+    renderLaneWidths();
+    renderLidarSection();
+  });
+
+  document.getElementById('lidar-count').addEventListener('change', function () {
+    saveState();
+    renderLidarSection();
+  });
+
+  renderLaneWidths();
+  renderLidarSection();
+}());
+"""
 
 
 def _parse_float_list(raw: str, field_name: str):
@@ -279,9 +384,12 @@ def _render_page(
 ):
     form = form or {
         "site_name": "03F-040.7N",
-        "lane_widths": "3800,3750,3800,3650,3400",
-        "lidar_assignments": "0,1\n2,3\n4",
-        "lidar_centers": "5000,11300,16700",
+        "lane_count": 5,
+        "lidar_count": 3,
+        "lane_widths": ["3800", "3750", "3800", "3650", "3400"],
+        "lidar_centers": ["5000", "11300", "16700"],
+        "lidar_lanes_a": [0, 2, 4],
+        "lidar_lanes_b": [1, 3, -1],
         "last_lidar_outer_dist": "1700",
     }
     results_html = ""
@@ -297,6 +405,23 @@ def _render_page(
 
     warnings_html = _render_notice_block("警告", warnings or [], "warning")
     error_html = _render_error_block(error)
+
+    lane_count_opts = "".join(
+        f'<option value="{i}"{" selected" if i == form["lane_count"] else ""}>{i}</option>'
+        for i in range(1, 9)
+    )
+    lidar_count_opts = "".join(
+        f'<option value="{i}"{" selected" if i == form["lidar_count"] else ""}>{i}</option>'
+        for i in range(1, 9)
+    )
+    form_init_json = json.dumps({
+        "laneCount": int(form["lane_count"]),
+        "lidarCount": int(form["lidar_count"]),
+        "laneWidths": [str(w) for w in form["lane_widths"]],
+        "lidarCenters": [str(c) for c in form["lidar_centers"]],
+        "lidarLanesA": [int(a) for a in form["lidar_lanes_a"]],
+        "lidarLanesB": [int(b) for b in form["lidar_lanes_b"]],
+    })
 
     return f"""<!doctype html>
 <html lang="zh-Hant">
@@ -365,7 +490,7 @@ def _render_page(
     }}
     .layout {{
       display: grid;
-      grid-template-columns: minmax(320px, 360px) minmax(0, 1fr);
+      grid-template-columns: minmax(360px, 460px) minmax(0, 1fr);
       gap: 24px;
       align-items: start;
     }}
@@ -380,6 +505,8 @@ def _render_page(
     .form-panel {{
       position: sticky;
       top: 24px;
+      max-height: calc(100vh - 48px);
+      overflow-y: auto;
     }}
     .panel-title {{
       margin: 0 0 4px;
@@ -398,7 +525,7 @@ def _render_page(
       font-weight: 700;
       color: var(--accent);
     }}
-    input, textarea {{
+    input, textarea, select {{
       width: 100%;
       padding: 10px 12px;
       border: 1px solid var(--line);
@@ -408,6 +535,7 @@ def _render_page(
       font: inherit;
     }}
     textarea {{ resize: vertical; min-height: 120px; }}
+    select {{ cursor: pointer; }}
     button {{
       width: 100%;
       margin-top: 18px;
@@ -663,7 +791,7 @@ def _render_page(
     }}
     @media (max-width: 980px) {{
       .layout {{ grid-template-columns: 1fr; }}
-      .form-panel {{ position: static; }}
+      .form-panel {{ position: static; max-height: none; }}
     }}
     @media (max-width: 700px) {{
       .page {{ padding: 24px 16px 36px; }}
@@ -677,6 +805,44 @@ def _render_page(
         display: block;
         overflow-x: auto;
       }}
+      .lane-selects {{ grid-template-columns: 1fr; }}
+    }}
+    .lw-item {{
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-top: 10px;
+    }}
+    .lw-label {{
+      width: 56px;
+      flex-shrink: 0;
+      font-weight: 700;
+      font-size: 0.88rem;
+      color: var(--accent);
+    }}
+    .lw-item input {{
+      margin-top: 0;
+    }}
+    .lidar-group {{
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 12px 14px;
+      margin-top: 14px;
+    }}
+    .lidar-group-title {{
+      font-weight: 800;
+      color: var(--accent);
+      font-size: 0.9rem;
+      margin-bottom: 4px;
+    }}
+    .lane-selects {{
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }}
+    .lidar-group label {{
+      margin-top: 10px;
+      font-size: 0.88rem;
     }}
   </style>
 </head>
@@ -698,12 +864,14 @@ def _render_page(
           <form method="post" action="/calculate">
             <label>點位名稱</label>
             <input name="site_name" value="{escape(form['site_name'])}" />
-            <label>車道寬度 (mm, 逗號分隔)</label>
-            <input name="lane_widths" value="{escape(form['lane_widths'])}" />
-            <label>Lidar 負責車道 (每行一顆 Lidar，逗號分隔 lane index)</label>
-            <textarea name="lidar_assignments" rows="4">{escape(form['lidar_assignments'])}</textarea>
-            <label>Lidar 中心距離 (mm, 逗號分隔)</label>
-            <input name="lidar_centers" value="{escape(form['lidar_centers'])}" />
+            <label>車道數</label>
+            <select name="lane_count" id="lane-count">{lane_count_opts}</select>
+            <label>Lidar 數量</label>
+            <select name="lidar_count" id="lidar-count">{lidar_count_opts}</select>
+            <label>車道寬度 (mm)</label>
+            <div id="lane-widths-section"></div>
+            <label>Lidar 設定</label>
+            <div id="lidar-section"></div>
             <label>最後一顆 Lidar 到外側護欄距離 (mm，可留空)</label>
             <input name="last_lidar_outer_dist" value="{escape(form['last_lidar_outer_dist'])}" />
             <button type="submit">產生測試報表</button>
@@ -717,6 +885,8 @@ def _render_page(
       </main>
     </div>
   </div>
+  <script>var FORM_INIT = {form_init_json};</script>
+  <script>{_FORM_JS}</script>
 </body>
 </html>
 """
@@ -753,19 +923,54 @@ class Handler(BaseHTTPRequestHandler):
             self._send_html(_render_page(error="請求格式錯誤：內容需為 UTF-8 編碼"))
             return
         payload = parse_qs(raw)
+        site_name = payload.get("site_name", [""])[0].strip()
+        last_outer = payload.get("last_lidar_outer_dist", [""])[0].strip()
+        try:
+            lane_count = int(payload.get("lane_count", ["0"])[0])
+            lidar_count = int(payload.get("lidar_count", ["0"])[0])
+            if not (1 <= lane_count <= 8):
+                raise ValueError("車道數需在 1~8 之間")
+            if not (1 <= lidar_count <= 8):
+                raise ValueError("Lidar 數量需在 1~8 之間")
+        except ValueError as e:
+            self._send_html(_render_page(error=str(e)))
+            return
+        lane_width_parts = [
+            payload.get(f"lane_width_{i}", [""])[0].strip() for i in range(lane_count)
+        ]
+        lidar_center_parts = [
+            payload.get(f"lidar_center_{j}", [""])[0].strip() for j in range(lidar_count)
+        ]
+        lidar_lanes_a = [
+            int(payload.get(f"lidar_lane_{j}_a", ["0"])[0]) for j in range(lidar_count)
+        ]
+        lidar_lanes_b = [
+            int(payload.get(f"lidar_lane_{j}_b", ["-1"])[0]) for j in range(lidar_count)
+        ]
+        lidar_assign_parts = [
+            f"{lidar_lanes_a[j]},{lidar_lanes_b[j]}" if lidar_lanes_b[j] >= 0
+            else str(lidar_lanes_a[j])
+            for j in range(lidar_count)
+        ]
         form = {
-            "site_name": payload.get("site_name", [""])[0].strip(),
-            "lane_widths": payload.get("lane_widths", [""])[0].strip(),
-            "lidar_assignments": payload.get("lidar_assignments", [""])[0].strip(),
-            "lidar_centers": payload.get("lidar_centers", [""])[0].strip(),
-            "last_lidar_outer_dist": payload.get("last_lidar_outer_dist", [""])[0].strip(),
+            "site_name": site_name,
+            "lane_count": lane_count,
+            "lidar_count": lidar_count,
+            "lane_widths": lane_width_parts,
+            "lidar_centers": lidar_center_parts,
+            "lidar_lanes_a": lidar_lanes_a,
+            "lidar_lanes_b": lidar_lanes_b,
+            "last_lidar_outer_dist": last_outer,
         }
+        lane_widths_str = ",".join(lane_width_parts)
+        lidar_assignments_str = "\n".join(lidar_assign_parts)
+        lidar_centers_str = ",".join(lidar_center_parts)
 
         try:
-            lane_widths = _parse_float_list(form["lane_widths"], "車道寬度")
+            lane_widths = _parse_float_list(lane_widths_str, "車道寬度")
             all_lanes = [(i, w) for i, w in enumerate(lane_widths)]
-            lidar_assignments = _parse_assignments(form["lidar_assignments"])
-            lidar_centers = _parse_float_list(form["lidar_centers"], "Lidar 中心距離")
+            lidar_assignments = _parse_assignments(lidar_assignments_str)
+            lidar_centers = _parse_float_list(lidar_centers_str, "Lidar 中心距離")
 
             if len(lidar_assignments) != len(lidar_centers):
                 raise ValueError("Lidar 負責車道行數需與 Lidar 中心距離數量相同")
