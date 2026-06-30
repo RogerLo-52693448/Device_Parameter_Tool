@@ -71,7 +71,112 @@ def _build_warnings(results, all_lanes, lidar_centers, last_lidar_outer_dist):
     return warnings
 
 
-def _render_page(form=None, results=None, warnings=None, error=None):
+def _render_table(headers, rows):
+    head_html = "".join(f"<th>{escape(h)}</th>" for h in headers)
+    row_html = []
+    for row in rows:
+        row_html.append(
+            "<tr>" + "".join(f"<td>{cell}</td>" for cell in row) + "</tr>"
+        )
+    return (
+        "<table>"
+        f"<thead><tr>{head_html}</tr></thead>"
+        f"<tbody>{''.join(row_html)}</tbody>"
+        "</table>"
+    )
+
+
+def _render_results_sections(
+    site_name, all_lanes, lidar_assignments, lidar_centers, results, last_lidar_outer_dist
+):
+    lane_rows = [[f"Lane{num}", f"{width:.0f}"] for num, width in all_lanes]
+    lane_rows.append(["合計", f"{sum(w for _, w in all_lanes):.0f}"])
+
+    lidar_rows = []
+    for i, (assigned, center) in enumerate(zip(lidar_assignments, lidar_centers)):
+        lidar_rows.append(
+            [f"LIDAR_{i}", escape("+".join(f"Lane{n}" for n in assigned)), f"{center:.0f}"]
+        )
+
+    result_rows = []
+    for r in results:
+        status = "正常"
+        if r["scan_right"] > SCAN_LIMIT or r["scan_left"] > SCAN_LIMIT:
+            status = "警告"
+        if r["scan_right"] < 0 or r["scan_left"] < 0:
+            status = "錯誤"
+        result_rows.append(
+            [
+                f"LIDAR_{r['index']}",
+                escape("+".join(f"Lane{n}" for n in r["assigned"])),
+                f"{r['scan_right']:.0f}",
+                f"{r['scan_left']:.0f}",
+                f"{r['offset_value']:.0f}",
+                status,
+            ]
+        )
+
+    detail_cards = []
+    for r in results:
+        lanes_str = "+".join(f"Lane{n}" for n in r["assigned"])
+        detail_cards.append(
+            "<div class='card'>"
+            f"<h3>LIDAR_{r['index']} ({escape(lanes_str)})</h3>"
+            f"<p>中心距離: {r['center']:.0f} mm</p>"
+            f"<p>負責車道邊界: {r['inner_boundary']:.0f} mm ~ {r['outer_boundary']:.0f} mm</p>"
+            f"<p>右補償: +{r['right_compensation']:.0f} mm / 左補償: +{r['left_compensation']:.0f} mm</p>"
+            f"<p>scan_right = {r['center']:.0f} - {r['inner_boundary']:.0f} + {r['right_compensation']:.0f} = {r['scan_right']:.0f} mm</p>"
+            f"<p>scan_left = {r['outer_boundary']:.0f} - {r['center']:.0f} + {r['left_compensation']:.0f} = {r['scan_left']:.0f} mm</p>"
+            f"<p>偏差值 = {escape(r['offset_formula'])} = {r['offset_value']:.0f} mm</p>"
+            "</div>"
+        )
+
+    width_check_html = ""
+    if last_lidar_outer_dist is not None:
+        total_measured = lidar_centers[-1] + last_lidar_outer_dist
+        total_lanes = sum(w for _, w in all_lanes)
+        diff = abs(total_measured - total_lanes)
+        status = "正常" if diff < 500 else "警告"
+        width_rows = [
+            ["最後一顆 Lidar 中心距離", f"{lidar_centers[-1]:.0f} mm"],
+            ["最後一顆 Lidar 到外側護欄距離", f"{last_lidar_outer_dist:.0f} mm"],
+            ["實測合計", f"{total_measured:.0f} mm"],
+            ["所有車道寬度加總", f"{total_lanes:.0f} mm"],
+            ["差距", f"{diff:.0f} mm"],
+            ["狀態", status],
+        ]
+        width_check_html = (
+            "<h2>路寬一致性檢核</h2>"
+            + _render_table(["項目", "數值"], width_rows)
+        )
+
+    return (
+        f"<h2>計算結果 — {escape(site_name)}</h2>"
+        "<h3>輸入資訊 — 車道</h3>"
+        + _render_table(["車道", "寬度(mm)"], lane_rows)
+        + "<h3>輸入資訊 — Lidar</h3>"
+        + _render_table(["Lidar", "負責車道", "中心距離(mm)"], lidar_rows)
+        + "<h3>計算結果</h3>"
+        + _render_table(
+            ["Lidar", "負責車道", "scan_right(mm)", "scan_left(mm)", "偏差值(mm)", "狀態"],
+            result_rows,
+        )
+        + "<h2>詳細計算過程</h2>"
+        + "".join(detail_cards)
+        + width_check_html
+    )
+
+
+def _render_page(
+    form=None,
+    results=None,
+    warnings=None,
+    error=None,
+    all_lanes=None,
+    lidar_assignments=None,
+    lidar_centers=None,
+    last_lidar_outer_dist=None,
+):
     form = form or {
         "site_name": "03F-040.7N",
         "lane_widths": "3800,3750,3800,3650,3400",
@@ -80,27 +185,14 @@ def _render_page(form=None, results=None, warnings=None, error=None):
         "last_lidar_outer_dist": "1700",
     }
     results_html = ""
-    if results:
-        rows = []
-        for r in results:
-            lanes = "+".join(f"Lane{i}" for i in r["assigned"])
-            rows.append(
-                "<tr>"
-                f"<td>LIDAR_{r['index']}</td>"
-                f"<td>{escape(lanes)}</td>"
-                f"<td>{r['center']:.0f}</td>"
-                f"<td>{r['scan_right']:.0f}</td>"
-                f"<td>{r['scan_left']:.0f}</td>"
-                f"<td>{r['offset_value']:.0f}</td>"
-                "</tr>"
-            )
-        results_html = (
-            "<h2>計算結果</h2>"
-            "<table border='1' cellpadding='6' cellspacing='0'>"
-            "<tr><th>Lidar</th><th>負責車道</th><th>中心距離(mm)</th>"
-            "<th>scan_right(mm)</th><th>scan_left(mm)</th><th>偏差值(mm)</th></tr>"
-            + "".join(rows)
-            + "</table>"
+    if results and all_lanes and lidar_assignments and lidar_centers:
+        results_html = _render_results_sections(
+            form["site_name"],
+            all_lanes,
+            lidar_assignments,
+            lidar_centers,
+            results,
+            last_lidar_outer_dist,
         )
 
     warnings_html = ""
@@ -122,6 +214,10 @@ def _render_page(form=None, results=None, warnings=None, error=None):
     input, textarea {{ width: 100%; padding: 8px; box-sizing: border-box; }}
     button {{ margin-top: 14px; padding: 8px 16px; }}
     h1, h2 {{ margin-bottom: 8px; }}
+    table {{ border-collapse: collapse; width: 100%; margin: 12px 0 20px; }}
+    th, td {{ border: 1px solid #999; padding: 8px; text-align: left; }}
+    th {{ background: #f2f2f2; }}
+    .card {{ border: 1px solid #ddd; border-radius: 6px; padding: 12px; margin: 12px 0; background: #fafafa; }}
   </style>
 </head>
 <body>
@@ -221,7 +317,17 @@ class Handler(BaseHTTPRequestHandler):
             warnings = _build_warnings(
                 results, all_lanes, lidar_centers, last_lidar_outer_dist
             )
-            self._send_html(_render_page(form=form, results=results, warnings=warnings))
+            self._send_html(
+                _render_page(
+                    form=form,
+                    results=results,
+                    warnings=warnings,
+                    all_lanes=all_lanes,
+                    lidar_assignments=lidar_assignments,
+                    lidar_centers=lidar_centers,
+                    last_lidar_outer_dist=last_lidar_outer_dist,
+                )
+            )
         except ValueError as e:
             self._send_html(_render_page(form=form, error=str(e)))
 
