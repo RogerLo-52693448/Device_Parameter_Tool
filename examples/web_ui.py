@@ -15,6 +15,7 @@ from verify_lidar_calculation import (
     SCAN_LIMIT,
     WIDTH_CONSISTENCY_WARNING_THRESHOLD,
     calculate_lidar_results,
+    load_records,
 )
 
 MAX_BODY_SIZE = 16 * 1024
@@ -372,17 +373,8 @@ def _render_error_block(message):
     )
 
 
-def _render_page(
-    form=None,
-    results=None,
-    warnings=None,
-    error=None,
-    all_lanes=None,
-    lidar_assignments=None,
-    lidar_centers=None,
-    last_lidar_outer_dist=None,
-):
-    form = form or {
+def _default_form():
+    return {
         "site_name": "03F-040.7N",
         "lane_count": 5,
         "lidar_count": 3,
@@ -392,6 +384,81 @@ def _render_page(
         "lidar_lanes_b": [1, 3, -1],
         "last_lidar_outer_dist": "1700",
     }
+
+
+def _render_history_table(site_name, records):
+    rows = []
+    for idx, rec in reversed(list(enumerate(records))):
+        ts = rec.get("timestamp", "")
+        note = rec.get("note", "")
+        all_lanes = rec.get("all_lanes", [])
+        centers = rec.get("lidar_centers", [])
+        lane_count = len(all_lanes)
+        lidar_count = len(centers)
+        total_width = sum(float(lane[1]) for lane in all_lanes) if all_lanes else 0.0
+        rows.append(
+            "<tr>"
+            f"<td>{idx + 1}</td>"
+            f"<td>{escape(str(ts))}</td>"
+            f"<td>{escape(str(note))}</td>"
+            f"<td>{lane_count}</td>"
+            f"<td>{lidar_count}</td>"
+            f"<td>{total_width:.0f}</td>"
+            "<td>"
+            "<form method='post' action='/load-site-record'>"
+            f"<input type='hidden' name='site_name' value='{escape(site_name)}' />"
+            f"<input type='hidden' name='record_index' value='{idx}' />"
+            "<button class='mini-btn' type='submit'>載入這筆設定</button>"
+            "</form>"
+            "</td>"
+            "</tr>"
+        )
+    return (
+        "<section class='report-section'>"
+        "<div class='section-heading'><span class='section-tag'>HISTORY</span><h2>歷史點位設定</h2></div>"
+        f"<p>點位：{escape(site_name)}（共 {len(records)} 筆）</p>"
+        "<table class='report-table'>"
+        "<thead><tr><th>編號</th><th>時間戳記</th><th>備註</th><th>車道數</th><th>Lidar 數</th><th>車道總寬(mm)</th><th>操作</th></tr></thead>"
+        f"<tbody>{''.join(rows)}</tbody>"
+        "</table>"
+        "</section>"
+    )
+
+
+def _form_from_record(site_name, record):
+    all_lanes = record.get("all_lanes", [])
+    lidar_centers = record.get("lidar_centers", [])
+    lidar_assignments = record.get("lidar_assignments", [])
+    lane_widths = [str(float(lane[1])).rstrip("0").rstrip(".") for lane in all_lanes]
+    centers = [str(float(c)).rstrip("0").rstrip(".") for c in lidar_centers]
+    lanes_a = [int(assigned[0]) if assigned else 0 for assigned in lidar_assignments]
+    lanes_b = [int(assigned[1]) if len(assigned) > 1 else -1 for assigned in lidar_assignments]
+    last_outer = record.get("last_lidar_outer_dist")
+    return {
+        "site_name": site_name,
+        "lane_count": max(1, min(8, len(lane_widths))) if lane_widths else 1,
+        "lidar_count": max(1, min(8, len(centers))) if centers else 1,
+        "lane_widths": lane_widths or [""],
+        "lidar_centers": centers or [""],
+        "lidar_lanes_a": lanes_a or [0],
+        "lidar_lanes_b": lanes_b or [-1],
+        "last_lidar_outer_dist": "" if last_outer is None else str(float(last_outer)).rstrip("0").rstrip("."),
+    }
+
+
+def _render_page(
+    form=None,
+    results=None,
+    warnings=None,
+    info=None,
+    error=None,
+    history_table=None,
+    all_lanes=None,
+    lidar_assignments=None,
+    lidar_centers=None,
+    last_lidar_outer_dist=None,
+):
+    form = form or _default_form()
     results_html = ""
     if results and all_lanes and lidar_assignments and lidar_centers:
         results_html = _render_results_sections(
@@ -404,6 +471,7 @@ def _render_page(
         )
 
     warnings_html = _render_notice_block("警告", warnings or [], "warning")
+    info_html = _render_notice_block("訊息", info or [], "info")
     error_html = _render_error_block(error)
 
     lane_count_opts = "".join(
@@ -578,6 +646,10 @@ def _render_page(
       border-color: #f1a3a0;
       background: var(--error-soft);
     }}
+    .notice-block.info {{
+      border-color: #b9d5f6;
+      background: #edf5ff;
+    }}
     .empty-state {{
       padding: 36px 28px;
       text-align: center;
@@ -683,6 +755,18 @@ def _render_page(
       border-radius: 14px;
       margin-top: 12px;
       font-size: 0.96rem;
+    }}
+    .btn-secondary {{
+      background: #4d5f78;
+      margin-top: 10px;
+    }}
+    .mini-btn {{
+      width: auto;
+      margin-top: 0;
+      padding: 8px 12px;
+      border-radius: 8px;
+      background: var(--accent);
+      font-size: 0.84rem;
     }}
     .report-table th,
     .report-table td {{
@@ -864,6 +948,7 @@ def _render_page(
           <form method="post" action="/calculate">
             <label>點位名稱</label>
             <input name="site_name" value="{escape(form['site_name'])}" />
+            <button type="submit" formaction="/query-site-history" class="btn-secondary">查詢點位歷史設定</button>
             <label>車道數</label>
             <select name="lane_count" id="lane-count">{lane_count_opts}</select>
             <label>Lidar 數量</label>
@@ -880,7 +965,9 @@ def _render_page(
       </aside>
       <main class="results-stack">
         {error_html}
+        {info_html}
         {warnings_html}
+        {history_table or ""}
         {results_html or "<section class='panel'><div class='empty-state'><strong>尚未產生報表</strong><span>請填寫左側測試參數並按下「產生測試報表」。</span></div></section>"}
       </main>
     </div>
@@ -905,7 +992,7 @@ class Handler(BaseHTTPRequestHandler):
         self._send_html(_render_page())
 
     def do_POST(self):
-        if self.path != "/calculate":
+        if self.path not in ("/calculate", "/query-site-history", "/load-site-record"):
             self.send_error(404, "Not Found")
             return
 
@@ -924,6 +1011,52 @@ class Handler(BaseHTTPRequestHandler):
             return
         payload = parse_qs(raw)
         site_name = payload.get("site_name", [""])[0].strip()
+
+        if self.path == "/query-site-history":
+            form = _default_form()
+            form["site_name"] = site_name
+            if not site_name:
+                self._send_html(_render_page(form=form, error="請先輸入點位名稱"))
+                return
+            records = load_records(site_name)
+            if not records:
+                self._send_html(_render_page(form=form, error=f"找不到點位「{site_name}」的歷史記錄"))
+                return
+            self._send_html(
+                _render_page(
+                    form=form,
+                    history_table=_render_history_table(site_name, records),
+                    info=[f"已查詢到點位「{site_name}」的歷史設定，可直接載入。"],
+                )
+            )
+            return
+
+        if self.path == "/load-site-record":
+            if not site_name:
+                self._send_html(_render_page(error="請先輸入點位名稱"))
+                return
+            records = load_records(site_name)
+            if not records:
+                self._send_html(_render_page(error=f"找不到點位「{site_name}」的歷史記錄"))
+                return
+            try:
+                record_index = int(payload.get("record_index", ["-1"])[0])
+            except ValueError:
+                self._send_html(_render_page(error="記錄編號格式錯誤"))
+                return
+            if record_index < 0 or record_index >= len(records):
+                self._send_html(_render_page(error="記錄編號超出範圍"))
+                return
+            form = _form_from_record(site_name, records[record_index])
+            self._send_html(
+                _render_page(
+                    form=form,
+                    history_table=_render_history_table(site_name, records),
+                    info=[f"已載入第 {record_index + 1} 筆歷史設定，請確認後可直接產生報表。"],
+                )
+            )
+            return
+
         last_outer = payload.get("last_lidar_outer_dist", [""])[0].strip()
         try:
             lane_count = int(payload.get("lane_count", ["0"])[0])
