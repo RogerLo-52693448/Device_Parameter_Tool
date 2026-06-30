@@ -1065,6 +1065,21 @@ def _render_page(
       color: var(--muted);
       line-height: 1.5;
     }}
+    .checkbox-row {{
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-top: 14px;
+    }}
+    .checkbox-row input {{
+      width: auto;
+      margin: 0;
+    }}
+    .checkbox-label {{
+      margin: 0;
+      font-weight: 700;
+      color: var(--accent);
+    }}
   </style>
 </head>
 <body>
@@ -1088,7 +1103,10 @@ def _render_page(
             <button type="submit" formaction="/query-site-history" class="btn-secondary">查詢點位歷史設定</button>
             <label>車道數</label>
             <select name="lane_count" id="lane-count">{lane_count_opts}</select>
-            <label><input id="has-backup" name="has_backup" type="checkbox" value="1" {"checked" if form.get("has_backup") else ""} /> 啟用備援 Lidar</label>
+            <div class="checkbox-row">
+              <input id="has-backup" name="has_backup" type="checkbox" value="1" {"checked" if form.get("has_backup") else ""} />
+              <label for="has-backup" class="checkbox-label">啟用備援 Lidar</label>
+            </div>
             <label>Lidar 總數量</label>
             <select name="lidar_count" id="lidar-count">{lidar_count_opts}</select>
             <label>車道寬度 (mm)</label>
