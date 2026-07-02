@@ -16,6 +16,7 @@ from verify_lidar_calculation import (
     WIDTH_CONSISTENCY_WARNING_THRESHOLD,
     calculate_lidar_results,
     load_records,
+    save_result,
 )
 
 MAX_BODY_SIZE = 16 * 1024
@@ -1396,11 +1397,37 @@ class Handler(BaseHTTPRequestHandler):
                     "last_lidar_outer_dist": backup_last_lidar_outer_dist,
                 })
 
+            info_messages = []
+            history_table = None
+            if site_name:
+                note = "Web UI 產生測試報表（含備援）" if has_backup else "Web UI 產生測試報表"
+                try:
+                    save_result(
+                        site_name,
+                        all_lanes,
+                        lidar_assignments,
+                        lidar_centers,
+                        results,
+                        note=note,
+                        last_lidar_outer_dist=last_lidar_outer_dist,
+                    )
+                    records = load_records(site_name)
+                    history_table = _render_history_table(site_name, records)
+                    info_messages.append(
+                        f"已儲存點位「{site_name}」歷史設定（共 {len(records)} 筆）。"
+                    )
+                except OSError as exc:
+                    warnings.append(f"歷史設定儲存失敗：{exc}")
+            else:
+                info_messages.append("未填寫點位名稱，本次結果不會寫入歷史設定。")
+
             self._send_html(
                 _render_page(
                     form=form,
                     lidar_groups=lidar_groups,
                     warnings=warnings,
+                    info=info_messages,
+                    history_table=history_table,
                     all_lanes=all_lanes,
                 )
             )
