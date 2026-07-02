@@ -14,6 +14,7 @@ import json
 from verify_lidar_calculation import (
     SCAN_LIMIT,
     WIDTH_CONSISTENCY_WARNING_THRESHOLD,
+    calculate_lane_coordinates,
     calculate_lidar_results,
     load_records,
     save_result,
@@ -399,8 +400,12 @@ def _render_group_report_sections(
 
 
 def _render_results_sections(site_name, all_lanes, lidar_groups, total_lidar_count, has_backup):
-    lane_rows = [[f"Lane{num}", f"{width:.0f}"] for num, width in all_lanes]
-    lane_rows.append(["合計", f"{sum(w for _, w in all_lanes):.0f}"])
+    lane_coords = calculate_lane_coordinates(all_lanes)
+    lane_rows = [
+        [f"Lane{num}", f"{width:.0f}", f"{start:.0f} ~ {end:.0f}"]
+        for (num, width), (_, start, end) in zip(all_lanes, lane_coords)
+    ]
+    lane_rows.append(["合計", f"{sum(w for _, w in all_lanes):.0f}", ""])
 
     overall_counts = {"正常": 0, "警告": 0, "錯誤": 0}
     for group in lidar_groups:
@@ -438,7 +443,7 @@ def _render_results_sections(site_name, all_lanes, lidar_groups, total_lidar_cou
         + "</section>",
         "<section class='report-section'>"
         "<div class='section-heading'><span class='section-tag'>INPUT</span><h2>輸入資訊 — 車道</h2></div>"
-        + _render_table(["車道", "寬度(mm)"], lane_rows)
+        + _render_table(["車道", "寬度(mm)", "座標範圍(mm)"], lane_rows)
         + "</section>",
     ]
 

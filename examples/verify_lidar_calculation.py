@@ -129,6 +129,30 @@ def calculate_lidar_results(
     return results
 
 
+def calculate_lane_coordinates(all_lanes: list):
+    """
+    計算每個車道的座標範圍（座標從 0 開始）
+
+    Lane0 = (0, Lane0寬)
+    Lane1 = (Lane0寬, Lane0+Lane1寬)
+    Lane2 = (Lane0+Lane1寬, Lane0+Lane1+Lane2寬)
+    以此類推
+
+    Args:
+        all_lanes: [(lane_number, width_mm), ...] 所有車道
+
+    Returns:
+        list of (lane_number, start_mm, end_mm)
+    """
+    sorted_lanes = sorted(all_lanes, key=lambda x: x[0])
+    coords = []
+    cumulative = 0.0
+    for num, width in sorted_lanes:
+        coords.append((num, cumulative, cumulative + width))
+        cumulative += width
+    return coords
+
+
 def save_result(site_name, all_lanes, lidar_assignments, lidar_centers, results,
                 records_file=None, note="", last_lidar_outer_dist=None):
     """
@@ -221,17 +245,19 @@ def _print_result_tables(site_name, all_lanes, lidar_assignments, lidar_centers,
     print("=" * 100)
 
     # 車道資訊
+    lane_coords = calculate_lane_coordinates(all_lanes)
     print()
     print("  【車道資訊】")
     print()
-    print("  ┌────────┬──────────┐")
-    print("  │ 車道   │ 寬度(mm) │")
-    print("  ├────────┼──────────┤")
-    for num, width in all_lanes:
-        print(f"  │ Lane{num}  │ {width:>8.0f} │")
-    print("  ├────────┼──────────┤")
-    print(f"  │ 合計   │ {sum(w for _, w in all_lanes):>8.0f} │")
-    print("  └────────┴──────────┘")
+    print("  ┌────────┬──────────┬──────────────────────────┐")
+    print("  │ 車道   │ 寬度(mm) │ 座標範圍(mm)             │")
+    print("  ├────────┼──────────┼──────────────────────────┤")
+    for (num, width), (_, start, end) in zip(all_lanes, lane_coords):
+        coord_str = f"{start:.0f} ~ {end:.0f}"
+        print(f"  │ Lane{num}  │ {width:>8.0f} │ {coord_str:<26} │")
+    print("  ├────────┼──────────┼──────────────────────────┤")
+    print(f"  │ 合計   │ {sum(w for _, w in all_lanes):>8.0f} │ {'':26} │")
+    print("  └────────┴──────────┴──────────────────────────┘")
     print()
 
     print("  [護欄]", end="")
