@@ -401,9 +401,10 @@ def _render_group_report_sections(
 
 def _render_results_sections(site_name, all_lanes, lidar_groups, total_lidar_count, has_backup):
     lane_coords = calculate_lane_coordinates(all_lanes)
+    lane_coords_map = {num: (start, end) for num, start, end in lane_coords}
     lane_rows = [
-        [f"Lane{num}", f"{width:.0f}", f"{start:.0f} ~ {end:.0f}"]
-        for (num, width), (_, start, end) in zip(all_lanes, lane_coords)
+        [f"Lane{num}", f"{width:.0f}", f"{lane_coords_map[num][0]:.0f} ~ {lane_coords_map[num][1]:.0f}"]
+        for num, width in all_lanes
     ]
     lane_rows.append(["合計", f"{sum(w for _, w in all_lanes):.0f}", ""])
 

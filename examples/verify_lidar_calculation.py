@@ -139,10 +139,10 @@ def calculate_lane_coordinates(all_lanes: list):
     以此類推
 
     Args:
-        all_lanes: [(lane_number, width_mm), ...] 所有車道
+        all_lanes: [(lane_number, width_mm), ...] 所有車道（不需預先排序，函式內部會依車道編號排序）
 
     Returns:
-        list of (lane_number, start_mm, end_mm)
+        list of (lane_number, start_mm, end_mm)，依車道編號由小到大排列
     """
     sorted_lanes = sorted(all_lanes, key=lambda x: x[0])
     coords = []
@@ -246,13 +246,15 @@ def _print_result_tables(site_name, all_lanes, lidar_assignments, lidar_centers,
 
     # 車道資訊
     lane_coords = calculate_lane_coordinates(all_lanes)
+    lane_coords_map = {num: (start, end) for num, start, end in lane_coords}
     print()
     print("  【車道資訊】")
     print()
     print("  ┌────────┬──────────┬──────────────────────────┐")
     print("  │ 車道   │ 寬度(mm) │ 座標範圍(mm)             │")
     print("  ├────────┼──────────┼──────────────────────────┤")
-    for (num, width), (_, start, end) in zip(all_lanes, lane_coords):
+    for num, width in all_lanes:
+        start, end = lane_coords_map[num]
         coord_str = f"{start:.0f} ~ {end:.0f}"
         print(f"  │ Lane{num}  │ {width:>8.0f} │ {coord_str:<26} │")
     print("  ├────────┼──────────┼──────────────────────────┤")
