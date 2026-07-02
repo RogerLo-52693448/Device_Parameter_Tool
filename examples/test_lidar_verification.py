@@ -37,23 +37,23 @@ LAST_LIDAR_OUTER_DIST = 1700.0
 # LIDAR_0: 最內側 → right_comp=0, left_comp=+500
 #   scan_right = 5000 - 0 + 0 = 5000
 #   scan_left  = 7550 - 5000 + 500 = 3050
-#   offset     = |5000 - 3800| = 1200
+#   offset     = 5000 - 3800 = 1200
 #
 # LIDAR_1: 中間 → right_comp=+500, left_comp=+500
 #   inner=7550, outer=15000
 #   scan_right = 11300 - 7550 + 500 = 4250
 #   scan_left  = 15000 - 11300 + 500 = 4200
-#   offset     = |11300 - 7550 - 3800| = 50
-#     (問題說明的「250」為筆誤；正確計算為 |11300-11350|=50)
+#   offset     = 11300 - 7550 - 3800 = -50
+#     (問題說明的「250」為筆誤；正確計算為 11300-11350=-50)
 #
 # LIDAR_2: 最外側 → right_comp=+500, left_comp=0
 #   inner=15000, outer=18400
 #   scan_right = 16700 - 15000 + 500 = 2200
 #   scan_left  = 18400 - 16700 + 0 = 1700
-#   offset     = |16700 - 15000| = 1700
+#   offset     = 16700 - 15000 = 1700
 EXPECTED = [
     {"lidar": "LIDAR_0", "scan_right": 5000, "scan_left": 3050, "offset_value": 1200},
-    {"lidar": "LIDAR_1", "scan_right": 4250, "scan_left": 4200, "offset_value": 50},
+    {"lidar": "LIDAR_1", "scan_right": 4250, "scan_left": 4200, "offset_value": -50},
     {"lidar": "LIDAR_2", "scan_right": 2200, "scan_left": 1700, "offset_value": 1700},
 ]
 

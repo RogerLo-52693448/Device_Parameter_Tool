@@ -73,9 +73,9 @@ def calculate_lidar_results(
 
         # 偏差值計算:
         # 用 center_distance 減去「此 Lidar 之前所有 Lidar 負責車道的總寬 + 此 Lidar 右側車道寬」
-        # LIDAR_0 (最內側): abs(center - Lane0寬)
-        # LIDAR_1 (中間):   abs(center - LIDAR_0負責總寬 - LIDAR_1右側車道寬)
-        # LIDAR_2 (最外側): abs(center - LIDAR_0負責總寬 - LIDAR_1負責總寬)
+        # LIDAR_0 (最內側): center - Lane0寬
+        # LIDAR_1 (中間):   center - LIDAR_0負責總寬 - LIDAR_1右側車道寬
+        # LIDAR_2 (最外側): center - LIDAR_0負責總寬 - LIDAR_1負責總寬
         prev_lidars_total = 0.0
         for j in range(i):
             prev_assigned = sorted(lidar_assignments[j])
@@ -84,30 +84,30 @@ def calculate_lidar_results(
         if len(assigned) == 2:
             # 有 2 個車道: 減去前面 Lidar 總寬 + 右側車道寬
             right_lane_width = lane_width_map[assigned[0]]
-            offset_value = abs(center - prev_lidars_total - right_lane_width)
+            offset_value = center - prev_lidars_total - right_lane_width
         else:
             # 只有 1 個車道: 減去前面 Lidar 總寬
-            offset_value = abs(center - prev_lidars_total)
+            offset_value = center - prev_lidars_total
 
         # 偏差值計算過程描述
         if i == 0 and len(assigned) == 2:
-            offset_formula = f"|{center:.0f} - Lane{assigned[0]}({lane_width_map[assigned[0]]:.0f})|"
+            offset_formula = f"{center:.0f} - Lane{assigned[0]}({lane_width_map[assigned[0]]:.0f})"
         elif i == 0 and len(assigned) == 1:
-            offset_formula = f"|{center:.0f} - 0|"
+            offset_formula = f"{center:.0f} - 0"
         elif len(assigned) == 2:
             prev_parts = []
             for j in range(i):
                 for ln in sorted(lidar_assignments[j]):
                     prev_parts.append(f"Lane{ln}({lane_width_map[ln]:.0f})")
             prev_str = " + ".join(prev_parts)
-            offset_formula = f"|{center:.0f} - {prev_str} - Lane{assigned[0]}({lane_width_map[assigned[0]]:.0f})|"
+            offset_formula = f"{center:.0f} - {prev_str} - Lane{assigned[0]}({lane_width_map[assigned[0]]:.0f})"
         else:
             prev_parts = []
             for j in range(i):
                 for ln in sorted(lidar_assignments[j]):
                     prev_parts.append(f"Lane{ln}({lane_width_map[ln]:.0f})")
             prev_str = " + ".join(prev_parts)
-            offset_formula = f"|{center:.0f} - {prev_str}|"
+            offset_formula = f"{center:.0f} - {prev_str}"
 
         results.append({
             "index": i,
