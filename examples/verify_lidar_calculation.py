@@ -537,9 +537,10 @@ def load_and_modify():
 
 def main():
     version = get_tool_version()
+    version_display = version if len(version) <= 15 else version[:12] + "..."
     print()
     print("╔══════════════════════════════════════════════╗")
-    print(f"║   Lidar 有效區計算驗證工具 v{version:<15}║")
+    print(f"║   Lidar 有效區計算驗證工具 v{version_display:<15}║")
     print("╚══════════════════════════════════════════════╝")
     print()
     print("  請選擇操作模式：")
