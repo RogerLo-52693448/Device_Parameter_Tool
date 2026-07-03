@@ -511,8 +511,10 @@ def _render_history_table(site_name, records):
         note = rec.get("note", "")
         all_lanes = rec.get("all_lanes", [])
         centers = rec.get("lidar_centers", [])
+        has_backup = bool(rec.get("has_backup"))
+        backup_centers = rec.get("backup_lidar_centers", []) if has_backup else []
         lane_count = len(all_lanes)
-        lidar_count = len(centers)
+        lidar_count = len(centers) + len(backup_centers)
         total_width = sum(float(lane[1]) for lane in all_lanes) if all_lanes else 0.0
         rows.append(
             "<tr>"
