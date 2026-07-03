@@ -22,6 +22,17 @@ SCAN_LIMIT = 5500.0          # mm, 超過此值需警告
 WIDTH_CONSISTENCY_WARNING_THRESHOLD = 500.0  # mm, 超過此值需提示量測差異
 MAX_RECORDS_PER_SITE = 3     # 每個點位最多保留筆數
 RECORDS_FILE = "lidar_records.json"
+VERSION_FILE = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "VERSION")
+
+
+def get_tool_version() -> str:
+    """讀取專案根目錄 VERSION 檔案作為工具版本號。"""
+    try:
+        with open(VERSION_FILE, "r", encoding="utf-8") as f:
+            version = f.read().strip()
+            return version or "unknown"
+    except OSError:
+        return "unknown"
 
 
 def calculate_lidar_results(
@@ -525,9 +536,10 @@ def load_and_modify():
 
 
 def main():
+    version = get_tool_version()
     print()
     print("╔══════════════════════════════════════════════╗")
-    print("║   Lidar 有效區計算驗證工具 v1.3             ║")
+    print(f"║   Lidar 有效區計算驗證工具 v{version:<15}║")
     print("╚══════════════════════════════════════════════╝")
     print()
     print("  請選擇操作模式：")
