@@ -1,5 +1,9 @@
 # Device_Parameter_Tool
 
+## 版本號
+
+目前版本定義於專案根目錄 `VERSION` 檔案。
+
 ## CLI 驗證
 
 ```bash
