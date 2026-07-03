@@ -22,6 +22,7 @@ from verify_lidar_calculation import (
     calculate_lidar_results, save_result, load_records,
     MAX_RECORDS_PER_SITE, WIDTH_CONSISTENCY_WARNING_THRESHOLD, _print_result_tables
 )
+from web_ui import _compute_results_from_record, _form_from_record
 
 # ─── 測試資料 ────────────────────────────────────────────────────────────────
 
@@ -32,6 +33,9 @@ LIDAR_CENTERS = [5000.0, 11300.0, 16700.0]
 # 最後一顆 Lidar (LIDAR_2) 到外側護欄的距離
 # 18400 - 16700 = 1700mm → 總計 16700+1700=18400 vs 車道總寬 18400 → 差距 0mm (正常)
 LAST_LIDAR_OUTER_DIST = 1700.0
+BACKUP_LIDAR_ASSIGNMENTS = [[0], [1, 2], [3, 4]]
+BACKUP_LIDAR_CENTERS = [2100.0, 9400.0, 15500.0]
+BACKUP_LAST_LIDAR_OUTER_DIST = 2900.0
 
 # 預期結果
 # LIDAR_0: 最內側 → right_comp=0, left_comp=+500
@@ -149,7 +153,8 @@ with tempfile.NamedTemporaryFile(suffix=".json", delete=False) as tmp:
 try:
     # 3-a: 存入 1 筆，讀取確認
     ts1 = save_result(SITE_NAME, ALL_LANES, LIDAR_ASSIGNMENTS, LIDAR_CENTERS,
-                      results, records_file=tmp_path, last_lidar_outer_dist=LAST_LIDAR_OUTER_DIST)
+                      results, records_file=tmp_path, note="record-0",
+                      last_lidar_outer_dist=LAST_LIDAR_OUTER_DIST)
     recs = load_records(SITE_NAME, records_file=tmp_path)
     passed_a = len(recs) == 1 and recs[0]["timestamp"] == ts1
     save_tests.append(("存入 1 筆後讀取，確認筆數=1 且時間戳正確", passed_a))
@@ -158,33 +163,28 @@ try:
     passed_outer = recs[0].get("last_lidar_outer_dist") == LAST_LIDAR_OUTER_DIST
     save_tests.append(("last_lidar_outer_dist 欄位正確儲存並讀取", passed_outer))
 
-    # 3-b: 再存入 5 筆（共 6 筆），確認只剩 5 筆
+    # 3-b: 再存入 MAX_RECORDS_PER_SITE 筆，確認超過上限後只保留最新資料
     ts_list = [ts1]
-    for _ in range(5):
+    for idx in range(1, MAX_RECORDS_PER_SITE + 1):
         ts = save_result(SITE_NAME, ALL_LANES, LIDAR_ASSIGNMENTS, LIDAR_CENTERS,
-                         results, records_file=tmp_path, last_lidar_outer_dist=LAST_LIDAR_OUTER_DIST)
+                         results, records_file=tmp_path, note=f"record-{idx}",
+                         last_lidar_outer_dist=LAST_LIDAR_OUTER_DIST)
         ts_list.append(ts)
 
     recs = load_records(SITE_NAME, records_file=tmp_path)
-    passed_b_count = len(recs) == 5
-    save_tests.append(("連續存 6 筆後，筆數應 = 5", passed_b_count))
+    passed_b_count = len(recs) == MAX_RECORDS_PER_SITE
+    save_tests.append((f"連續存入 {MAX_RECORDS_PER_SITE + 1} 筆後，筆數應 = {MAX_RECORDS_PER_SITE}", passed_b_count))
 
     # 3-c: 確認第 1 筆已被刪除（即最舊的那筆已移出）
-    # 注意：若所有記錄在同一分鐘內寫入，時間戳字串會相同；
-    # 此時以「筆數 = 5 且所有現存記錄為後 5 筆」來驗證，而非時間戳唯一性
     stored_timestamps = [r["timestamp"] for r in recs]
-    all_same_ts = len(set(ts_list)) == 1  # 所有時間戳相同（同一分鐘內）
-    if all_same_ts:
-        # 若時間戳全相同，只要筆數正確即可確認最舊的已刪除
-        passed_b_oldest = len(recs) == MAX_RECORDS_PER_SITE
-    else:
-        passed_b_oldest = ts1 not in stored_timestamps
+    stored_notes = [r.get("note") for r in recs]
+    passed_b_oldest = "record-0" not in stored_notes
     save_tests.append(("第 1 筆（最舊）已被自動刪除", passed_b_oldest))
 
-    # 3-d: 確認最後 5 筆保留（ts_list[1] ~ ts_list[5]）
-    # 因為時間戳精確度為分鐘，同批次可能相同；只驗前述條件
-    passed_b_latest = all(ts_list[j] in stored_timestamps for j in range(1, 6))
-    save_tests.append(("最新 5 筆均已保留", passed_b_latest))
+    # 3-d: 確認最後 MAX_RECORDS_PER_SITE 筆保留
+    expected_notes = [f"record-{idx}" for idx in range(1, MAX_RECORDS_PER_SITE + 1)]
+    passed_b_latest = stored_notes == expected_notes
+    save_tests.append((f"最新 {MAX_RECORDS_PER_SITE} 筆均已保留", passed_b_latest))
 
     # 3-e: 讀取不存在的點位 → 應回傳空 list
     empty = load_records("不存在的點位", records_file=tmp_path)
@@ -193,8 +193,9 @@ try:
     print()
     print(f"  儲存檔案: {tmp_path} (測試用，執行後刪除)")
     print()
-    print(f"  存入 6 筆後剩餘筆數  : {len(recs)}")
+    print(f"  存入 {MAX_RECORDS_PER_SITE + 1} 筆後剩餘筆數  : {len(recs)}")
     print(f"  所有記錄時間戳       : {stored_timestamps}")
+    print(f"  所有記錄 note        : {stored_notes}")
     print(f"  原本第 1 筆時間戳    : {ts1}")
     print(f"  第 1 筆是否已刪除    : {'是' if passed_b_oldest else '否'}")
 
@@ -229,6 +230,56 @@ try:
     passed_empty_note = recs2[-1].get("note", None) == ""
     note_tests.append(("空 note 預設為空字串", passed_empty_note))
 
+    backup_results = calculate_lidar_results(ALL_LANES, BACKUP_LIDAR_ASSIGNMENTS, BACKUP_LIDAR_CENTERS)
+    save_result(
+        SITE_NAME,
+        ALL_LANES,
+        LIDAR_ASSIGNMENTS,
+        LIDAR_CENTERS,
+        results,
+        records_file=tmp2_path,
+        note="含備援設定",
+        last_lidar_outer_dist=LAST_LIDAR_OUTER_DIST,
+        has_backup=True,
+        backup_lidar_assignments=BACKUP_LIDAR_ASSIGNMENTS,
+        backup_lidar_centers=BACKUP_LIDAR_CENTERS,
+        backup_results=backup_results,
+        backup_last_lidar_outer_dist=BACKUP_LAST_LIDAR_OUTER_DIST,
+    )
+    recs2 = load_records(SITE_NAME, records_file=tmp2_path)
+    backup_rec = recs2[-1]
+    passed_backup_saved = (
+        backup_rec.get("has_backup") is True
+        and backup_rec.get("backup_lidar_assignments") == BACKUP_LIDAR_ASSIGNMENTS
+        and backup_rec.get("backup_lidar_centers") == BACKUP_LIDAR_CENTERS
+        and backup_rec.get("backup_last_lidar_outer_dist") == BACKUP_LAST_LIDAR_OUTER_DIST
+        and backup_rec.get("backup_results") == backup_results
+    )
+    note_tests.append(("備援設定欄位正確寫入並讀取", passed_backup_saved))
+
+    loaded_form = _form_from_record(SITE_NAME, backup_rec)
+    passed_backup_form = (
+        loaded_form.get("has_backup") is True
+        and loaded_form.get("lidar_count") == len(LIDAR_CENTERS) + len(BACKUP_LIDAR_CENTERS)
+        and loaded_form.get("backup_lidar_centers") == ["2100", "9400", "15500"]
+        and loaded_form.get("backup_lidar_lanes_a") == [0, 1, 3]
+        and loaded_form.get("backup_lidar_lanes_b") == [-1, 2, 4]
+        and loaded_form.get("backup_last_lidar_outer_dist") == "2900"
+    )
+    note_tests.append(("載入歷史設定時會回填備援欄位", passed_backup_form))
+
+    loaded_groups, loaded_lanes, loaded_warnings = _compute_results_from_record(backup_rec)
+    passed_backup_groups = (
+        loaded_lanes == [(0, 3800.0), (1, 3750.0), (2, 3800.0), (3, 3650.0), (4, 3400.0)]
+        and loaded_groups is not None
+        and len(loaded_groups) == 2
+        and loaded_groups[1]["label"] == "備援 Lidar"
+        and loaded_groups[1]["lidar_assignments"] == BACKUP_LIDAR_ASSIGNMENTS
+        and loaded_groups[1]["lidar_centers"] == BACKUP_LIDAR_CENTERS
+        and isinstance(loaded_warnings, list)
+    )
+    note_tests.append(("載入歷史結果時會重建備援 Lidar 資料", passed_backup_groups))
+
     # 模擬「載入並修改」：讀取基底記錄，修改車道寬度，重新計算，確認差異
     base_rec = recs2[0]
     base_lanes = [tuple(lane) for lane in base_rec["all_lanes"]]
@@ -256,7 +307,7 @@ try:
                 new_results, records_file=tmp2_path, note="調整 Lane0 路寬",
                 last_lidar_outer_dist=base_outer_dist)
     recs2_final = load_records(SITE_NAME, records_file=tmp2_path)
-    passed_save_mod = len(recs2_final) == 3 and recs2_final[-1].get("note") == "調整 Lane0 路寬"
+    passed_save_mod = len(recs2_final) == MAX_RECORDS_PER_SITE and recs2_final[-1].get("note") == "調整 Lane0 路寬"
     note_tests.append(("修改後存入新一筆，note 正確", passed_save_mod))
 
     print()

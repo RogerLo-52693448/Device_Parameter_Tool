@@ -20,7 +20,7 @@ from datetime import datetime
 
 SCAN_LIMIT = 5500.0          # mm, 超過此值需警告
 WIDTH_CONSISTENCY_WARNING_THRESHOLD = 500.0  # mm, 超過此值需提示量測差異
-MAX_RECORDS_PER_SITE = 5     # 每個點位最多保留筆數
+MAX_RECORDS_PER_SITE = 3     # 每個點位最多保留筆數
 RECORDS_FILE = "lidar_records.json"
 
 
@@ -154,7 +154,10 @@ def calculate_lane_coordinates(all_lanes: list):
 
 
 def save_result(site_name, all_lanes, lidar_assignments, lidar_centers, results,
-                records_file=None, note="", last_lidar_outer_dist=None):
+                records_file=None, note="", last_lidar_outer_dist=None,
+                has_backup=False, backup_lidar_assignments=None,
+                backup_lidar_centers=None, backup_results=None,
+                backup_last_lidar_outer_dist=None):
     """
     儲存一筆計算記錄，每個點位最多保留 MAX_RECORDS_PER_SITE 筆（超過自動刪除最早的）。
 
@@ -167,6 +170,11 @@ def save_result(site_name, all_lanes, lidar_assignments, lidar_centers, results,
         records_file: 儲存檔案路徑 (預設 RECORDS_FILE)
         note: 備註字串，記錄此次儲存的原因（可留空）
         last_lidar_outer_dist: 最後一顆 Lidar 到外側護欄的距離 (mm)，可為 None
+        has_backup: 是否啟用備援 Lidar
+        backup_lidar_assignments: 備援 Lidar 負責車道
+        backup_lidar_centers: 備援 Lidar 中心距離
+        backup_results: 備援 Lidar 計算結果
+        backup_last_lidar_outer_dist: 備援最後一顆 Lidar 到外側護欄的距離 (mm)，可為 None
 
     Returns:
         timestamp (str): 此筆記錄的時間戳記 (YYYYMMDDHHMM)
@@ -190,10 +198,15 @@ def save_result(site_name, all_lanes, lidar_assignments, lidar_centers, results,
         "timestamp": timestamp,
         "note": note,
         "all_lanes": [list(lane) for lane in all_lanes],
+        "has_backup": bool(has_backup),
         "lidar_assignments": lidar_assignments,
         "lidar_centers": lidar_centers,
         "last_lidar_outer_dist": last_lidar_outer_dist,
         "results": results,
+        "backup_lidar_assignments": backup_lidar_assignments or [],
+        "backup_lidar_centers": backup_lidar_centers or [],
+        "backup_last_lidar_outer_dist": backup_last_lidar_outer_dist,
+        "backup_results": backup_results or [],
     }
 
     all_records[site_name].append(record)

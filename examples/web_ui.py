@@ -554,7 +554,14 @@ def _compute_results_from_record(record):
     last_outer_raw = record.get("last_lidar_outer_dist")
     last_lidar_outer_dist = float(last_outer_raw) if last_outer_raw is not None else None
     results = calculate_lidar_results(all_lanes, lidar_assignments, lidar_centers)
-    warnings = _build_warnings(results, all_lanes, lidar_centers, last_lidar_outer_dist)
+    has_backup = bool(record.get("has_backup"))
+    warnings = _build_warnings(
+        results,
+        all_lanes,
+        lidar_centers,
+        last_lidar_outer_dist,
+        "主要 Lidar" if has_backup else None,
+    )
     lidar_groups = [{
         "label": "主要 Lidar",
         "lidar_assignments": lidar_assignments,
@@ -562,6 +569,33 @@ def _compute_results_from_record(record):
         "results": results,
         "last_lidar_outer_dist": last_lidar_outer_dist,
     }]
+    if has_backup:
+        backup_lidar_assignments = [list(a) for a in record.get("backup_lidar_assignments", [])]
+        backup_lidar_centers = [float(c) for c in record.get("backup_lidar_centers", [])]
+        backup_last_outer_raw = record.get("backup_last_lidar_outer_dist")
+        backup_last_lidar_outer_dist = (
+            float(backup_last_outer_raw) if backup_last_outer_raw is not None else None
+        )
+        if backup_lidar_assignments and backup_lidar_centers:
+            backup_results = calculate_lidar_results(
+                all_lanes, backup_lidar_assignments, backup_lidar_centers
+            )
+            warnings.extend(
+                _build_warnings(
+                    backup_results,
+                    all_lanes,
+                    backup_lidar_centers,
+                    backup_last_lidar_outer_dist,
+                    "備援 Lidar",
+                )
+            )
+            lidar_groups.append({
+                "label": "備援 Lidar",
+                "lidar_assignments": backup_lidar_assignments,
+                "lidar_centers": backup_lidar_centers,
+                "results": backup_results,
+                "last_lidar_outer_dist": backup_last_lidar_outer_dist,
+            })
     return lidar_groups, all_lanes, warnings
 
 
@@ -575,25 +609,35 @@ def _form_from_record(site_name, record):
     all_lanes = record.get("all_lanes", [])
     lidar_centers = record.get("lidar_centers", [])
     lidar_assignments = record.get("lidar_assignments", [])
+    has_backup = bool(record.get("has_backup"))
+    backup_lidar_centers = record.get("backup_lidar_centers", [])
+    backup_lidar_assignments = record.get("backup_lidar_assignments", [])
     lane_widths = [_format_number_for_input(lane[1]) for lane in all_lanes]
     centers = [_format_number_for_input(c) for c in lidar_centers]
     lanes_a = [int(assigned[0]) if assigned else 0 for assigned in lidar_assignments]
     lanes_b = [int(assigned[1]) if len(assigned) > 1 else -1 for assigned in lidar_assignments]
     last_outer = record.get("last_lidar_outer_dist")
+    backup_centers = [_format_number_for_input(c) for c in backup_lidar_centers]
+    backup_lanes_a = [int(assigned[0]) if assigned else 0 for assigned in backup_lidar_assignments]
+    backup_lanes_b = [int(assigned[1]) if len(assigned) > 1 else -1 for assigned in backup_lidar_assignments]
+    backup_last_outer = record.get("backup_last_lidar_outer_dist")
+    total_lidar_count = len(centers) + len(backup_centers) if has_backup else len(centers)
     return {
         "site_name": site_name,
         "lane_count": max(1, min(8, len(lane_widths))) if lane_widths else 1,
-        "lidar_count": max(1, min(8, len(centers))) if centers else 1,
-        "has_backup": False,
+        "lidar_count": max(1, min(8, total_lidar_count)) if total_lidar_count else 1,
+        "has_backup": has_backup,
         "lane_widths": lane_widths or [""],
         "lidar_centers": centers or [""],
         "lidar_lanes_a": lanes_a or [0],
         "lidar_lanes_b": lanes_b or [-1],
         "last_lidar_outer_dist": "" if last_outer is None else _format_number_for_input(last_outer),
-        "backup_lidar_centers": [],
-        "backup_lidar_lanes_a": [],
-        "backup_lidar_lanes_b": [],
-        "backup_last_lidar_outer_dist": "",
+        "backup_lidar_centers": backup_centers,
+        "backup_lidar_lanes_a": backup_lanes_a,
+        "backup_lidar_lanes_b": backup_lanes_b,
+        "backup_last_lidar_outer_dist": (
+            "" if backup_last_outer is None else _format_number_for_input(backup_last_outer)
+        ),
     }
 
 
@@ -1416,6 +1460,11 @@ class Handler(BaseHTTPRequestHandler):
                         results,
                         note=note,
                         last_lidar_outer_dist=last_lidar_outer_dist,
+                        has_backup=has_backup,
+                        backup_lidar_assignments=backup_lidar_assignments if has_backup else None,
+                        backup_lidar_centers=backup_lidar_centers if has_backup else None,
+                        backup_results=backup_results if has_backup else None,
+                        backup_last_lidar_outer_dist=backup_last_lidar_outer_dist if has_backup else None,
                     )
                     records = load_records(site_name)
                     history_table = _render_history_table(site_name, records)
