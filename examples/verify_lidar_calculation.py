@@ -17,18 +17,21 @@ Lidar 有效區計算驗證工具
 import json
 import os
 from datetime import datetime
+from pathlib import Path
 
 SCAN_LIMIT = 5500.0          # mm, 超過此值需警告
 WIDTH_CONSISTENCY_WARNING_THRESHOLD = 500.0  # mm, 超過此值需提示量測差異
 MAX_RECORDS_PER_SITE = 3     # 每個點位最多保留筆數
 RECORDS_FILE = "lidar_records.json"
-VERSION_FILE = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "VERSION")
+VERSION_FILE = Path(__file__).resolve().parent.parent / "VERSION"
+MAX_VERSION_DISPLAY_LENGTH = 15
+VERSION_TRUNCATE_VISIBLE_LENGTH = 12
 
 
 def get_tool_version() -> str:
     """讀取專案根目錄 VERSION 檔案作為工具版本號。"""
     try:
-        with open(VERSION_FILE, "r", encoding="utf-8") as f:
+        with VERSION_FILE.open("r", encoding="utf-8") as f:
             version = f.read().strip()
             return version or "unknown"
     except OSError:
@@ -537,7 +540,11 @@ def load_and_modify():
 
 def main():
     version = get_tool_version()
-    version_display = version if len(version) <= 15 else version[:12] + "..."
+    version_display = (
+        version
+        if len(version) <= MAX_VERSION_DISPLAY_LENGTH
+        else version[:VERSION_TRUNCATE_VISIBLE_LENGTH] + "..."
+    )
     print()
     print("╔══════════════════════════════════════════════╗")
     print(f"║   Lidar 有效區計算驗證工具 v{version_display:<15}║")
