@@ -90,6 +90,7 @@ def calculate_lidar_results(
         # LIDAR_0 (最內側): center - Lane0寬
         # LIDAR_1 (中間):   center - LIDAR_0負責總寬 - LIDAR_1右側車道寬
         # LIDAR_2 (最外側): center - LIDAR_0負責總寬 - LIDAR_1負責總寬
+        #                    (僅負責 1 個車道，因此沒有右側車道寬項)
         # 偏差值保留正負號：
         #   正值 = 安裝位置比理想位置更外側（更遠離內側護欄）
         #   負值 = 安裝位置比理想位置更內側（更靠近內側護欄）
@@ -265,13 +266,13 @@ def load_records(site_name, records_file=None):
 
 
 def _offset_is_error(offset_value):
-    """判斷偏差值是否超出 ±5500mm 錯誤門檻。
+    """判斷偏差值是否超出 ±5500mm 錯誤門檻（不含 ±5500 本身）。
 
     Args:
         offset_value: 偏差值（mm）
 
     Returns:
-        bool: 超出門檻時為 True，否則為 False
+        bool: 大於 5500 或小於 -5500 時為 True，否則為 False
     """
     return abs(offset_value) > SCAN_LIMIT
 
