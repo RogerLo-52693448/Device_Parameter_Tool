@@ -102,6 +102,8 @@ def calculate_lidar_results(
         else:
             # 只有 1 個車道: 減去前面 Lidar 總寬
             offset_value = center - prev_lidars_total
+        # 偏差值保留正負號，用來表示安裝位置偏移方向；
+        # 僅在偏差值大於 5500mm 或小於 -5500mm 時視為錯誤。
 
         # 偏差值計算過程描述
         if i == 0 and len(assigned) == 2:

@@ -392,7 +392,9 @@ try:
 
     base_status_result = {"scan_right": 5000.0, "scan_left": 3050.0, "offset_value": 0.0}
     status_threshold_tests = [
+        ({**base_status_result, "offset_value": 5499.0}, "正常"),
         ({**base_status_result, "offset_value": 5500.0}, "正常"),
+        ({**base_status_result, "offset_value": -5499.0}, "正常"),
         ({**base_status_result, "offset_value": -5500.0}, "正常"),
         ({**base_status_result, "offset_value": 5501.0}, "錯誤"),
         ({**base_status_result, "offset_value": -5501.0}, "錯誤"),
