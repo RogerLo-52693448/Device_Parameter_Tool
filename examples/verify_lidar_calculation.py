@@ -333,7 +333,12 @@ def _print_result_tables(site_name, all_lanes, lidar_assignments, lidar_centers,
                 warnings.append(f"LIDAR_{r['index']}: scan_right={r['scan_right']:.0f}mm 超過 {SCAN_LIMIT:.0f}mm 偵測上限")
             if r["scan_left"] > SCAN_LIMIT:
                 warnings.append(f"LIDAR_{r['index']}: scan_left={r['scan_left']:.0f}mm 超過 {SCAN_LIMIT:.0f}mm 偵測上限")
-        if r["scan_right"] < 0 or r["scan_left"] < 0:
+        if (
+            r["scan_right"] < 0
+            or r["scan_left"] < 0
+            or r["offset_value"] > SCAN_LIMIT
+            or r["offset_value"] < -SCAN_LIMIT
+        ):
             status = "✗ 錯誤"
 
         if prev_results:
@@ -510,9 +515,6 @@ def load_and_modify():
             break
         try:
             new_val = float(raw)
-            if new_val < 0:
-                print("   ✗ 距離不可為負數")
-                continue
             new_last_lidar_outer_dist = new_val
             break
         except ValueError:
@@ -667,9 +669,6 @@ def main():
         try:
             raw = input(f"   LIDAR_{lidar_count - 1} 到外側護欄的距離 (mm): ")
             val = float(raw)
-            if val < 0:
-                print("   ✗ 距離不可為負數")
-                continue
             last_lidar_outer_dist = val
             break
         except ValueError:

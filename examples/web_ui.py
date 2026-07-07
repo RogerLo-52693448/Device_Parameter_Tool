@@ -133,7 +133,7 @@ _FORM_JS = """
     }
     html += '<label>' + title + '最後一顆 Lidar 到外側護欄距離 (mm，可留空)</label>'
       + '<input id="' + prefix + '_last_lidar_outer_dist" name="' + prefix + '_last_lidar_outer_dist"'
-      + ' type="number" min="0" step="1" placeholder="mm" value="' + lastOuterValue + '" />';
+      + ' type="number" step="1" placeholder="mm" value="' + lastOuterValue + '" />';
     html += '</div>';
     return html;
   }
@@ -274,6 +274,10 @@ def _status_to_class(status: str):
     }.get(status, "status-neutral")
 
 
+def _offset_is_error(offset_value):
+    return offset_value > SCAN_LIMIT or offset_value < -SCAN_LIMIT
+
+
 def _render_summary_cards(items):
     cards = []
     for label, value, tone in items:
@@ -292,7 +296,7 @@ def _render_result_table(results):
         status = "正常"
         if r["scan_right"] > SCAN_LIMIT or r["scan_left"] > SCAN_LIMIT:
             status = "警告"
-        if r["scan_right"] < 0 or r["scan_left"] < 0:
+        if r["scan_right"] < 0 or r["scan_left"] < 0 or _offset_is_error(r["offset_value"]):
             status = "錯誤"
         row_html.append(
             "<tr>"
@@ -321,7 +325,7 @@ def _result_status(result):
     status = "正常"
     if result["scan_right"] > SCAN_LIMIT or result["scan_left"] > SCAN_LIMIT:
         status = "警告"
-    if result["scan_right"] < 0 or result["scan_left"] < 0:
+    if result["scan_right"] < 0 or result["scan_left"] < 0 or _offset_is_error(result["offset_value"]):
         status = "錯誤"
     return status
 
@@ -1390,8 +1394,6 @@ class Handler(BaseHTTPRequestHandler):
                     last_lidar_outer_dist = float(form["last_lidar_outer_dist"])
                 except ValueError as exc:
                     raise ValueError("主要 Lidar 最後一顆到外側護欄距離需為數字") from exc
-                if last_lidar_outer_dist < 0:
-                    raise ValueError("主要 Lidar 最後一顆到外側護欄距離不可為負數")
 
             results = calculate_lidar_results(all_lanes, lidar_assignments, lidar_centers)
             warnings = _build_warnings(
@@ -1426,8 +1428,6 @@ class Handler(BaseHTTPRequestHandler):
                         backup_last_lidar_outer_dist = float(form["backup_last_lidar_outer_dist"])
                     except ValueError as exc:
                         raise ValueError("備援 Lidar 最後一顆到外側護欄距離需為數字") from exc
-                    if backup_last_lidar_outer_dist < 0:
-                        raise ValueError("備援 Lidar 最後一顆到外側護欄距離不可為負數")
 
                 backup_results = calculate_lidar_results(
                     all_lanes, backup_lidar_assignments, backup_lidar_centers

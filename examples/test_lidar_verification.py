@@ -22,7 +22,7 @@ from verify_lidar_calculation import (
     calculate_lidar_results, save_result, load_records,
     MAX_RECORDS_PER_SITE, WIDTH_CONSISTENCY_WARNING_THRESHOLD, _print_result_tables
 )
-from web_ui import _compute_results_from_record, _form_from_record
+from web_ui import _compute_results_from_record, _form_from_record, _result_status
 
 # ─── 測試資料 ────────────────────────────────────────────────────────────────
 
@@ -36,6 +36,8 @@ LAST_LIDAR_OUTER_DIST = 1700.0
 BACKUP_LIDAR_ASSIGNMENTS = [[0], [1, 2], [3, 4]]
 BACKUP_LIDAR_CENTERS = [2100.0, 9400.0, 15500.0]
 BACKUP_LAST_LIDAR_OUTER_DIST = 2900.0
+NEGATIVE_LAST_LIDAR_OUTER_DIST = -300.0
+NEGATIVE_BACKUP_LAST_LIDAR_OUTER_DIST = -450.0
 
 # 預期結果
 # LIDAR_0: 最內側 → right_comp=0, left_comp=+500
@@ -280,6 +282,31 @@ try:
     )
     note_tests.append(("載入歷史結果時會重建備援 Lidar 資料", passed_backup_groups))
 
+    save_result(
+        SITE_NAME,
+        ALL_LANES,
+        LIDAR_ASSIGNMENTS,
+        LIDAR_CENTERS,
+        results,
+        records_file=tmp2_path,
+        note="負值外側護欄距離",
+        last_lidar_outer_dist=NEGATIVE_LAST_LIDAR_OUTER_DIST,
+        has_backup=True,
+        backup_lidar_assignments=BACKUP_LIDAR_ASSIGNMENTS,
+        backup_lidar_centers=BACKUP_LIDAR_CENTERS,
+        backup_results=backup_results,
+        backup_last_lidar_outer_dist=NEGATIVE_BACKUP_LAST_LIDAR_OUTER_DIST,
+    )
+    negative_outer_rec = load_records(SITE_NAME, records_file=tmp2_path)[-1]
+    negative_outer_form = _form_from_record(SITE_NAME, negative_outer_rec)
+    passed_negative_outer = (
+        negative_outer_rec.get("last_lidar_outer_dist") == NEGATIVE_LAST_LIDAR_OUTER_DIST
+        and negative_outer_rec.get("backup_last_lidar_outer_dist") == NEGATIVE_BACKUP_LAST_LIDAR_OUTER_DIST
+        and negative_outer_form.get("last_lidar_outer_dist") == "-300"
+        and negative_outer_form.get("backup_last_lidar_outer_dist") == "-450"
+    )
+    note_tests.append(("主要/備援最後一顆到外側護欄距離可儲存並回填負值", passed_negative_outer))
+
     # 模擬「載入並修改」：讀取基底記錄，修改車道寬度，重新計算，確認差異
     base_rec = recs2[0]
     base_lanes = [tuple(lane) for lane in base_rec["all_lanes"]]
@@ -362,6 +389,15 @@ try:
         passed_warn_msg = False
         print(f"  ✗ _print_result_tables 路寬警告測試拋出例外: {e}")
     note_tests.append(("差距≥500mm 時 warnings 清單包含路寬一致性警告", passed_warn_msg))
+
+    status_threshold_tests = [
+        ({**results[0], "offset_value": 5500.0}, "正常"),
+        ({**results[0], "offset_value": -5500.0}, "正常"),
+        ({**results[0], "offset_value": 5501.0}, "錯誤"),
+        ({**results[0], "offset_value": -5501.0}, "錯誤"),
+    ]
+    passed_status_threshold = all(_result_status(result) == expected for result, expected in status_threshold_tests)
+    note_tests.append(("偏差值僅在 >5500 或 < -5500 時顯示錯誤", passed_status_threshold))
 
 finally:
     os.unlink(tmp2_path)
