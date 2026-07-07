@@ -270,7 +270,7 @@ def _offset_is_error(offset_value):
         offset_value: 偏差值（mm）
 
     Returns:
-        bool: 大於 5500 或小於 -5500 時為 True，否則為 False
+        bool: 嚴格大於 5500 或嚴格小於 -5500 時為 True，否則為 False（±5500 不算錯誤）
     """
     return abs(offset_value) > SCAN_LIMIT
 
