@@ -397,9 +397,11 @@ try:
         ({**base_status_result, "offset_value": -SCAN_LIMIT}, "正常"),
         ({**base_status_result, "offset_value": SCAN_LIMIT + 1}, "錯誤"),
         ({**base_status_result, "offset_value": -(SCAN_LIMIT + 1)}, "錯誤"),
+        ({**base_status_result, "scan_right": -1.0, "offset_value": 0.0}, "正常"),
+        ({**base_status_result, "scan_left": -1.0, "offset_value": 0.0}, "正常"),
     ]
     passed_status_threshold = all(_result_status(result) == expected for result, expected in status_threshold_tests)
-    note_tests.append(("偏差值僅在 >5500 或 < -5500 時顯示錯誤", passed_status_threshold))
+    note_tests.append(("狀態錯誤僅由偏差值超出 ±5500 觸發", passed_status_threshold))
 
 finally:
     os.unlink(tmp2_path)

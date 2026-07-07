@@ -297,7 +297,7 @@ def _render_result_table(results):
         status = "正常"
         if r["scan_right"] > SCAN_LIMIT or r["scan_left"] > SCAN_LIMIT:
             status = "警告"
-        if r["scan_right"] < 0 or r["scan_left"] < 0 or _offset_is_error(r["offset_value"]):
+        if _offset_is_error(r["offset_value"]):
             status = "錯誤"
         row_html.append(
             "<tr>"
@@ -326,7 +326,7 @@ def _result_status(result):
     status = "正常"
     if result["scan_right"] > SCAN_LIMIT or result["scan_left"] > SCAN_LIMIT:
         status = "警告"
-    if result["scan_right"] < 0 or result["scan_left"] < 0 or _offset_is_error(result["offset_value"]):
+    if _offset_is_error(result["offset_value"]):
         status = "錯誤"
     return status
 

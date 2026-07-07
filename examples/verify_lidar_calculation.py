@@ -348,11 +348,7 @@ def _print_result_tables(site_name, all_lanes, lidar_assignments, lidar_centers,
                 warnings.append(f"LIDAR_{r['index']}: scan_right={r['scan_right']:.0f}mm 超過 {SCAN_LIMIT:.0f}mm 偵測上限")
             if r["scan_left"] > SCAN_LIMIT:
                 warnings.append(f"LIDAR_{r['index']}: scan_left={r['scan_left']:.0f}mm 超過 {SCAN_LIMIT:.0f}mm 偵測上限")
-        if (
-            r["scan_right"] < 0
-            or r["scan_left"] < 0
-            or _offset_is_error(r["offset_value"])
-        ):
+        if _offset_is_error(r["offset_value"]):
             status = "✗ 錯誤"
 
         if prev_results:
