@@ -281,7 +281,7 @@ def _status_to_class(status: str):
 
 
 def _offset_is_error(offset_value):
-    """判斷偏差值是否嚴格超出 ±5500mm 錯誤門檻（±5500 本身不算錯誤）。"""
+    """判斷偏差值是否超出 ±5500mm 錯誤門檻（僅 >5500 或 <-5500 視為錯誤）。"""
     return abs(offset_value) > SCAN_LIMIT
 
 

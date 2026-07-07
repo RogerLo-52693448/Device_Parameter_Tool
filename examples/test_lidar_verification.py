@@ -395,6 +395,8 @@ try:
         ({**base_status_result, "offset_value": SCAN_LIMIT}, "正常"),
         ({**base_status_result, "offset_value": -(SCAN_LIMIT - 1)}, "正常"),
         ({**base_status_result, "offset_value": -SCAN_LIMIT}, "正常"),
+        ({**base_status_result, "scan_right": SCAN_LIMIT, "offset_value": 0.0}, "正常"),
+        ({**base_status_result, "scan_left": SCAN_LIMIT, "offset_value": 0.0}, "正常"),
         ({**base_status_result, "scan_right": SCAN_LIMIT + 1, "offset_value": 0.0}, "警告"),
         ({**base_status_result, "scan_left": SCAN_LIMIT + 1, "offset_value": 0.0}, "警告"),
         ({**base_status_result, "offset_value": SCAN_LIMIT + 1}, "錯誤"),
