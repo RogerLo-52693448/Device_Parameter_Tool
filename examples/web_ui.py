@@ -235,8 +235,14 @@ def _build_warnings(results, all_lanes, lidar_centers, last_lidar_outer_dist, gr
             warnings.append(
                 f"{prefix}LIDAR_{r['index']} scan_left={r['scan_left']:.0f}mm 超過 {SCAN_LIMIT:.0f}mm"
             )
-        if r["scan_right"] < 0 or r["scan_left"] < 0:
-            warnings.append(f"{prefix}LIDAR_{r['index']} scan 出現負值（僅提示，不視為錯誤）")
+        if r["scan_right"] < 0:
+            warnings.append(
+                f"{prefix}LIDAR_{r['index']} scan_right={r['scan_right']:.0f}mm 為負值（僅提示，不視為錯誤）"
+            )
+        if r["scan_left"] < 0:
+            warnings.append(
+                f"{prefix}LIDAR_{r['index']} scan_left={r['scan_left']:.0f}mm 為負值（僅提示，不視為錯誤）"
+            )
 
     if last_lidar_outer_dist is not None:
         total_lanes = sum(w for _, w in all_lanes)
