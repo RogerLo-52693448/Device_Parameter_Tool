@@ -263,6 +263,14 @@ def load_records(site_name, records_file=None):
 
 
 def _offset_is_error(offset_value):
+    """判斷偏差值是否超出 ±5500mm 錯誤門檻。
+
+    Args:
+        offset_value: 偏差值（mm）
+
+    Returns:
+        bool: 超出門檻時為 True，否則為 False
+    """
     return abs(offset_value) > SCAN_LIMIT
 
 

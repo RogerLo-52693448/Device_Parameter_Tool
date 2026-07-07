@@ -20,7 +20,7 @@ import tempfile
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from verify_lidar_calculation import (
     calculate_lidar_results, save_result, load_records,
-    MAX_RECORDS_PER_SITE, WIDTH_CONSISTENCY_WARNING_THRESHOLD, _print_result_tables
+    MAX_RECORDS_PER_SITE, WIDTH_CONSISTENCY_WARNING_THRESHOLD, SCAN_LIMIT, _print_result_tables
 )
 from web_ui import _compute_results_from_record, _form_from_record, _result_status
 
@@ -392,12 +392,12 @@ try:
 
     base_status_result = {"scan_right": 5000.0, "scan_left": 3050.0, "offset_value": 0.0}
     status_threshold_tests = [
-        ({**base_status_result, "offset_value": 5499.0}, "正常"),
-        ({**base_status_result, "offset_value": 5500.0}, "正常"),
-        ({**base_status_result, "offset_value": -5499.0}, "正常"),
-        ({**base_status_result, "offset_value": -5500.0}, "正常"),
-        ({**base_status_result, "offset_value": 5501.0}, "錯誤"),
-        ({**base_status_result, "offset_value": -5501.0}, "錯誤"),
+        ({**base_status_result, "offset_value": SCAN_LIMIT - 1}, "正常"),
+        ({**base_status_result, "offset_value": SCAN_LIMIT}, "正常"),
+        ({**base_status_result, "offset_value": -(SCAN_LIMIT - 1)}, "正常"),
+        ({**base_status_result, "offset_value": -SCAN_LIMIT}, "正常"),
+        ({**base_status_result, "offset_value": SCAN_LIMIT + 1}, "錯誤"),
+        ({**base_status_result, "offset_value": -(SCAN_LIMIT + 1)}, "錯誤"),
     ]
     passed_status_threshold = all(_result_status(result) == expected for result, expected in status_threshold_tests)
     note_tests.append(("偏差值僅在 >5500 或 < -5500 時顯示錯誤", passed_status_threshold))

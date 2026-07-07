@@ -133,7 +133,7 @@ _FORM_JS = """
     }
     html += '<label>' + title + '最後一顆 Lidar 到外側護欄距離 (mm，可留空)</label>'
       + '<input id="' + prefix + '_last_lidar_outer_dist" name="' + prefix + '_last_lidar_outer_dist"'
-      + ' type="number" step="1" placeholder="mm" aria-label="' + title + '最後一顆 Lidar 到外側護欄距離（mm，可為負值）" value="' + lastOuterValue + '" />';
+      + ' type="number" step="1" placeholder="mm" value="' + lastOuterValue + '" />';
     html += '</div>';
     return html;
   }
