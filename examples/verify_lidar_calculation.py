@@ -106,8 +106,6 @@ def calculate_lidar_results(
         else:
             # 只有 1 個車道: 減去前面 Lidar 總寬
             offset_value = center - prev_lidars_total
-        # 僅在偏差值大於 5500mm 或小於 -5500mm 時視為錯誤。
-
         # 偏差值計算過程描述
         if i == 0 and len(assigned) == 2:
             offset_formula = f"{center:.0f} - Lane{assigned[0]}({lane_width_map[assigned[0]]:.0f})"
@@ -266,7 +264,7 @@ def load_records(site_name, records_file=None):
 
 
 def _offset_is_error(offset_value):
-    """判斷偏差值是否超出 ±5500mm 錯誤門檻（不含 ±5500 本身）。
+    """判斷偏差值是否超出 ±5500mm 錯誤門檻。
 
     Args:
         offset_value: 偏差值（mm）
