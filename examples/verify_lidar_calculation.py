@@ -90,6 +90,9 @@ def calculate_lidar_results(
         # LIDAR_0 (最內側): center - Lane0寬
         # LIDAR_1 (中間):   center - LIDAR_0負責總寬 - LIDAR_1右側車道寬
         # LIDAR_2 (最外側): center - LIDAR_0負責總寬 - LIDAR_1負責總寬
+        # 偏差值保留正負號：
+        #   正值 = 安裝位置比理想位置更外側（更遠離內側護欄）
+        #   負值 = 安裝位置比理想位置更內側（更靠近內側護欄）
         prev_lidars_total = 0.0
         for j in range(i):
             prev_assigned = sorted(lidar_assignments[j])
@@ -102,7 +105,6 @@ def calculate_lidar_results(
         else:
             # 只有 1 個車道: 減去前面 Lidar 總寬
             offset_value = center - prev_lidars_total
-        # 偏差值保留正負號，用來表示安裝位置偏移方向；
         # 僅在偏差值大於 5500mm 或小於 -5500mm 時視為錯誤。
 
         # 偏差值計算過程描述

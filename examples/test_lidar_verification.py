@@ -50,7 +50,6 @@ NEGATIVE_BACKUP_LAST_LIDAR_OUTER_DIST = -450.0
 #   scan_right = 11300 - 7550 + 500 = 4250
 #   scan_left  = 15000 - 11300 + 500 = 4200
 #   offset     = 11300 - 7550 - 3800 = -50
-#     (問題說明的「250」為筆誤；正確計算為 11300-11350=-50)
 #
 # LIDAR_2: 最外側 → right_comp=+500, left_comp=0
 #   inner=15000, outer=18400
