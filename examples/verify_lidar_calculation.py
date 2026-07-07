@@ -260,6 +260,10 @@ def load_records(site_name, records_file=None):
     return all_records.get(site_name, [])
 
 
+def _offset_is_error(offset_value):
+    return abs(offset_value) > SCAN_LIMIT
+
+
 
 def _print_result_tables(site_name, all_lanes, lidar_assignments, lidar_centers,
                           results, prev_results=None, last_lidar_outer_dist=None):
@@ -336,8 +340,7 @@ def _print_result_tables(site_name, all_lanes, lidar_assignments, lidar_centers,
         if (
             r["scan_right"] < 0
             or r["scan_left"] < 0
-            or r["offset_value"] > SCAN_LIMIT
-            or r["offset_value"] < -SCAN_LIMIT
+            or _offset_is_error(r["offset_value"])
         ):
             status = "✗ 錯誤"
 

@@ -390,11 +390,12 @@ try:
         print(f"  ✗ _print_result_tables 路寬警告測試拋出例外: {e}")
     note_tests.append(("差距≥500mm 時 warnings 清單包含路寬一致性警告", passed_warn_msg))
 
+    base_status_result = {"scan_right": 5000.0, "scan_left": 3050.0, "offset_value": 0.0}
     status_threshold_tests = [
-        ({**results[0], "offset_value": 5500.0}, "正常"),
-        ({**results[0], "offset_value": -5500.0}, "正常"),
-        ({**results[0], "offset_value": 5501.0}, "錯誤"),
-        ({**results[0], "offset_value": -5501.0}, "錯誤"),
+        ({**base_status_result, "offset_value": 5500.0}, "正常"),
+        ({**base_status_result, "offset_value": -5500.0}, "正常"),
+        ({**base_status_result, "offset_value": 5501.0}, "錯誤"),
+        ({**base_status_result, "offset_value": -5501.0}, "錯誤"),
     ]
     passed_status_threshold = all(_result_status(result) == expected for result, expected in status_threshold_tests)
     note_tests.append(("偏差值僅在 >5500 或 < -5500 時顯示錯誤", passed_status_threshold))
