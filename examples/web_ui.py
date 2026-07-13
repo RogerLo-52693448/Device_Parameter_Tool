@@ -16,6 +16,7 @@ from verify_lidar_calculation import (
     WIDTH_CONSISTENCY_WARNING_THRESHOLD,
     calculate_lane_coordinates,
     calculate_lidar_results,
+    is_last_single_lane_lidar,
     load_records,
     save_result,
 )
@@ -281,14 +282,6 @@ def _status_to_class(status: str):
     }.get(status, "status-neutral")
 
 
-def _is_last_single_lane_lidar(result, total_results=None):
-    if total_results is None:
-        return False
-    index = result.get("index")
-    assigned = result.get("assigned")
-    return index == (total_results - 1) and isinstance(assigned, list) and len(assigned) == 1
-
-
 def _offset_is_error(offset_value, skip_alert=False):
     """判斷偏差值是否超出 ±1500mm 告警門檻（最後一顆且只負責 1 車道可略過）。"""
     if skip_alert:
@@ -350,7 +343,7 @@ def _result_status(result, total_results=None):
         status = "警告"
     if _offset_is_error(
         result["offset_value"],
-        skip_alert=_is_last_single_lane_lidar(result, total_results=total_results),
+        skip_alert=is_last_single_lane_lidar(result, total_results=total_results),
     ):
         status = "錯誤"
     return status

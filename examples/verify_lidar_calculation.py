@@ -265,7 +265,7 @@ def load_records(site_name, records_file=None):
     return all_records.get(site_name, [])
 
 
-def _is_last_single_lane_result(result, total_results=None):
+def is_last_single_lane_lidar(result, total_results=None):
     if total_results is None:
         return False
     return result.get("index") == (total_results - 1) and len(result.get("assigned", [])) == 1
@@ -362,7 +362,7 @@ def _print_result_tables(site_name, all_lanes, lidar_assignments, lidar_centers,
                 warnings.append(f"LIDAR_{r['index']}: scan_left={r['scan_left']:.0f}mm 超過 {SCAN_LIMIT:.0f}mm 偵測上限")
         if _offset_is_error(
             r["offset_value"],
-            skip_alert=_is_last_single_lane_result(r, total_results=total_results),
+            skip_alert=is_last_single_lane_lidar(r, total_results=total_results),
         ):
             status = "✗ 錯誤"
 

@@ -416,8 +416,15 @@ try:
         {"scan_right": 1000.0, "scan_left": 1000.0, "offset_value": OFFSET_ALERT_LIMIT + 800, "index": 1, "assigned": [3]},
         total_results=3,
     ) == "錯誤"
+    last_multi_lane_should_error = _result_status(
+        {"scan_right": 1000.0, "scan_left": 1000.0, "offset_value": OFFSET_ALERT_LIMIT + 800, "index": 2, "assigned": [3, 4]},
+        total_results=3,
+    ) == "錯誤"
     note_tests.append(("偏差值超出 ±1500 觸發錯誤", passed_status_threshold))
-    note_tests.append(("最後一顆且僅負責 1 車道的偏差值不觸發錯誤", exempt_last_single and exempt_not_last))
+    note_tests.append((
+        "最後一顆且僅負責 1 車道的偏差值不觸發錯誤",
+        exempt_last_single and exempt_not_last and last_multi_lane_should_error,
+    ))
 
 finally:
     os.unlink(tmp2_path)
