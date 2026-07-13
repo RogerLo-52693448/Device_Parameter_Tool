@@ -22,7 +22,13 @@ from verify_lidar_calculation import (
     calculate_lidar_results, save_result, load_records,
     MAX_RECORDS_PER_SITE, WIDTH_CONSISTENCY_WARNING_THRESHOLD, SCAN_LIMIT, _print_result_tables
 )
-from web_ui import _compute_results_from_record, _form_from_record, _result_status, OFFSET_ALERT_LIMIT
+from web_ui import (
+    _compute_results_from_record,
+    _form_from_record,
+    _group_section_titles,
+    _result_status,
+    OFFSET_ALERT_LIMIT,
+)
 
 # ─── 測試資料 ────────────────────────────────────────────────────────────────
 
@@ -280,6 +286,13 @@ try:
         and isinstance(loaded_warnings, list)
     )
     note_tests.append(("載入歷史結果時會重建備援 Lidar 資料", passed_backup_groups))
+
+    backup_titles = _group_section_titles("_Backup Lidar")
+    passed_backup_titles = backup_titles == (
+        "Distance From Center Island_Backup Lidar",
+        "Dtmod_Backup Lidar",
+    )
+    note_tests.append(("備援報表標題會顯示 _Backup Lidar", passed_backup_titles))
 
     save_result(
         SITE_NAME,

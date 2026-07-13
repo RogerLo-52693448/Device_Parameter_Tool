@@ -293,7 +293,7 @@ def _group_section_titles(group_label):
     if group_label == "主要 Lidar":
         return "Distance From Center Island_Primary Lidar", "Dtmod_Primary Lidar"
     if group_label == "_Backup Lidar":
-        return "Distance From Center Island_Primary Lidar", "Dtmod_Primary Lidar"
+        return "Distance From Center Island_Backup Lidar", "Dtmod_Backup Lidar"
     return f"輸入資訊 — {group_label}", f"計算結果 — {group_label}"
 
 
