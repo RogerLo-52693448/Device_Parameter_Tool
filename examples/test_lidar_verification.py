@@ -20,7 +20,9 @@ import tempfile
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from verify_lidar_calculation import (
     calculate_lidar_results, save_result, load_records,
-    MAX_RECORDS_PER_SITE, WIDTH_CONSISTENCY_WARNING_THRESHOLD, SCAN_LIMIT, _print_result_tables
+    MAX_RECORDS_PER_SITE, WIDTH_CONSISTENCY_WARNING_THRESHOLD, SCAN_LIMIT,
+    SOPAS_MM_PER_DEGREE, SOPAS_CENTER_ANGLE,
+    _print_result_tables, calculate_sopas_angles,
 )
 from web_ui import (
     _compute_results_from_record,
@@ -329,6 +331,102 @@ try:
         and "Roadway width check_Backup Lidar" in backup_report_html
     )
     note_tests.append(("備援詳細計算與路寬檢核標題改為英文", passed_backup_section_titles))
+
+    # ── SOPAS Tool 計算測試 ──────────────────────────────────────────────────
+    # 驗證用例：90度到右側護欄4000mm，LIDAR_0 負責 Lane0 (3800mm)、LIDAR_1 負責 Lane1 (3750mm)
+    # LIDAR_0: right=4000→ceil(20.0)=20→110, left=4000-3800=200→floor(1.0)=1→91
+    # LIDAR_1: right=200→ceil(1.0)=1→91, left=200-3750=-3550→floor(-17.75)=-18→72
+    sopas_test_lanes = [(0, 3800.0), (1, 3750.0)]
+    sopas_test_assignments = [[0], [1]]
+    sopas_test_right_dist = 4000.0
+    sopas_results = calculate_sopas_angles(sopas_test_lanes, sopas_test_assignments, sopas_test_right_dist)
+    passed_sopas_basic = (
+        len(sopas_results) == 2
+        and sopas_results[0]["right_angle"] == 110
+        and sopas_results[0]["left_angle"] == 91
+        and sopas_results[1]["right_angle"] == 91
+        and sopas_results[1]["left_angle"] == 72
+    )
+    note_tests.append(("SOPAS Tool 基本角度計算正確", passed_sopas_basic))
+
+    # 驗證用例：用戶例子 90度到右側護欄4000mm，車道寬4300mm
+    # right: 4000mm → ceil(20.0)=20 → 110度
+    # left: 4000-4300=-300mm → floor(-1.5)=-2 → 88度
+    sopas_user_lanes = [(0, 4300.0)]
+    sopas_user_assignments = [[0]]
+    sopas_user_results = calculate_sopas_angles(sopas_user_lanes, sopas_user_assignments, 4000.0)
+    passed_sopas_user_example = (
+        sopas_user_results[0]["right_angle"] == 110
+        and sopas_user_results[0]["left_angle"] == 88
+    )
+    note_tests.append(("SOPAS Tool 用戶範例 88~110度 正確", passed_sopas_user_example))
+
+    # 驗證正分數無條件進位：right=4100mm → ceil(4100/200)=ceil(20.5)=21 → 111度
+    sopas_ceil_lanes = [(0, 4100.0)]
+    sopas_ceil_results = calculate_sopas_angles(sopas_ceil_lanes, sopas_ceil_assignments := [[0]], 4100.0)
+    passed_sopas_ceil = sopas_ceil_results[0]["right_angle"] == 111
+    note_tests.append(("SOPAS Tool 正值小數無條件進位(4100→111)", passed_sopas_ceil))
+
+    # 驗證負分數無條件進位（向負無窮）：left=-350mm → floor(-350/200)=floor(-1.75)=-2 → 88度
+    sopas_floor_lanes = [(0, 4350.0)]
+    sopas_floor_results = calculate_sopas_angles(sopas_floor_lanes, [[0]], 4000.0)
+    # right=4000→20→110, left=4000-4350=-350→floor(-1.75)=-2→88
+    passed_sopas_floor = (
+        sopas_floor_results[0]["right_angle"] == 110
+        and sopas_floor_results[0]["left_angle"] == 88
+    )
+    note_tests.append(("SOPAS Tool 負值小數無條件進位(-350→-2→88)", passed_sopas_floor))
+
+    # 驗證整除邊界值不多進位：left=-400mm → floor(-2.0)=-2 → 88度
+    sopas_exact_lanes = [(0, 4400.0)]
+    sopas_exact_results = calculate_sopas_angles(sopas_exact_lanes, [[0]], 4000.0)
+    # left=4000-4400=-400 → floor(-2.0)=-2 → 88
+    passed_sopas_exact = sopas_exact_results[0]["left_angle"] == 88
+    note_tests.append(("SOPAS Tool 負整除邊界不多進位(-400→-2→88)", passed_sopas_exact))
+
+    # 驗證多 Lidar 連續計算（各 Lidar 從上一個左側邊界繼續往左）
+    # 對應用戶描述：第二個車道從-300開始再減3800mm
+    sopas_multi_lanes = [(0, 4300.0), (1, 3800.0)]
+    sopas_multi_assignments = [[0], [1]]
+    sopas_multi_results = calculate_sopas_angles(sopas_multi_lanes, sopas_multi_assignments, 4000.0)
+    # LIDAR_0: right=4000→110, left=-300→floor(-1.5)=-2→88
+    # LIDAR_1: right=-300→floor(-1.5) 但此處為 ceil(-300/200)=ceil(-1.5)=-1→89,
+    #          left=-300-3800=-4100→floor(-20.5)=-21→69
+    passed_sopas_multi = (
+        sopas_multi_results[0]["right_angle"] == 110
+        and sopas_multi_results[0]["left_angle"] == 88
+        and sopas_multi_results[1]["right_angle"] == 89
+        and sopas_multi_results[1]["left_angle"] == 69
+    )
+    note_tests.append(("SOPAS Tool 多 Lidar 連續計算正確", passed_sopas_multi))
+
+    # 驗證 SOPAS 報表區段會出現在 HTML 中
+    sopas_html = _render_group_report_sections(
+        "主要 Lidar",
+        ALL_LANES,
+        LIDAR_ASSIGNMENTS,
+        LIDAR_CENTERS,
+        results,
+        LAST_LIDAR_OUTER_DIST,
+        sopas_right_dist=4000.0,
+    )
+    passed_sopas_html = (
+        "SOPAS Tool_Primary Lidar" in sopas_html
+        and "偵測角度範圍(°)" in sopas_html
+    )
+    note_tests.append(("SOPAS Tool 報表區段出現在主要 Lidar HTML 中", passed_sopas_html))
+
+    # 驗證未傳 sopas_right_dist 時不出現 SOPAS 區段
+    no_sopas_html = _render_group_report_sections(
+        "主要 Lidar",
+        ALL_LANES,
+        LIDAR_ASSIGNMENTS,
+        LIDAR_CENTERS,
+        results,
+        LAST_LIDAR_OUTER_DIST,
+    )
+    passed_no_sopas_html = "SOPAS" not in no_sopas_html
+    note_tests.append(("未輸入 SOPAS 距離時不顯示 SOPAS 區段", passed_no_sopas_html))
 
     save_result(
         SITE_NAME,

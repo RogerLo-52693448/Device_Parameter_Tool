@@ -16,6 +16,7 @@ Lidar 有效區計算驗證工具
 """
 
 import json
+import math
 import os
 from datetime import datetime
 from pathlib import Path
@@ -24,6 +25,8 @@ SCAN_LIMIT = 5500.0          # mm, 超過此值需警告
 OFFSET_ALERT_LIMIT = 1500.0  # mm, 偏差值超出此範圍視為錯誤
 WIDTH_CONSISTENCY_WARNING_THRESHOLD = 500.0  # mm, 超過此值需提示量測差異
 MAX_RECORDS_PER_SITE = 3     # 每個點位最多保留筆數
+SOPAS_MM_PER_DEGREE = 200.0  # mm, SOPAS 每度對應距離
+SOPAS_CENTER_ANGLE = 90      # 度, SOPAS 基準角度（90 度朝正下方）
 RECORDS_FILE = "lidar_records.json"
 VERSION_FILE = Path(__file__).resolve().parent.parent / "VERSION"
 MAX_VERSION_DISPLAY_LENGTH = 15
@@ -170,6 +173,59 @@ def calculate_lane_coordinates(all_lanes: list):
         coords.append((num, cumulative, cumulative + width))
         cumulative += width
     return coords
+
+
+def calculate_sopas_angles(all_lanes: list, lidar_assignments: list, dist_90_to_right_guardrail: float):
+    """
+    計算各 Lidar 在 SOPAS 軟體中的偵測角度範圍。
+
+    基準：90 度對應感測器正下方，往右側護欄方向為正（角度增大），往左側為負（角度減小）。
+    換算規則：1 度 = SOPAS_MM_PER_DEGREE mm（預設 200mm），
+    小數點無條件向遠離零方向進位（正值取上整，負值取下整），以確保完整覆蓋車道。
+
+    Args:
+        all_lanes: [(lane_number, width_mm), ...] 所有車道
+        lidar_assignments: [[lane_numbers], ...] 各 Lidar 負責的車道（由右側護欄往左排列）
+        dist_90_to_right_guardrail: 90 度位置到右側護欄的距離 (mm)，正值
+
+    Returns:
+        list of dicts（順序同 lidar_assignments）:
+            index            - Lidar 序號
+            assigned         - 負責車道清單
+            right_dist_mm    - 此 Lidar 右側邊界到 90 度基準的距離 (mm)，正值=右側，負值=左側
+            left_dist_mm     - 此 Lidar 左側邊界到 90 度基準的距離 (mm)
+            right_angle      - 右側偵測角度上限 (度)
+            left_angle       - 左側偵測角度下限 (度)
+            assigned_width_mm - 此 Lidar 負責車道總寬 (mm)
+    """
+    sorted_lanes = sorted(all_lanes, key=lambda x: x[0])
+    lane_width_map = {num: width for num, width in sorted_lanes}
+
+    results = []
+    current_right_dist = float(dist_90_to_right_guardrail)
+
+    for i, assigned in enumerate(lidar_assignments):
+        assigned_sorted = sorted(assigned)
+        assigned_width = sum(lane_width_map[n] for n in assigned_sorted)
+        left_dist = current_right_dist - assigned_width
+
+        # 正值距離取上整（擴展右側覆蓋），負值距離取下整（擴展左側覆蓋）
+        right_deg = math.ceil(current_right_dist / SOPAS_MM_PER_DEGREE)
+        left_deg = math.floor(left_dist / SOPAS_MM_PER_DEGREE)
+
+        results.append({
+            "index": i,
+            "assigned": assigned_sorted,
+            "right_dist_mm": current_right_dist,
+            "left_dist_mm": left_dist,
+            "right_angle": SOPAS_CENTER_ANGLE + right_deg,
+            "left_angle": SOPAS_CENTER_ANGLE + left_deg,
+            "assigned_width_mm": assigned_width,
+        })
+
+        current_right_dist = left_dist
+
+    return results
 
 
 def save_result(site_name, all_lanes, lidar_assignments, lidar_centers, results,
