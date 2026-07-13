@@ -39,8 +39,6 @@ _FORM_JS = """
   var backupLidarLanesB = S.backupLidarLanesB.slice();
   var primaryLastOuter = S.primaryLastOuter || '';
   var backupLastOuter = S.backupLastOuter || '';
-  var primarySopasRightDist = S.primarySopasRightDist || '';
-  var backupSopasRightDist = S.backupSopasRightDist || '';
   var hasBackup = !!S.hasBackup;
 
   function getLaneCount() {
@@ -84,10 +82,6 @@ _FORM_JS = """
     var blo = document.getElementById('backup_last_lidar_outer_dist');
     if (plo) primaryLastOuter = plo.value;
     if (blo) backupLastOuter = blo.value;
-    var psd = document.getElementById('primary_sopas_right_dist');
-    var bsd = document.getElementById('backup_sopas_right_dist');
-    if (psd) primarySopasRightDist = psd.value;
-    if (bsd) backupSopasRightDist = bsd.value;
   }
 
   function laneOpts(n, sel) {
@@ -120,7 +114,7 @@ _FORM_JS = """
     document.getElementById('lane-widths-section').innerHTML = html;
   }
 
-  function renderOneLidarGroup(prefix, title, laneCount, lidarCount, centers, lanesA, lanesB, lastOuterValue, sopasRightDistValue) {
+  function renderOneLidarGroup(prefix, title, laneCount, lidarCount, centers, lanesA, lanesB, lastOuterValue) {
     var html = '<div class="lidar-block">';
     html += '<div class="lidar-block-title">' + title + '</div>';
     for (var j = 0; j < lidarCount; j++) {
@@ -145,9 +139,6 @@ _FORM_JS = """
     html += '<label>' + title + '最後一顆 Lidar 到外側護欄距離 (mm，可留空，可為負值)</label>'
       + '<input id="' + prefix + '_last_lidar_outer_dist" name="' + prefix + '_last_lidar_outer_dist"'
       + ' type="number" step="1" placeholder="mm" value="' + lastOuterValue + '" />';
-    html += '<label>SOPAS Tool — 90度到右側護欄距離 (mm，可留空)</label>'
-      + '<input id="' + prefix + '_sopas_right_dist" name="' + prefix + '_sopas_right_dist"'
-      + ' type="number" step="1" placeholder="mm（留空則不顯示 SOPAS 角度）" value="' + (sopasRightDistValue || '') + '" />';
     html += '</div>';
     return html;
   }
@@ -168,11 +159,11 @@ _FORM_JS = """
     var primaryCount = getPrimaryCount();
     var html = '';
     html += renderOneLidarGroup(
-      'primary', '主要 Lidar', n, primaryCount, lidarCenters, lidarLanesA, lidarLanesB, primaryLastOuter, primarySopasRightDist
+      'primary', '主要 Lidar', n, primaryCount, lidarCenters, lidarLanesA, lidarLanesB, primaryLastOuter
     );
     if (backupEnabled) {
       html += renderOneLidarGroup(
-        'backup', '_Backup Lidar', n, primaryCount, backupLidarCenters, backupLidarLanesA, backupLidarLanesB, backupLastOuter, backupSopasRightDist
+        'backup', '_Backup Lidar', n, primaryCount, backupLidarCenters, backupLidarLanesA, backupLidarLanesB, backupLastOuter
       );
     }
     document.getElementById('lidar-mode-note').textContent = backupEnabled
@@ -333,9 +324,9 @@ def _group_sopas_title(group_label):
     return f"SOPAS Tool — {group_label}"
 
 
-def _render_sopas_section(group_label, all_lanes, lidar_assignments, sopas_right_dist):
+def _render_sopas_section(group_label, all_lanes, lidar_assignments, lidar_centers):
     """計算並渲染 SOPAS Tool 偵測角度範圍區段。"""
-    sopas_results = calculate_sopas_angles(all_lanes, lidar_assignments, sopas_right_dist)
+    sopas_results = calculate_sopas_angles(all_lanes, lidar_assignments, lidar_centers)
     rows = []
     for sr in sopas_results:
         lanes_str = "+".join(f"Lane{n}" for n in sr["assigned"])
@@ -347,7 +338,7 @@ def _render_sopas_section(group_label, all_lanes, lidar_assignments, sopas_right
             f"{sr['left_angle']} ~ {sr['right_angle']}",
         ])
     note = (
-        f"基準：90度 = {sopas_right_dist:.0f} mm 到右側護欄；"
+        "基準：90度到右側護欄距離直接採用各 Lidar 中心距離；"
         f"1度 = {SOPAS_MM_PER_DEGREE:.0f} mm；"
         f"中心點往右為正、往左為負。"
     )
@@ -428,7 +419,6 @@ def _collect_status_counts(results):
 
 def _render_group_report_sections(
     group_label, all_lanes, lidar_assignments, lidar_centers, results, last_lidar_outer_dist,
-    sopas_right_dist=None,
 ):
     input_title, result_title = _group_section_titles(group_label)
     lidar_rows = []
@@ -475,9 +465,7 @@ def _render_group_report_sections(
             + "</section>"
         )
 
-    sopas_html = ""
-    if sopas_right_dist is not None:
-        sopas_html = _render_sopas_section(group_label, all_lanes, lidar_assignments, sopas_right_dist)
+    sopas_html = _render_sopas_section(group_label, all_lanes, lidar_assignments, lidar_centers)
 
     return (
         "<section class='report-section'>"
@@ -560,7 +548,6 @@ def _render_results_sections(site_name, all_lanes, lidar_groups, total_lidar_cou
                 group["lidar_centers"],
                 group["results"],
                 group["last_lidar_outer_dist"],
-                sopas_right_dist=group.get("sopas_right_dist"),
             )
         )
     return "".join(sections)
@@ -605,8 +592,6 @@ def _default_form():
         "backup_lidar_lanes_a": [],
         "backup_lidar_lanes_b": [],
         "backup_last_lidar_outer_dist": "",
-        "sopas_right_dist": "",
-        "backup_sopas_right_dist": "",
     }
 
 
@@ -676,7 +661,6 @@ def _compute_results_from_record(record):
         "lidar_centers": lidar_centers,
         "results": results,
         "last_lidar_outer_dist": last_lidar_outer_dist,
-        "sopas_right_dist": None,
     }]
     if has_backup:
         backup_lidar_assignments = [list(a) for a in record.get("backup_lidar_assignments", [])]
@@ -704,7 +688,6 @@ def _compute_results_from_record(record):
                 "lidar_centers": backup_lidar_centers,
                 "results": backup_results,
                 "last_lidar_outer_dist": backup_last_lidar_outer_dist,
-                "sopas_right_dist": None,
             })
     return lidar_groups, all_lanes, warnings
 
@@ -748,8 +731,6 @@ def _form_from_record(site_name, record):
         "backup_last_lidar_outer_dist": (
             "" if backup_last_outer is None else _format_number_for_input(backup_last_outer)
         ),
-        "sopas_right_dist": "",
-        "backup_sopas_right_dist": "",
     }
 
 
@@ -798,8 +779,6 @@ def _render_page(
         "backupLidarLanesB": [int(b) for b in form.get("backup_lidar_lanes_b", [])],
         "primaryLastOuter": str(form["last_lidar_outer_dist"]),
         "backupLastOuter": str(form.get("backup_last_lidar_outer_dist", "")),
-        "primarySopasRightDist": str(form.get("sopas_right_dist", "")),
-        "backupSopasRightDist": str(form.get("backup_sopas_right_dist", "")),
     })
 
     return f"""<!doctype html>
@@ -1469,8 +1448,6 @@ class Handler(BaseHTTPRequestHandler):
             for j in range(primary_count)
         ] if has_backup else []
         backup_last_outer = payload.get("backup_last_lidar_outer_dist", [""])[0].strip() if has_backup else ""
-        sopas_right_dist_raw = payload.get("primary_sopas_right_dist", [""])[0].strip()
-        backup_sopas_right_dist_raw = payload.get("backup_sopas_right_dist", [""])[0].strip() if has_backup else ""
         form = {
             "site_name": site_name,
             "lane_count": lane_count,
@@ -1485,8 +1462,6 @@ class Handler(BaseHTTPRequestHandler):
             "backup_lidar_lanes_a": backup_lidar_lanes_a,
             "backup_lidar_lanes_b": backup_lidar_lanes_b,
             "backup_last_lidar_outer_dist": backup_last_outer,
-            "sopas_right_dist": sopas_right_dist_raw,
-            "backup_sopas_right_dist": backup_sopas_right_dist_raw,
         }
         lane_widths_str = ",".join(lane_width_parts)
         lidar_assignments_str = "\n".join(lidar_assign_parts)
@@ -1522,13 +1497,6 @@ class Handler(BaseHTTPRequestHandler):
                 except ValueError as exc:
                     raise ValueError("主要 Lidar 最後一顆到外側護欄距離需為數字") from exc
 
-            primary_sopas_right = None
-            if form["sopas_right_dist"]:
-                try:
-                    primary_sopas_right = float(form["sopas_right_dist"])
-                except ValueError as exc:
-                    raise ValueError("SOPAS 主要 Lidar 90度到右側護欄距離需為數字") from exc
-
             results = calculate_lidar_results(all_lanes, lidar_assignments, lidar_centers)
             warnings = _build_warnings(
                 results, all_lanes, lidar_centers, last_lidar_outer_dist, "主要 Lidar" if has_backup else None
@@ -1539,7 +1507,6 @@ class Handler(BaseHTTPRequestHandler):
                 "lidar_centers": lidar_centers,
                 "results": results,
                 "last_lidar_outer_dist": last_lidar_outer_dist,
-                "sopas_right_dist": primary_sopas_right,
             }]
 
             if has_backup:
@@ -1564,13 +1531,6 @@ class Handler(BaseHTTPRequestHandler):
                     except ValueError as exc:
                         raise ValueError("備援 Lidar 最後一顆到外側護欄距離需為數字") from exc
 
-                backup_sopas_right = None
-                if form["backup_sopas_right_dist"]:
-                    try:
-                        backup_sopas_right = float(form["backup_sopas_right_dist"])
-                    except ValueError as exc:
-                        raise ValueError("SOPAS 備援 Lidar 90度到右側護欄距離需為數字") from exc
-
                 backup_results = calculate_lidar_results(
                     all_lanes, backup_lidar_assignments, backup_lidar_centers
                 )
@@ -1589,7 +1549,6 @@ class Handler(BaseHTTPRequestHandler):
                     "lidar_centers": backup_lidar_centers,
                     "results": backup_results,
                     "last_lidar_outer_dist": backup_last_lidar_outer_dist,
-                    "sopas_right_dist": backup_sopas_right,
                 })
 
             info_messages = []

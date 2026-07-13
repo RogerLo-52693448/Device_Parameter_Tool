@@ -175,7 +175,7 @@ def calculate_lane_coordinates(all_lanes: list):
     return coords
 
 
-def calculate_sopas_angles(all_lanes: list, lidar_assignments: list, dist_90_to_right_guardrail: float):
+def calculate_sopas_angles(all_lanes: list, lidar_assignments: list, lidar_centers: list):
     """
     計算各 Lidar 在 SOPAS 軟體中的偵測角度範圍。
 
@@ -186,7 +186,7 @@ def calculate_sopas_angles(all_lanes: list, lidar_assignments: list, dist_90_to_
     Args:
         all_lanes: [(lane_number, width_mm), ...] 所有車道
         lidar_assignments: [[lane_numbers], ...] 各 Lidar 負責的車道（由右側護欄往左排列）
-        dist_90_to_right_guardrail: 90 度位置到右側護欄的距離 (mm)，正值
+        lidar_centers: 各 Lidar 的中心距離 (mm)，亦即各自 90 度位置到右側護欄的距離
 
     Returns:
         list of dicts（順序同 lidar_assignments）:
@@ -202,29 +202,29 @@ def calculate_sopas_angles(all_lanes: list, lidar_assignments: list, dist_90_to_
     lane_width_map = {num: width for num, width in sorted_lanes}
 
     results = []
-    current_right_dist = float(dist_90_to_right_guardrail)
+    if len(lidar_assignments) != len(lidar_centers):
+        raise ValueError("SOPAS 計算所需的 Lidar 負責車道與中心距離數量不一致")
 
-    for i, assigned in enumerate(lidar_assignments):
+    for i, (assigned, center) in enumerate(zip(lidar_assignments, lidar_centers)):
         assigned_sorted = sorted(assigned)
         assigned_width = sum(lane_width_map[n] for n in assigned_sorted)
-        left_dist = current_right_dist - assigned_width
+        right_dist = float(center)
+        left_dist = right_dist - assigned_width
 
         # ceil 確保右側角度足以覆蓋整個右側邊界（正值向上、負值趨近零）
-        right_deg = math.ceil(current_right_dist / SOPAS_MM_PER_DEGREE)
+        right_deg = math.ceil(right_dist / SOPAS_MM_PER_DEGREE)
         # floor 確保左側角度足以覆蓋整個左側邊界（負值向負無窮，即更大的絕對值）
         left_deg = math.floor(left_dist / SOPAS_MM_PER_DEGREE)
 
         results.append({
             "index": i,
             "assigned": assigned_sorted,
-            "right_dist_mm": current_right_dist,
+            "right_dist_mm": right_dist,
             "left_dist_mm": left_dist,
             "right_angle": SOPAS_CENTER_ANGLE + right_deg,
             "left_angle": SOPAS_CENTER_ANGLE + left_deg,
             "assigned_width_mm": assigned_width,
         })
-
-        current_right_dist = left_dist
 
     return results
 
