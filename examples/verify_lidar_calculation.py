@@ -92,7 +92,7 @@ def calculate_lidar_results(
         # LIDAR_0 (最內側): center - Lane0寬
         # LIDAR_1 (中間):   center - LIDAR_0負責總寬 - LIDAR_1右側車道寬
         # LIDAR_2 (最外側): center - LIDAR_0負責總寬 - LIDAR_1負責總寬
-        #                    (僅負責 1 個車道，因此沒有右側車道寬項)
+        #                    （此例外側 LIDAR 僅負責 1 車道，因此沒有右側車道寬項）
         # 偏差值保留正負號：
         #   正值 = 安裝位置比理想位置更外側（更遠離內側護欄）
         #   負值 = 安裝位置比理想位置更內側（更靠近內側護欄）
