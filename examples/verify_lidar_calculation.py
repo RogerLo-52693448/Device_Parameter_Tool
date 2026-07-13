@@ -12,6 +12,7 @@ Lidar 有效區計算驗證工具
   - 跨車道補償: 非最內/最外邊界 +500mm
   - 偏差值: Lidar 安裝位置偏離理想位置的距離
   - scan 警告: 超過 5500mm 需拆分車道
+  - 偏差值錯誤: 超出 ±1500mm（最後一顆且僅負責 1 車道除外）
 """
 
 import json
@@ -20,6 +21,7 @@ from datetime import datetime
 from pathlib import Path
 
 SCAN_LIMIT = 5500.0          # mm, 超過此值需警告
+OFFSET_ALERT_LIMIT = 1500.0  # mm, 偏差值超出此範圍視為錯誤
 WIDTH_CONSISTENCY_WARNING_THRESHOLD = 500.0  # mm, 超過此值需提示量測差異
 MAX_RECORDS_PER_SITE = 3     # 每個點位最多保留筆數
 RECORDS_FILE = "lidar_records.json"
@@ -263,16 +265,25 @@ def load_records(site_name, records_file=None):
     return all_records.get(site_name, [])
 
 
-def _offset_is_error(offset_value):
-    """判斷偏差值是否超出 ±5500mm 錯誤門檻（僅 >5500 或 <-5500 視為錯誤）。
+def _is_last_single_lane_result(result, total_results=None):
+    if total_results is None:
+        return False
+    return result.get("index") == (total_results - 1) and len(result.get("assigned", [])) == 1
+
+
+def _offset_is_error(offset_value, skip_alert=False):
+    """判斷偏差值是否超出 ±1500mm 錯誤門檻（最後一顆且僅負責 1 車道可略過）。
 
     Args:
         offset_value: 偏差值（mm）
+        skip_alert: 是否略過偏差值錯誤判斷
 
     Returns:
-        bool: abs(offset_value) > 5500 時為 True，否則為 False
+        bool: abs(offset_value) > OFFSET_ALERT_LIMIT 時為 True，否則為 False
     """
-    return abs(offset_value) > SCAN_LIMIT
+    if skip_alert:
+        return False
+    return abs(offset_value) > OFFSET_ALERT_LIMIT
 
 
 
@@ -339,6 +350,7 @@ def _print_result_tables(site_name, all_lanes, lidar_assignments, lidar_centers,
         return f"{new_val:.0f} ({'+' if d >= 0 else ''}{d:.0f})"
 
     warnings = []
+    total_results = len(results)
     for r in results:
         lanes_str = "+".join([f"Lane{n}" for n in r["assigned"]])
         status = "✓ 正常"
@@ -348,7 +360,10 @@ def _print_result_tables(site_name, all_lanes, lidar_assignments, lidar_centers,
                 warnings.append(f"LIDAR_{r['index']}: scan_right={r['scan_right']:.0f}mm 超過 {SCAN_LIMIT:.0f}mm 偵測上限")
             if r["scan_left"] > SCAN_LIMIT:
                 warnings.append(f"LIDAR_{r['index']}: scan_left={r['scan_left']:.0f}mm 超過 {SCAN_LIMIT:.0f}mm 偵測上限")
-        if _offset_is_error(r["offset_value"]):
+        if _offset_is_error(
+            r["offset_value"],
+            skip_alert=_is_last_single_lane_result(r, total_results=total_results),
+        ):
             status = "✗ 錯誤"
 
         if prev_results:

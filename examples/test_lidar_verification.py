@@ -389,7 +389,7 @@ try:
         print(f"  ✗ _print_result_tables 路寬警告測試拋出例外: {e}")
     note_tests.append(("差距≥500mm 時 warnings 清單包含路寬一致性警告", passed_warn_msg))
 
-    base_status_result = {"scan_right": 5000.0, "scan_left": 3050.0, "offset_value": 0.0}
+    base_status_result = {"scan_right": 5000.0, "scan_left": 3050.0, "offset_value": 0.0, "index": 0, "assigned": [0, 1]}
     status_threshold_tests = [
         ({**base_status_result, "offset_value": OFFSET_ALERT_LIMIT - 1}, "正常"),
         ({**base_status_result, "offset_value": OFFSET_ALERT_LIMIT}, "正常"),
@@ -404,7 +404,10 @@ try:
         ({**base_status_result, "scan_right": -1.0, "offset_value": 0.0}, "正常"),
         ({**base_status_result, "scan_left": -1.0, "offset_value": 0.0}, "正常"),
     ]
-    passed_status_threshold = all(_result_status(result) == expected for result, expected in status_threshold_tests)
+    passed_status_threshold = all(
+        _result_status(result, total_results=3) == expected
+        for result, expected in status_threshold_tests
+    )
     exempt_last_single = _result_status(
         {"scan_right": 1000.0, "scan_left": 1000.0, "offset_value": OFFSET_ALERT_LIMIT + 800, "index": 2, "assigned": [4]},
         total_results=3,
