@@ -22,7 +22,7 @@ from verify_lidar_calculation import (
     calculate_lidar_results, save_result, load_records,
     MAX_RECORDS_PER_SITE, WIDTH_CONSISTENCY_WARNING_THRESHOLD, SCAN_LIMIT, _print_result_tables
 )
-from web_ui import _compute_results_from_record, _form_from_record, _result_status
+from web_ui import _compute_results_from_record, _form_from_record, _result_status, OFFSET_ALERT_LIMIT
 
 # ─── 測試資料 ────────────────────────────────────────────────────────────────
 
@@ -391,21 +391,30 @@ try:
 
     base_status_result = {"scan_right": 5000.0, "scan_left": 3050.0, "offset_value": 0.0}
     status_threshold_tests = [
-        ({**base_status_result, "offset_value": SCAN_LIMIT - 1}, "正常"),
-        ({**base_status_result, "offset_value": SCAN_LIMIT}, "正常"),
-        ({**base_status_result, "offset_value": -(SCAN_LIMIT - 1)}, "正常"),
-        ({**base_status_result, "offset_value": -SCAN_LIMIT}, "正常"),
+        ({**base_status_result, "offset_value": OFFSET_ALERT_LIMIT - 1}, "正常"),
+        ({**base_status_result, "offset_value": OFFSET_ALERT_LIMIT}, "正常"),
+        ({**base_status_result, "offset_value": -(OFFSET_ALERT_LIMIT - 1)}, "正常"),
+        ({**base_status_result, "offset_value": -OFFSET_ALERT_LIMIT}, "正常"),
         ({**base_status_result, "scan_right": SCAN_LIMIT, "offset_value": 0.0}, "正常"),
         ({**base_status_result, "scan_left": SCAN_LIMIT, "offset_value": 0.0}, "正常"),
         ({**base_status_result, "scan_right": SCAN_LIMIT + 1, "offset_value": 0.0}, "警告"),
         ({**base_status_result, "scan_left": SCAN_LIMIT + 1, "offset_value": 0.0}, "警告"),
-        ({**base_status_result, "offset_value": SCAN_LIMIT + 1}, "錯誤"),
-        ({**base_status_result, "offset_value": -(SCAN_LIMIT + 1)}, "錯誤"),
+        ({**base_status_result, "offset_value": OFFSET_ALERT_LIMIT + 1}, "錯誤"),
+        ({**base_status_result, "offset_value": -(OFFSET_ALERT_LIMIT + 1)}, "錯誤"),
         ({**base_status_result, "scan_right": -1.0, "offset_value": 0.0}, "正常"),
         ({**base_status_result, "scan_left": -1.0, "offset_value": 0.0}, "正常"),
     ]
     passed_status_threshold = all(_result_status(result) == expected for result, expected in status_threshold_tests)
-    note_tests.append(("狀態錯誤僅由偏差值超出 ±5500 觸發", passed_status_threshold))
+    exempt_last_single = _result_status(
+        {"scan_right": 1000.0, "scan_left": 1000.0, "offset_value": OFFSET_ALERT_LIMIT + 800, "index": 2, "assigned": [4]},
+        total_results=3,
+    ) == "正常"
+    exempt_not_last = _result_status(
+        {"scan_right": 1000.0, "scan_left": 1000.0, "offset_value": OFFSET_ALERT_LIMIT + 800, "index": 1, "assigned": [3]},
+        total_results=3,
+    ) == "錯誤"
+    note_tests.append(("偏差值超出 ±1500 觸發錯誤", passed_status_threshold))
+    note_tests.append(("最後一顆且僅負責 1 車道的偏差值不觸發錯誤", exempt_last_single and exempt_not_last))
 
 finally:
     os.unlink(tmp2_path)

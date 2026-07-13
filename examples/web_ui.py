@@ -21,6 +21,7 @@ from verify_lidar_calculation import (
 )
 
 MAX_BODY_SIZE = 16 * 1024
+OFFSET_ALERT_LIMIT = 1500.0
 
 _FORM_JS = """
 (function () {
@@ -280,9 +281,27 @@ def _status_to_class(status: str):
     }.get(status, "status-neutral")
 
 
-def _offset_is_error(offset_value):
-    """判斷偏差值是否超出 ±5500mm 錯誤門檻（僅 >5500 或 <-5500 視為錯誤）。"""
-    return abs(offset_value) > SCAN_LIMIT
+def _is_last_single_lane_lidar(result, total_results=None):
+    if total_results is None:
+        return False
+    index = result.get("index")
+    assigned = result.get("assigned")
+    return index == (total_results - 1) and isinstance(assigned, list) and len(assigned) == 1
+
+
+def _offset_is_error(offset_value, skip_alert=False):
+    """判斷偏差值是否超出 ±1500mm 告警門檻（最後一顆且只負責 1 車道可略過）。"""
+    if skip_alert:
+        return False
+    return abs(offset_value) > OFFSET_ALERT_LIMIT
+
+
+def _group_section_titles(group_label):
+    if group_label == "主要 Lidar":
+        return "Distance From Center Island_Primary Lidar", "Dtmod_Primary Lidar"
+    if group_label == "備援 Lidar":
+        return "Distance From Center Island_Primary Lidar", "Dtmod_Primary Lidar"
+    return f"輸入資訊 — {group_label}", f"計算結果 — {group_label}"
 
 
 def _render_summary_cards(items):
@@ -299,12 +318,9 @@ def _render_summary_cards(items):
 
 def _render_result_table(results):
     row_html = []
+    total_results = len(results)
     for r in results:
-        status = "正常"
-        if r["scan_right"] > SCAN_LIMIT or r["scan_left"] > SCAN_LIMIT:
-            status = "警告"
-        if _offset_is_error(r["offset_value"]):
-            status = "錯誤"
+        status = _result_status(r, total_results=total_results)
         row_html.append(
             "<tr>"
             f"<td>LIDAR_{r['index']}</td>"
@@ -319,8 +335,8 @@ def _render_result_table(results):
         "<div class='table-scroll'>"
         "<table class='report-table result-table'>"
         "<thead><tr>"
-        "<th>Lidar</th><th>負責車道</th><th>scan_right(mm)</th>"
-        "<th>scan_left(mm)</th><th>偏差值(mm)</th><th>狀態</th>"
+        "<th>Lidar</th><th>負責車道</th><th>Lidar Scan Right Bound</th>"
+        "<th>Lidar Scan Left Bound</th><th>偏差值(mm)</th><th>狀態</th>"
         "</tr></thead>"
         f"<tbody>{''.join(row_html)}</tbody>"
         "</table>"
@@ -328,25 +344,30 @@ def _render_result_table(results):
     )
 
 
-def _result_status(result):
+def _result_status(result, total_results=None):
     status = "正常"
     if result["scan_right"] > SCAN_LIMIT or result["scan_left"] > SCAN_LIMIT:
         status = "警告"
-    if _offset_is_error(result["offset_value"]):
+    if _offset_is_error(
+        result["offset_value"],
+        skip_alert=_is_last_single_lane_lidar(result, total_results=total_results),
+    ):
         status = "錯誤"
     return status
 
 
 def _collect_status_counts(results):
     counts = {"正常": 0, "警告": 0, "錯誤": 0}
+    total_results = len(results)
     for result in results:
-        counts[_result_status(result)] += 1
+        counts[_result_status(result, total_results=total_results)] += 1
     return counts
 
 
 def _render_group_report_sections(
     group_label, all_lanes, lidar_assignments, lidar_centers, results, last_lidar_outer_dist
 ):
+    input_title, result_title = _group_section_titles(group_label)
     lidar_rows = []
     for i, (assigned, center) in enumerate(zip(lidar_assignments, lidar_centers)):
         lidar_rows.append([f"LIDAR_{i}", "+".join(f"Lane{n}" for n in assigned), f"{center:.0f}"])
@@ -393,18 +414,21 @@ def _render_group_report_sections(
 
     return (
         "<section class='report-section'>"
-        + f"<div class='section-heading'><span class='section-tag'>INPUT</span><h2>輸入資訊 — {escape(group_label)}</h2></div>"
+        + f"<div class='section-heading'><span class='section-tag'>INPUT</span><h2>{escape(input_title)}</h2></div>"
         + _render_table(["Lidar", "負責車道", "中心距離(mm)"], lidar_rows)
         + "</section>"
         + "<section class='report-section'>"
-        + f"<div class='section-heading'><span class='section-tag'>RESULT</span><h2>計算結果 — {escape(group_label)}</h2></div>"
+        + f"<div class='section-heading'><span class='section-tag'>RESULT</span><h2>{escape(result_title)}</h2></div>"
         + _render_result_table(results)
         + "</section>"
         + "<section class='report-section'>"
         + f"<div class='section-heading'><span class='section-tag'>DETAIL</span><h2>詳細計算過程 — {escape(group_label)}</h2></div>"
+        + "<details class='detail-toggle'>"
+        + "<summary>展開詳細計算過程</summary>"
         + "<div class='detail-grid'>"
         + "".join(detail_cards)
         + "</div>"
+        + "</details>"
         + "</section>"
         + width_check_html
     )
@@ -454,7 +478,7 @@ def _render_results_sections(site_name, all_lanes, lidar_groups, total_lidar_cou
         + _render_summary_cards(summary_items)
         + "</section>",
         "<section class='report-section'>"
-        "<div class='section-heading'><span class='section-tag'>INPUT</span><h2>輸入資訊 — 車道</h2></div>"
+        "<div class='section-heading'><span class='section-tag'>INPUT</span><h2>Lane_Info</h2></div>"
         + _render_table(["車道", "寬度(mm)", "座標範圍(mm)"], lane_rows)
         + "</section>",
     ]
@@ -1027,6 +1051,15 @@ def _render_page(
     .status-neutral {{
       background: #e9eef5;
       color: var(--muted);
+    }}
+    .detail-toggle summary {{
+      cursor: pointer;
+      font-weight: 700;
+      color: var(--accent);
+      margin-bottom: 12px;
+    }}
+    .detail-toggle[open] summary {{
+      margin-bottom: 16px;
     }}
     .detail-grid {{
       display: grid;
