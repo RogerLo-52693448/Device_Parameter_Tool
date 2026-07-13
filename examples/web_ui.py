@@ -297,6 +297,22 @@ def _group_section_titles(group_label):
     return f"輸入資訊 — {group_label}", f"計算結果 — {group_label}"
 
 
+def _group_detail_title(group_label):
+    if group_label == "主要 Lidar":
+        return "Calculation formula_Primary Lidar"
+    if group_label == "_Backup Lidar":
+        return "Calculation formula_Backup Lidar"
+    return f"詳細計算過程 — {group_label}"
+
+
+def _group_width_check_title(group_label):
+    if group_label == "主要 Lidar":
+        return "Roadway width check_Primary Lidar"
+    if group_label == "_Backup Lidar":
+        return "Roadway width check_Backup Lidar"
+    return f"路寬一致性檢核 — {group_label}"
+
+
 def _render_summary_cards(items):
     cards = []
     for label, value, tone in items:
@@ -400,7 +416,7 @@ def _render_group_report_sections(
         ]
         width_check_html = (
             "<section class='report-section'>"
-            f"<div class='section-heading'><span class='section-tag'>CHECK</span><h2>路寬一致性檢核 — {escape(group_label)}</h2></div>"
+            f"<div class='section-heading'><span class='section-tag'>CHECK</span><h2>{escape(_group_width_check_title(group_label))}</h2></div>"
             + _render_table(["項目", "數值"], width_rows)
             + "</section>"
         )
@@ -415,7 +431,7 @@ def _render_group_report_sections(
         + _render_result_table(results)
         + "</section>"
         + "<section class='report-section'>"
-        + f"<div class='section-heading'><span class='section-tag'>DETAIL</span><h2>詳細計算過程 — {escape(group_label)}</h2></div>"
+        + f"<div class='section-heading'><span class='section-tag'>DETAIL</span><h2>{escape(_group_detail_title(group_label))}</h2></div>"
         + "<details class='detail-toggle'>"
         + "<summary>展開詳細計算過程</summary>"
         + "<div class='detail-grid'>"

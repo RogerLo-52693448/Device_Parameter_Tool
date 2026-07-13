@@ -26,6 +26,7 @@ from web_ui import (
     _compute_results_from_record,
     _form_from_record,
     _group_section_titles,
+    _render_group_report_sections,
     _result_status,
     OFFSET_ALERT_LIMIT,
 )
@@ -300,6 +301,34 @@ try:
         "Dtmod_Backup Lidar",
     )
     note_tests.append(("備援報表標題會顯示 _Backup Lidar", passed_backup_titles))
+
+    primary_report_html = _render_group_report_sections(
+        "主要 Lidar",
+        ALL_LANES,
+        LIDAR_ASSIGNMENTS,
+        LIDAR_CENTERS,
+        results,
+        LAST_LIDAR_OUTER_DIST,
+    )
+    passed_primary_section_titles = (
+        "Calculation formula_Primary Lidar" in primary_report_html
+        and "Roadway width check_Primary Lidar" in primary_report_html
+    )
+    note_tests.append(("主要詳細計算與路寬檢核標題改為英文", passed_primary_section_titles))
+
+    backup_report_html = _render_group_report_sections(
+        "_Backup Lidar",
+        ALL_LANES,
+        BACKUP_LIDAR_ASSIGNMENTS,
+        BACKUP_LIDAR_CENTERS,
+        backup_results,
+        BACKUP_LAST_LIDAR_OUTER_DIST,
+    )
+    passed_backup_section_titles = (
+        "Calculation formula_Backup Lidar" in backup_report_html
+        and "Roadway width check_Backup Lidar" in backup_report_html
+    )
+    note_tests.append(("備援詳細計算與路寬檢核標題改為英文", passed_backup_section_titles))
 
     save_result(
         SITE_NAME,
