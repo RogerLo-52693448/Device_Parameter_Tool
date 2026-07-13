@@ -160,7 +160,7 @@ _FORM_JS = """
     );
     if (backupEnabled) {
       html += renderOneLidarGroup(
-        'backup', '備援 Lidar', n, primaryCount, backupLidarCenters, backupLidarLanesA, backupLidarLanesB, backupLastOuter
+        'backup', '_Backup Lidar', n, primaryCount, backupLidarCenters, backupLidarLanesA, backupLidarLanesB, backupLastOuter
       );
     }
     document.getElementById('lidar-mode-note').textContent = backupEnabled
@@ -292,7 +292,7 @@ def _offset_is_error(offset_value, skip_alert=False):
 def _group_section_titles(group_label):
     if group_label == "主要 Lidar":
         return "Distance From Center Island_Primary Lidar", "Dtmod_Primary Lidar"
-    if group_label == "備援 Lidar":
+    if group_label == "_Backup Lidar":
         return "Distance From Center Island_Primary Lidar", "Dtmod_Primary Lidar"
     return f"輸入資訊 — {group_label}", f"計算結果 — {group_label}"
 
@@ -616,11 +616,11 @@ def _compute_results_from_record(record):
                     all_lanes,
                     backup_lidar_centers,
                     backup_last_lidar_outer_dist,
-                    "備援 Lidar",
+                    "_Backup Lidar",
                 )
             )
             lidar_groups.append({
-                "label": "備援 Lidar",
+                "label": "_Backup Lidar",
                 "lidar_assignments": backup_lidar_assignments,
                 "lidar_centers": backup_lidar_centers,
                 "results": backup_results,
@@ -1471,11 +1471,11 @@ class Handler(BaseHTTPRequestHandler):
                         all_lanes,
                         backup_lidar_centers,
                         backup_last_lidar_outer_dist,
-                        "備援 Lidar",
+                        "_Backup Lidar",
                     )
                 )
                 lidar_groups.append({
-                    "label": "備援 Lidar",
+                    "label": "_Backup Lidar",
                     "lidar_assignments": backup_lidar_assignments,
                     "lidar_centers": backup_lidar_centers,
                     "results": backup_results,

@@ -274,7 +274,7 @@ try:
         loaded_lanes == [(0, 3800.0), (1, 3750.0), (2, 3800.0), (3, 3650.0), (4, 3400.0)]
         and loaded_groups is not None
         and len(loaded_groups) == 2
-        and loaded_groups[1]["label"] == "備援 Lidar"
+        and loaded_groups[1]["label"] == "_Backup Lidar"
         and loaded_groups[1]["lidar_assignments"] == BACKUP_LIDAR_ASSIGNMENTS
         and loaded_groups[1]["lidar_centers"] == BACKUP_LIDAR_CENTERS
         and isinstance(loaded_warnings, list)
