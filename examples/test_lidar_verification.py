@@ -363,7 +363,8 @@ try:
 
     # 驗證正分數無條件進位：right=4100mm → ceil(4100/200)=ceil(20.5)=21 → 111度
     sopas_ceil_lanes = [(0, 4100.0)]
-    sopas_ceil_results = calculate_sopas_angles(sopas_ceil_lanes, sopas_ceil_assignments := [[0]], 4100.0)
+    sopas_ceil_assignments = [[0]]
+    sopas_ceil_results = calculate_sopas_angles(sopas_ceil_lanes, sopas_ceil_assignments, 4100.0)
     passed_sopas_ceil = sopas_ceil_results[0]["right_angle"] == 111
     note_tests.append(("SOPAS Tool 正值小數無條件進位(4100→111)", passed_sopas_ceil))
 

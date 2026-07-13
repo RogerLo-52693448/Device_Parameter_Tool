@@ -209,8 +209,9 @@ def calculate_sopas_angles(all_lanes: list, lidar_assignments: list, dist_90_to_
         assigned_width = sum(lane_width_map[n] for n in assigned_sorted)
         left_dist = current_right_dist - assigned_width
 
-        # 正值距離取上整（擴展右側覆蓋），負值距離取下整（擴展左側覆蓋）
+        # ceil 確保右側角度足以覆蓋整個右側邊界（正值向上、負值趨近零）
         right_deg = math.ceil(current_right_dist / SOPAS_MM_PER_DEGREE)
+        # floor 確保左側角度足以覆蓋整個左側邊界（負值向負無窮，即更大的絕對值）
         left_deg = math.floor(left_dist / SOPAS_MM_PER_DEGREE)
 
         results.append({
