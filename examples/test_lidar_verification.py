@@ -287,6 +287,13 @@ try:
     )
     note_tests.append(("載入歷史結果時會重建備援 Lidar 資料", passed_backup_groups))
 
+    primary_titles = _group_section_titles("主要 Lidar")
+    passed_primary_titles = primary_titles == (
+        "Distance From Center Island_Primary Lidar",
+        "Dtmod_Primary Lidar",
+    )
+    note_tests.append(("主要報表標題維持 Primary Lidar", passed_primary_titles))
+
     backup_titles = _group_section_titles("_Backup Lidar")
     passed_backup_titles = backup_titles == (
         "Distance From Center Island_Backup Lidar",
