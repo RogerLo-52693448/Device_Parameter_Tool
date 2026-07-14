@@ -64,11 +64,11 @@ NEGATIVE_BACKUP_LAST_LIDAR_OUTER_DIST = -450.0
 #   inner=15000, outer=18400
 #   scan_right = 16700 - 15000 + 500 = 2200
 #   scan_left  = 18400 - 16700 + 0 = 1700
-#   offset     = 16700 - 15000 = 1700
+#   offset     = 16700 - 15000 - 3400 = -1700
 EXPECTED = [
     {"lidar": "LIDAR_0", "scan_right": 5000, "scan_left": 3050, "offset_value": 1200},
     {"lidar": "LIDAR_1", "scan_right": 4250, "scan_left": 4200, "offset_value": -50},
-    {"lidar": "LIDAR_2", "scan_right": 2200, "scan_left": 1700, "offset_value": 1700},
+    {"lidar": "LIDAR_2", "scan_right": 2200, "scan_left": 1700, "offset_value": -1700},
 ]
 
 # ─── 輔助函式 ────────────────────────────────────────────────────────────────
@@ -393,12 +393,12 @@ try:
 
     # 驗證單車道 Lidar（LIDAR_2，只有 Lane4）無 Field4~Field6
     # LIDAR_2: Lane4=3400, center=16700
-    #   offset = 16700 - 15000 = 1700
-    #   f1_upper=90+ceil((3400+1700)/200)=90+ceil(25.5)=90+26=116
-    #   f1_lower=90+floor(1700/200)=90+8=98
+    #   offset = 16700 - 15000 - 3400 = -1700
+    #   f1_upper=90+ceil((3400+(-1700))/200)=90+ceil(8.5)=90+9=99
+    #   f1_lower=90+floor(-1700/200)=90+floor(-8.5)=90+(-9)=81
     fr_l2 = sopas_fields_main[2]  # LIDAR_2 (single lane)
     passed_sopas_single_lane = (
-        fr_l2["field1"] == (98, 116)
+        fr_l2["field1"] == (81, 99)
         and fr_l2["field4"] is None
         and fr_l2["field5"] is None
         and fr_l2["field6"] is None

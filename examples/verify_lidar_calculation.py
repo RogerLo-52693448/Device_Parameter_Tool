@@ -12,6 +12,7 @@ Lidar 有效區計算驗證工具
   - 跨車道補償: 非最內/最外邊界 +500mm
   - 偏差值: Lidar 安裝位置偏離理想位置的距離
   - scan 警告: 超過 5500mm 需拆分車道
+  - 偏差值: 以「此 Lidar 負責的最右側車道之外側邊界」為基準（對所有 Lidar 一致）
   - 偏差值錯誤: 超出 ±1500mm（最後一顆且僅負責 1 車道除外）
 """
 
@@ -90,46 +91,34 @@ def calculate_lidar_results(
         scan_right = center - inner_boundary + right_compensation
         scan_left = outer_boundary - center + left_compensation
 
-        # 偏差值計算:
-        # 用 center_distance 減去「此 Lidar 之前所有 Lidar 負責車道的總寬 + 此 Lidar 右側車道寬」
-        # LIDAR_0 (最內側): center - Lane0寬
-        # LIDAR_1 (中間):   center - LIDAR_0負責總寬 - LIDAR_1右側車道寬
-        # LIDAR_2 (最外側): center - LIDAR_0負責總寬 - LIDAR_1負責總寬
-        #                    （此例外側 LIDAR 僅負責 1 車道，因此沒有右側車道寬項）
+        # 偏差值計算（所有 Lidar 統一公式）:
+        # offset = center - 前面所有 Lidar 負責車道總寬 - 此 Lidar 右側（最內側）車道寬
+        #        = center - 此 Lidar 右側（最內側）車道的外側邊界
+        # LIDAR_0 (最內側, 2車道): center - Lane0寬
+        # LIDAR_1 (中間,   2車道): center - LIDAR_0負責總寬 - LIDAR_1右側車道寬
+        # LIDAR_2 (最外側, 1車道): center - LIDAR_0負責總寬 - LIDAR_1負責總寬 - Lane4寬
         # 偏差值保留正負號：
-        #   正值 = 安裝位置比理想位置更外側（更遠離內側護欄）
-        #   負值 = 安裝位置比理想位置更內側（更靠近內側護欄）
+        #   正值 = 安裝位置比車道外側邊界更外側
+        #   負值 = 安裝位置在車道外側邊界的內側（即 Lidar 在車道範圍內）
         prev_lidars_total = 0.0
         for j in range(i):
             prev_assigned = sorted(lidar_assignments[j])
             prev_lidars_total += sum(lane_width_map[n] for n in prev_assigned)
 
-        if len(assigned) == 2:
-            # 有 2 個車道: 減去前面 Lidar 總寬 + 右側車道寬
-            right_lane_width = lane_width_map[assigned[0]]
-            offset_value = center - prev_lidars_total - right_lane_width
-        else:
-            # 只有 1 個車道: 減去前面 Lidar 總寬
-            offset_value = center - prev_lidars_total
+        # 統一減去右側（最內側）車道寬，使所有 Lidar 的偏差值基準相同
+        right_lane_width = lane_width_map[assigned[0]]
+        offset_value = center - prev_lidars_total - right_lane_width
+
         # 偏差值計算過程描述
-        if i == 0 and len(assigned) == 2:
+        if i == 0:
             offset_formula = f"{center:.0f} - Lane{assigned[0]}({lane_width_map[assigned[0]]:.0f})"
-        elif i == 0 and len(assigned) == 1:
-            offset_formula = f"{center:.0f} - 0"
-        elif len(assigned) == 2:
+        else:
             prev_parts = []
             for j in range(i):
                 for ln in sorted(lidar_assignments[j]):
                     prev_parts.append(f"Lane{ln}({lane_width_map[ln]:.0f})")
             prev_str = " + ".join(prev_parts)
             offset_formula = f"{center:.0f} - {prev_str} - Lane{assigned[0]}({lane_width_map[assigned[0]]:.0f})"
-        else:
-            prev_parts = []
-            for j in range(i):
-                for ln in sorted(lidar_assignments[j]):
-                    prev_parts.append(f"Lane{ln}({lane_width_map[ln]:.0f})")
-            prev_str = " + ".join(prev_parts)
-            offset_formula = f"{center:.0f} - {prev_str}"
 
         results.append({
             "index": i,
