@@ -334,9 +334,11 @@ try:
 
     # ── SOPAS Tool Field1~Field6 計算測試 ────────────────────────────────────
     # 驗證用例（已由使用者確認）：
-    #   Lane0=4300mm, Lane1=3800mm, center=4000mm → offset=-300mm
-    #   Field1=(88,110), center_inner=99, Field2=(97,110), Field3=(86,101)
-    #   Field4=(67,88),  center_outer=78, Field5=(76,90),  Field6=(65,80)
+    #   Lane0=4300mm, Lane1=3800mm, center=4000mm
+    #   offset = center - Lane0 = 4000 - 4300 = -300mm
+    #   f1_upper=90+ceil((4300+(-300))/200)=90+20=110, f1_lower=90+floor(-300/200)=90+(-2)=88
+    #   center_inner=ceil(99)=99
+    #   f4_lower=88+floor((-3800+(-300))/200)=88+(-21)=67, center_outer=ceil(77.5)=78
     sopas_user_lanes = [(0, 4300.0), (1, 3800.0)]
     sopas_user_assignments = [[0, 1]]
     sopas_user_centers = [4000.0]
@@ -356,8 +358,10 @@ try:
     note_tests.append(("SOPAS Field1~Field6 用戶確認範例計算正確", passed_sopas_user_example))
 
     # 驗證正值偏差值（offset=+1200）的無條件進位
-    # LIDAR_0: Lane0=3800, Lane1=3750, center=5000 → offset=1200
-    #   f1_upper=90+ceil(5000/200)=90+25=115, f1_lower=90+floor(1200/200)=90+6=96
+    # LIDAR_0: Lane0=3800, Lane1=3750, center=5000
+    #   offset = 5000 - 3800 = 1200
+    #   f1_upper=90+ceil((3800+1200)/200)=90+ceil(25)=115
+    #   f1_lower=90+floor(1200/200)=90+6=96
     #   center_inner=ceil(105.5)=106
     sopas_fields_main = calculate_sopas_fields(ALL_LANES, LIDAR_ASSIGNMENTS, LIDAR_CENTERS)
     fr_l0 = sopas_fields_main[0]  # LIDAR_0
@@ -371,8 +375,10 @@ try:
     note_tests.append(("SOPAS Field1~Field3 正值偏差值計算正確(offset=1200)", passed_sopas_positive_offset))
 
     # 驗證微小負值偏差值（LIDAR_1 offset=-50）的 floor 捨入
-    # LIDAR_1: Lane2=3800, Lane3=3650, center=11300 → offset=-50
-    #   f1_upper=90+ceil(3750/200)=90+19=109, f1_lower=90+floor(-0.25)=90+(-1)=89
+    # LIDAR_1: Lane2=3800, Lane3=3650, center=11300
+    #   offset = 11300 - 7550 - 3800 = -50
+    #   f1_upper=90+ceil((3800+(-50))/200)=90+ceil(18.75)=90+19=109
+    #   f1_lower=90+floor(-50/200)=90+floor(-0.25)=90+(-1)=89
     #   center_inner=ceil(99)=99
     #   f4_lower=89+floor((-3650+(-50))/200)=89+floor(-18.5)=89+(-19)=70
     #   center_outer=ceil(79.5)=80
@@ -386,8 +392,10 @@ try:
     note_tests.append(("SOPAS Field1/Field4 微小負值偏差值計算正確(offset=-50)", passed_sopas_small_neg_offset))
 
     # 驗證單車道 Lidar（LIDAR_2，只有 Lane4）無 Field4~Field6
-    # LIDAR_2: Lane4=3400, center=16700 → offset=1700
-    #   f1_upper=90+ceil(5100/200)=90+26=116, f1_lower=90+floor(8.5)=90+8=98
+    # LIDAR_2: Lane4=3400, center=16700
+    #   offset = 16700 - 15000 = 1700
+    #   f1_upper=90+ceil((3400+1700)/200)=90+ceil(25.5)=90+26=116
+    #   f1_lower=90+floor(1700/200)=90+8=98
     fr_l2 = sopas_fields_main[2]  # LIDAR_2 (single lane)
     passed_sopas_single_lane = (
         fr_l2["field1"] == (98, 116)

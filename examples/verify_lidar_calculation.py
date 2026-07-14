@@ -281,6 +281,9 @@ def calculate_sopas_fields(all_lanes: list, lidar_assignments: list, lidar_cente
         inner_lane_width = lane_width_map[assigned[0]]
 
         # Field1: 內側車道完整範圍
+        # ceil 確保上界（護欄側）完整涵蓋；floor 確保下界（外側）完整涵蓋
+        # (inner_lane_width + offset) = Lidar 到護欄側車道邊界的距離 (mm)
+        # offset = Lidar 到內側車道外緣的距離 (mm)，負值表示 Lidar 偏向護欄側
         f1_upper = SOPAS_CENTER_ANGLE + math.ceil((inner_lane_width + offset) / SOPAS_MM_PER_DEGREE)
         f1_lower = SOPAS_CENTER_ANGLE + math.floor(offset / SOPAS_MM_PER_DEGREE)
 
@@ -313,6 +316,8 @@ def calculate_sopas_fields(all_lanes: list, lidar_assignments: list, lidar_cente
             outer_lane_width = lane_width_map[assigned[1]]
 
             # Field4: 外側車道完整範圍（從 Field1 下界往外延伸）
+            # -outer_lane_width：外側車道向遠離護欄方向延伸（角度減小）
+            # +offset：疊加偏差值使覆蓋範圍包含安裝位置偏移的補償
             f4_upper = f1_lower
             f4_lower = f1_lower + math.floor((-outer_lane_width + offset) / SOPAS_MM_PER_DEGREE)
 
