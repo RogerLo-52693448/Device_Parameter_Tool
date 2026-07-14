@@ -22,7 +22,7 @@ from verify_lidar_calculation import (
     calculate_lidar_results, save_result, load_records,
     MAX_RECORDS_PER_SITE, WIDTH_CONSISTENCY_WARNING_THRESHOLD, SCAN_LIMIT,
     SOPAS_MM_PER_DEGREE, SOPAS_CENTER_ANGLE,
-    _print_result_tables, calculate_sopas_angles,
+    _print_result_tables, calculate_sopas_fields,
 )
 from web_ui import (
     _compute_results_from_record,
@@ -332,76 +332,73 @@ try:
     )
     note_tests.append(("備援詳細計算與路寬檢核標題改為英文", passed_backup_section_titles))
 
-    # ── SOPAS Tool 計算測試 ──────────────────────────────────────────────────
-    # 驗證用例：SOPAS 90度到右側護欄距離直接採用各 Lidar 中心距離
-    # LIDAR_0: center=4000, Lane0=3800 → right=4000→110, left=200→91
-    # LIDAR_1: center=7800, Lane1=3750 → right=7800→129, left=4050→110
-    sopas_test_lanes = [(0, 3800.0), (1, 3750.0)]
-    sopas_test_assignments = [[0], [1]]
-    sopas_test_centers = [4000.0, 7800.0]
-    sopas_results = calculate_sopas_angles(sopas_test_lanes, sopas_test_assignments, sopas_test_centers)
-    passed_sopas_basic = (
-        len(sopas_results) == 2
-        and sopas_results[0]["right_angle"] == 110
-        and sopas_results[0]["left_angle"] == 91
-        and sopas_results[1]["right_angle"] == 129
-        and sopas_results[1]["left_angle"] == 110
-    )
-    note_tests.append(("SOPAS Tool 基本角度計算正確", passed_sopas_basic))
-
-    # 驗證用例：用戶例子 90度到右側護欄4000mm，車道寬4300mm
-    # right: 4000mm → ceil(20.0)=20 → 110度
-    # left: 4000-4300=-300mm → floor(-1.5)=-2 → 88度
-    sopas_user_lanes = [(0, 4300.0)]
-    sopas_user_assignments = [[0]]
-    sopas_user_results = calculate_sopas_angles(sopas_user_lanes, sopas_user_assignments, [4000.0])
+    # ── SOPAS Tool Field1~Field6 計算測試 ────────────────────────────────────
+    # 驗證用例（已由使用者確認）：
+    #   Lane0=4300mm, Lane1=3800mm, center=4000mm → offset=-300mm
+    #   Field1=(88,110), center_inner=99, Field2=(97,110), Field3=(86,101)
+    #   Field4=(67,88),  center_outer=78, Field5=(76,90),  Field6=(65,80)
+    sopas_user_lanes = [(0, 4300.0), (1, 3800.0)]
+    sopas_user_assignments = [[0, 1]]
+    sopas_user_centers = [4000.0]
+    sopas_fields_user = calculate_sopas_fields(sopas_user_lanes, sopas_user_assignments, sopas_user_centers)
+    fr0 = sopas_fields_user[0]
     passed_sopas_user_example = (
-        sopas_user_results[0]["right_angle"] == 110
-        and sopas_user_results[0]["left_angle"] == 88
+        len(sopas_fields_user) == 1
+        and fr0["field1"] == (88, 110)
+        and fr0["center_inner"] == 99
+        and fr0["field2"] == (97, 110)
+        and fr0["field3"] == (86, 101)
+        and fr0["field4"] == (67, 88)
+        and fr0["center_outer"] == 78
+        and fr0["field5"] == (76, 90)
+        and fr0["field6"] == (65, 80)
     )
-    note_tests.append(("SOPAS Tool 用戶範例 88~110度 正確", passed_sopas_user_example))
+    note_tests.append(("SOPAS Field1~Field6 用戶確認範例計算正確", passed_sopas_user_example))
 
-    # 驗證正分數無條件進位：right=4100mm → ceil(4100/200)=ceil(20.5)=21 → 111度
-    sopas_ceil_lanes = [(0, 4100.0)]
-    sopas_ceil_assignments = [[0]]
-    sopas_ceil_results = calculate_sopas_angles(sopas_ceil_lanes, sopas_ceil_assignments, [4100.0])
-    passed_sopas_ceil = sopas_ceil_results[0]["right_angle"] == 111
-    note_tests.append(("SOPAS Tool 正值小數無條件進位(4100→111)", passed_sopas_ceil))
-
-    # 驗證負分數無條件進位（向負無窮）：left=-350mm → floor(-350/200)=floor(-1.75)=-2 → 88度
-    sopas_floor_lanes = [(0, 4350.0)]
-    sopas_floor_results = calculate_sopas_angles(sopas_floor_lanes, [[0]], [4000.0])
-    # right=4000→20→110, left=4000-4350=-350→floor(-1.75)=-2→88
-    passed_sopas_floor = (
-        sopas_floor_results[0]["right_angle"] == 110
-        and sopas_floor_results[0]["left_angle"] == 88
+    # 驗證正值偏差值（offset=+1200）的無條件進位
+    # LIDAR_0: Lane0=3800, Lane1=3750, center=5000 → offset=1200
+    #   f1_upper=90+ceil(5000/200)=90+25=115, f1_lower=90+floor(1200/200)=90+6=96
+    #   center_inner=ceil(105.5)=106
+    sopas_fields_main = calculate_sopas_fields(ALL_LANES, LIDAR_ASSIGNMENTS, LIDAR_CENTERS)
+    fr_l0 = sopas_fields_main[0]  # LIDAR_0
+    passed_sopas_positive_offset = (
+        fr_l0["field1"] == (96, 115)
+        and fr_l0["center_inner"] == 106
+        and fr_l0["field2"] == (104, 115)
+        and fr_l0["field3"] == (94, 108)
+        and fr_l0["field4"] is not None
     )
-    note_tests.append(("SOPAS Tool 負值小數無條件進位(-350→-2→88)", passed_sopas_floor))
+    note_tests.append(("SOPAS Field1~Field3 正值偏差值計算正確(offset=1200)", passed_sopas_positive_offset))
 
-    # 驗證整除邊界值不多進位：left=-400mm → floor(-2.0)=-2 → 88度
-    sopas_exact_lanes = [(0, 4400.0)]
-    sopas_exact_results = calculate_sopas_angles(sopas_exact_lanes, [[0]], [4000.0])
-    # left=4000-4400=-400 → floor(-2.0)=-2 → 88
-    passed_sopas_exact = sopas_exact_results[0]["left_angle"] == 88
-    note_tests.append(("SOPAS Tool 負整除邊界不多進位(-400→-2→88)", passed_sopas_exact))
-
-    # 驗證多 Lidar 會各自使用自己的中心距離
-    sopas_multi_lanes = [(0, 4300.0), (1, 4100.0)]
-    sopas_multi_assignments = [[0], [1]]
-    sopas_multi_results = calculate_sopas_angles(
-        sopas_multi_lanes, sopas_multi_assignments, [4000.0, 8600.0]
+    # 驗證微小負值偏差值（LIDAR_1 offset=-50）的 floor 捨入
+    # LIDAR_1: Lane2=3800, Lane3=3650, center=11300 → offset=-50
+    #   f1_upper=90+ceil(3750/200)=90+19=109, f1_lower=90+floor(-0.25)=90+(-1)=89
+    #   center_inner=ceil(99)=99
+    #   f4_lower=89+floor((-3650+(-50))/200)=89+floor(-18.5)=89+(-19)=70
+    #   center_outer=ceil(79.5)=80
+    fr_l1 = sopas_fields_main[1]  # LIDAR_1
+    passed_sopas_small_neg_offset = (
+        fr_l1["field1"] == (89, 109)
+        and fr_l1["center_inner"] == 99
+        and fr_l1["field4"] == (70, 89)
+        and fr_l1["center_outer"] == 80
     )
-    # LIDAR_0: right=4000→110, left=-300→88
-    # LIDAR_1: right=8600→133, left=4500→112
-    passed_sopas_multi = (
-        sopas_multi_results[0]["right_angle"] == 110
-        and sopas_multi_results[0]["left_angle"] == 88
-        and sopas_multi_results[1]["right_angle"] == 133
-        and sopas_multi_results[1]["left_angle"] == 112
-    )
-    note_tests.append(("SOPAS Tool 多 Lidar 依中心距離計算正確", passed_sopas_multi))
+    note_tests.append(("SOPAS Field1/Field4 微小負值偏差值計算正確(offset=-50)", passed_sopas_small_neg_offset))
 
-    # 驗證 SOPAS 報表區段會出現在 HTML 中
+    # 驗證單車道 Lidar（LIDAR_2，只有 Lane4）無 Field4~Field6
+    # LIDAR_2: Lane4=3400, center=16700 → offset=1700
+    #   f1_upper=90+ceil(5100/200)=90+26=116, f1_lower=90+floor(8.5)=90+8=98
+    fr_l2 = sopas_fields_main[2]  # LIDAR_2 (single lane)
+    passed_sopas_single_lane = (
+        fr_l2["field1"] == (98, 116)
+        and fr_l2["field4"] is None
+        and fr_l2["field5"] is None
+        and fr_l2["field6"] is None
+        and fr_l2["center_outer"] is None
+    )
+    note_tests.append(("SOPAS 單車道 Lidar 無 Field4~Field6", passed_sopas_single_lane))
+
+    # 驗證 SOPAS Field1~Field6 報表區段出現在 HTML 中
     sopas_html = _render_group_report_sections(
         "主要 Lidar",
         ALL_LANES,
@@ -412,12 +409,13 @@ try:
     )
     passed_sopas_html = (
         "SOPAS Tool_Primary Lidar" in sopas_html
-        and "偵測角度範圍(°)" in sopas_html
-        and "90度到右側護欄距離直接採用各 Lidar 中心距離" in sopas_html
+        and "Field1(°)" in sopas_html
+        and "Field4(°)" in sopas_html
+        and "Field6(°)" in sopas_html
     )
-    note_tests.append(("SOPAS Tool 報表區段出現在主要 Lidar HTML 中", passed_sopas_html))
+    note_tests.append(("SOPAS Tool Field1~Field6 報表區段出現在主要 Lidar HTML 中", passed_sopas_html))
 
-    # 驗證不需額外傳入 SOPAS 距離也會顯示 SOPAS 區段
+    # 驗證備援 Lidar 也會顯示 SOPAS 區段標題
     auto_sopas_html = _render_group_report_sections(
         "主要 Lidar",
         ALL_LANES,
@@ -427,7 +425,7 @@ try:
         LAST_LIDAR_OUTER_DIST,
     )
     passed_auto_sopas_html = "SOPAS Tool_Primary Lidar" in auto_sopas_html
-    note_tests.append(("SOPAS Tool 會直接使用中心距離顯示區段", passed_auto_sopas_html))
+    note_tests.append(("SOPAS Tool 標題正確顯示為 Primary Lidar", passed_auto_sopas_html))
 
     save_result(
         SITE_NAME,

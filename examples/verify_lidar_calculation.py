@@ -229,6 +229,114 @@ def calculate_sopas_angles(all_lanes: list, lidar_assignments: list, lidar_cente
     return results
 
 
+def calculate_sopas_fields(all_lanes: list, lidar_assignments: list, lidar_centers: list):
+    """
+    計算各 Lidar 在 SOPAS 軟體中的 6 個 Field 偵測角度範圍。
+    以 Dtmod_Primary Lidar 和 Dtmod_Backup Lidar 的偏差值為基礎計算。
+
+    Field1~Field3：內側車道（靠近護欄）
+    Field4~Field6：外側車道（遠離護欄，若 Lidar 只負責 1 個車道則為 None）
+
+    計算公式（以 LIDAR_0 為例，內側車道 Lane0=4300mm，外側車道 Lane1=3800mm，偏差值=-300mm）：
+      Field1（內側車道完整範圍）:
+        上界 = 90 + ceil((inner_lane_width + offset) / 200)  = 110°
+        下界 = 90 + floor(offset / 200)                      = 88°
+      中心點 = ceil((上界 + 下界) / 2) = 99°
+      Field2（內側護欄半段，護欄側不額外補償）: (中心點-2) ~ 上界           = 97°~110°
+      Field3（外側半段，兩側各補 2°）:         (下界-2) ~ (中心點+2)        = 86°~101°
+      Field4（外側車道完整範圍，從 Field1 下界往外延伸）:
+        上界 = Field1 下界                                                   = 88°
+        下界 = Field1 下界 + floor((-outer_lane_width + offset) / 200)       = 67°
+      中心點 = ceil((Field4上界 + Field4下界) / 2) = 78°
+      Field5（靠 Field1 側半段，兩側各補 2°）: (中心點-2) ~ (Field4上界+2)  = 76°~90°
+      Field6（外側半段，兩側各補 2°）:         (Field4下界-2) ~ (中心點+2)  = 65°~80°
+
+    Args:
+        all_lanes: [(lane_number, width_mm), ...] 所有車道
+        lidar_assignments: [[lane_numbers], ...] 各 Lidar 負責的車道（最多 2 個車道）
+        lidar_centers: 各 Lidar 的中心距離 (mm)
+
+    Returns:
+        list of dicts（順序同 lidar_assignments）:
+            index        - Lidar 序號
+            assigned     - 負責車道清單
+            offset_value - 偏差值 (mm)，來自 Dtmod 計算結果
+            field1       - (lower_angle, upper_angle) 內側車道完整範圍 (度)
+            field2       - (lower_angle, upper_angle) 內側車道護欄半段 (度)
+            field3       - (lower_angle, upper_angle) 內側車道外側半段 (度)
+            field4       - (lower_angle, upper_angle) 外側車道完整範圍，只有 1 車道則為 None
+            field5       - (lower_angle, upper_angle) 外側車道靠 Field1 側半段，若無則為 None
+            field6       - (lower_angle, upper_angle) 外側車道外側半段，若無則為 None
+            center_inner - 內側車道中心角度 (度)
+            center_outer - 外側車道中心角度 (度)，若無則為 None
+    """
+    dtmod_results = calculate_lidar_results(all_lanes, lidar_assignments, lidar_centers)
+    sorted_lanes = sorted(all_lanes, key=lambda x: x[0])
+    lane_width_map = {num: width for num, width in sorted_lanes}
+
+    fields_list = []
+    for r in dtmod_results:
+        assigned = sorted(r["assigned"])
+        offset = r["offset_value"]
+        inner_lane_width = lane_width_map[assigned[0]]
+
+        # Field1: 內側車道完整範圍
+        f1_upper = SOPAS_CENTER_ANGLE + math.ceil((inner_lane_width + offset) / SOPAS_MM_PER_DEGREE)
+        f1_lower = SOPAS_CENTER_ANGLE + math.floor(offset / SOPAS_MM_PER_DEGREE)
+
+        # 內側車道中心角度（無條件進位）
+        center_inner = math.ceil((f1_upper + f1_lower) / 2)
+
+        # Field2: 內側護欄半段（護欄側不額外補償）
+        f2_lower = center_inner - 2
+        f2_upper = f1_upper
+
+        # Field3: 外側半段（兩側各補 2°）
+        f3_lower = f1_lower - 2
+        f3_upper = center_inner + 2
+
+        entry = {
+            "index": r["index"],
+            "assigned": assigned,
+            "offset_value": offset,
+            "field1": (f1_lower, f1_upper),
+            "field2": (f2_lower, f2_upper),
+            "field3": (f3_lower, f3_upper),
+            "center_inner": center_inner,
+            "field4": None,
+            "field5": None,
+            "field6": None,
+            "center_outer": None,
+        }
+
+        if len(assigned) == 2:
+            outer_lane_width = lane_width_map[assigned[1]]
+
+            # Field4: 外側車道完整範圍（從 Field1 下界往外延伸）
+            f4_upper = f1_lower
+            f4_lower = f1_lower + math.floor((-outer_lane_width + offset) / SOPAS_MM_PER_DEGREE)
+
+            # 外側車道中心角度（無條件進位）
+            center_outer = math.ceil((f4_upper + f4_lower) / 2)
+
+            # Field5: 靠 Field1 側半段（兩側各補 2°）
+            f5_lower = center_outer - 2
+            f5_upper = f4_upper + 2
+
+            # Field6: 外側半段（兩側各補 2°）
+            f6_lower = f4_lower - 2
+            f6_upper = center_outer + 2
+
+            entry["field4"] = (f4_lower, f4_upper)
+            entry["field5"] = (f5_lower, f5_upper)
+            entry["field6"] = (f6_lower, f6_upper)
+            entry["center_outer"] = center_outer
+
+        fields_list.append(entry)
+
+    return fields_list
+
+
 def save_result(site_name, all_lanes, lidar_assignments, lidar_centers, results,
                 records_file=None, note="", last_lidar_outer_dist=None,
                 has_backup=False, backup_lidar_assignments=None,

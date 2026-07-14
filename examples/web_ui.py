@@ -18,7 +18,7 @@ from verify_lidar_calculation import (
     WIDTH_CONSISTENCY_WARNING_THRESHOLD,
     calculate_lane_coordinates,
     calculate_lidar_results,
-    calculate_sopas_angles,
+    calculate_sopas_fields,
     is_last_single_lane_lidar,
     load_records,
     save_result,
@@ -325,22 +325,29 @@ def _group_sopas_title(group_label):
 
 
 def _render_sopas_section(group_label, all_lanes, lidar_assignments, lidar_centers):
-    """計算並渲染 SOPAS Tool 偵測角度範圍區段。"""
-    sopas_results = calculate_sopas_angles(all_lanes, lidar_assignments, lidar_centers)
+    """計算並渲染 SOPAS Tool Field1~Field6 偵測角度範圍區段。"""
+    fields_results = calculate_sopas_fields(all_lanes, lidar_assignments, lidar_centers)
     rows = []
-    for sr in sopas_results:
-        lanes_str = "+".join(f"Lane{n}" for n in sr["assigned"])
+    for fr in fields_results:
+        lanes_str = "+".join(f"Lane{n}" for n in fr["assigned"])
+
+        def _fmt(field):
+            return f"{field[0]} ~ {field[1]}" if field is not None else "—"
+
         rows.append([
-            f"LIDAR_{sr['index']}",
+            f"LIDAR_{fr['index']}",
             lanes_str,
-            f"{sr['right_dist_mm']:.0f}",
-            f"{sr['left_dist_mm']:.0f}",
-            f"{sr['left_angle']} ~ {sr['right_angle']}",
+            f"{fr['offset_value']:.0f}",
+            _fmt(fr["field1"]),
+            _fmt(fr["field2"]),
+            _fmt(fr["field3"]),
+            _fmt(fr["field4"]),
+            _fmt(fr["field5"]),
+            _fmt(fr["field6"]),
         ])
     note = (
-        "基準：90度到右側護欄距離直接採用各 Lidar 中心距離；"
-        f"1度 = {SOPAS_MM_PER_DEGREE:.0f} mm；"
-        f"中心點往右為正、往左為負。"
+        "Field1~Field3：內側車道；Field4~Field6：外側車道（只有 1 個車道時無 Field4~Field6）。"
+        f"基準：90度；1度 = {SOPAS_MM_PER_DEGREE:.0f} mm；角度計算皆無條件進位。"
     )
     return (
         "<section class='report-section'>"
@@ -349,7 +356,7 @@ def _render_sopas_section(group_label, all_lanes, lidar_assignments, lidar_cente
         f"<h2>{escape(_group_sopas_title(group_label))}</h2>"
         f"</div>"
         + _render_table(
-            ["Lidar", "負責車道", "右側距離(mm)", "左側距離(mm)", "偵測角度範圍(°)"],
+            ["Lidar", "負責車道", "偏差值(mm)", "Field1(°)", "Field2(°)", "Field3(°)", "Field4(°)", "Field5(°)", "Field6(°)"],
             rows,
         )
         + f"<p class='sopas-note'>{escape(note)}</p>"
