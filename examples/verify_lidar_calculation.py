@@ -92,8 +92,8 @@ def calculate_lidar_results(
         scan_left = outer_boundary - center + left_compensation
 
         # 偏差值計算（所有 Lidar 統一公式）:
-        # offset = center - 前面所有 Lidar 負責車道總寬 - 此 Lidar 右側（最內側）車道寬
-        #        = center - 此 Lidar 右側（最內側）車道的外側邊界
+        # offset_value (右側基準) = center - 前面所有 Lidar 負責車道總寬 - 此 Lidar 右側（最內側）車道寬
+        #   = center - 此 Lidar 右側（最內側）車道的外側邊界（即內外側車道分界）
         # LIDAR_0 (最內側, 2車道): center - Lane0寬
         # LIDAR_1 (中間,   2車道): center - LIDAR_0負責總寬 - LIDAR_1右側車道寬
         # LIDAR_2 (最外側, 1車道): center - LIDAR_0負責總寬 - LIDAR_1負責總寬 - Lane4寬
@@ -108,6 +108,11 @@ def calculate_lidar_results(
         # 統一減去右側（最內側）車道寬，使所有 Lidar 的偏差值基準相同
         right_lane_width = lane_width_map[assigned[0]]
         offset_value = center - prev_lidars_total - right_lane_width
+
+        # offset_left (外側基準) = center - outer_boundary
+        #   = Lidar 中心到此 Lidar 負責車道最外側邊界的距離
+        #   供 SOPAS Field4~6（外側車道）使用，確保左右側各自以對應邊界為基準
+        offset_left = center - outer_boundary
 
         # 偏差值計算過程描述
         if i == 0:
@@ -127,6 +132,7 @@ def calculate_lidar_results(
             "scan_right": scan_right,
             "scan_left": scan_left,
             "offset_value": offset_value,
+            "offset_left": offset_left,
             "offset_formula": offset_formula,
             "inner_boundary": inner_boundary,
             "outer_boundary": outer_boundary,
@@ -227,18 +233,20 @@ def calculate_sopas_fields(all_lanes: list, lidar_assignments: list, lidar_cente
     Field4~Field6：外側車道（遠離護欄，若 Lidar 只負責 1 個車道則為 None）
 
     計算公式（以 LIDAR_0 為例，內側車道 Lane0=4300mm，外側車道 Lane1=3800mm，偏差值=-300mm）：
+      偏差值 offset_right = center - Lane0 = 4000 - 4300 = -300mm （內側基準，用於 Field1~3）
+      偏差值 offset_left  = center - outer_boundary = 4000 - 8100 = -4100mm （外側基準，用於 Field4~6）
       Field1（內側車道完整範圍）:
-        上界 = 90 + ceil((inner_lane_width + offset) / 200)  = 110°
-        下界 = 90 + floor(offset / 200)                      = 88°
+        上界 = 90 + ceil((inner_lane_width + offset_right) / 200)  = 110°
+        下界 = 90 + floor(offset_right / 200)                      = 88°
       中心點 = ceil((上界 + 下界) / 2) = 99°
       Field2（內側護欄半段，護欄側不額外補償）: (中心點-2) ~ 上界           = 97°~110°
       Field3（外側半段，兩側各補 2°）:         (下界-2) ~ (中心點+2)        = 86°~101°
-      Field4（外側車道完整範圍，從 Field1 下界往外延伸）:
+      Field4（外側車道完整範圍，從外側邊界往內計算）:
         上界 = Field1 下界                                                   = 88°
-        下界 = Field1 下界 + floor((-outer_lane_width + offset) / 200)       = 67°
-      中心點 = ceil((Field4上界 + Field4下界) / 2) = 78°
-      Field5（靠 Field1 側半段，兩側各補 2°）: (中心點-2) ~ (Field4上界+2)  = 76°~90°
-      Field6（外側半段，兩側各補 2°）:         (Field4下界-2) ~ (中心點+2)  = 65°~80°
+        下界 = 90 + floor(offset_left / 200)                                 = 69°
+      中心點 = ceil((Field4上界 + Field4下界) / 2) = 79°
+      Field5（靠 Field1 側半段，兩側各補 2°）: (中心點-2) ~ (Field4上界+2)  = 77°~90°
+      Field6（外側半段，兩側各補 2°）:         (Field4下界-2) ~ (中心點+2)  = 67°~81°
 
     Args:
         all_lanes: [(lane_number, width_mm), ...] 所有車道
@@ -302,13 +310,12 @@ def calculate_sopas_fields(all_lanes: list, lidar_assignments: list, lidar_cente
         }
 
         if len(assigned) == 2:
-            outer_lane_width = lane_width_map[assigned[1]]
-
-            # Field4: 外側車道完整範圍（從 Field1 下界往外延伸）
-            # -outer_lane_width：外側車道向遠離護欄方向延伸（角度減小）
-            # +offset：疊加偏差值使覆蓋範圍包含安裝位置偏移的補償
+            # Field4: 外側車道完整範圍
+            # 使用 offset_left（= center - outer_boundary）作為外側基準，
+            # 使左右兩側各自以對應邊界補償，不再共用 offset_right
+            offset_left = r["offset_left"]
             f4_upper = f1_lower
-            f4_lower = f1_lower + math.floor((-outer_lane_width + offset) / SOPAS_MM_PER_DEGREE)
+            f4_lower = SOPAS_CENTER_ANGLE + math.floor(offset_left / SOPAS_MM_PER_DEGREE)
 
             # 外側車道中心角度（無條件進位）
             center_outer = math.ceil((f4_upper + f4_lower) / 2)
