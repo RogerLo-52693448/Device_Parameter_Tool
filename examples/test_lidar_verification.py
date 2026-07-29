@@ -339,7 +339,7 @@ try:
     #   offset_left  = center - outer_boundary = 4000 - 8100 = -4100mm
     #   f1_upper=90+ceil((4300+(-300))/200)=90+20=110, f1_lower=90+floor(-300/200)=90+(-2)=88
     #   center_inner=ceil(99)=99
-    #   Field2（非最內側 Lidar）右側補 2°: (97, 111)（回歸驗證）
+    #   Field2（最內側 Lidar）右側不補償: (97, 110)
     #   f4_lower=90+floor(-4100/200)=90+(-21)=69, center_outer=ceil((88+69)/2)=ceil(78.5)=79
     sopas_user_lanes = [(0, 4300.0), (1, 3800.0)]
     sopas_user_assignments = [[0, 1]]
