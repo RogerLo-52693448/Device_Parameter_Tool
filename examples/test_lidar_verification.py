@@ -391,6 +391,7 @@ try:
         fr_l1["field1"] == (89, 109)
         and fr_l1["center_inner"] == 99
         and fr_l1["field2"] == (97, 111)
+        and fr_l1["field2"][1] == (fr_l1["field1"][1] + 2)
         and fr_l1["field4"] == (71, 89)
         and fr_l1["center_outer"] == 80
     )

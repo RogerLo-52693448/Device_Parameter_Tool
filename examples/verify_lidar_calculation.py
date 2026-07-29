@@ -290,6 +290,7 @@ def calculate_sopas_fields(all_lanes: list, lidar_assignments: list, lidar_cente
         # Field2: 內側半段
         # - 最內側 Lidar：護欄側不額外補償
         # - 非最內側 Lidar：右側額外補 2°
+        #   （Field 上界 = 較大角度，代表更靠右側／護欄側）
         f2_lower = center_inner - 2
         f2_upper = f1_upper if r["is_innermost"] else (f1_upper + 2)
 
