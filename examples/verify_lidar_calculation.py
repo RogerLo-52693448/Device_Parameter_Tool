@@ -287,9 +287,11 @@ def calculate_sopas_fields(all_lanes: list, lidar_assignments: list, lidar_cente
         # 內側車道中心角度（無條件進位）
         center_inner = math.ceil((f1_upper + f1_lower) / 2)
 
-        # Field2: 內側護欄半段（護欄側不額外補償）
+        # Field2: 內側半段
+        # - 最內側 Lidar：護欄側不額外補償
+        # - 非最內側 Lidar：右側額外補 2°
         f2_lower = center_inner - 2
-        f2_upper = f1_upper
+        f2_upper = f1_upper if r["is_innermost"] else (f1_upper + 2)
 
         # Field3: 外側半段（兩側各補 2°）
         f3_lower = f1_lower - 2
