@@ -1,10 +1,10 @@
 # Device_Parameter_Tool
 
-## 版本號
+## Version
 
-目前版本定義於專案根目錄 `VERSION` 檔案。
+The current version is defined in the `VERSION` file at the project root.
 
-## CLI 驗證
+## CLI Verification
 
 ```bash
 python examples/test_lidar_verification.py
@@ -16,4 +16,4 @@ python examples/test_lidar_verification.py
 python examples/web_ui.py
 ```
 
-啟動後開啟瀏覽器：`http://127.0.0.1:8000`
+After starting, open your browser at: `http://127.0.0.1:8000`
