@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
-簡易 Web UI：Lidar 有效區計算
+Simple Web UI: Lidar Effective Zone Calculator
 
-執行:
+Run:
   python examples/web_ui.py
 """
 
@@ -93,7 +93,7 @@ _FORM_JS = """
   }
 
   function laneOptsNone(n, sel) {
-    var html = '<option value="-1"' + (sel === -1 ? ' selected' : '') + '>（無）</option>';
+    var html = '<option value="-1"' + (sel === -1 ? ' selected' : '') + '>(None)</option>';
     for (var i = 0; i < n; i++) {
       html += '<option value="' + i + '"' + (sel === i ? ' selected' : '') + '>Lane' + i + '</option>';
     }
@@ -124,19 +124,19 @@ _FORM_JS = """
       html += '<div class="lidar-group">'
         + '<div class="lidar-group-title">' + title + ' — LIDAR_' + j + '</div>'
         + '<div class="lane-selects">'
-        + '<div><label>第一車道</label>'
+        + '<div><label>Lane 1</label>'
         + '<select id="' + prefix + '_lidar_lane_' + j + '_a" name="' + prefix + '_lidar_lane_' + j + '_a">'
         + laneOpts(laneCount, selA) + '</select></div>'
-        + '<div><label>第二車道</label>'
+        + '<div><label>Lane 2</label>'
         + '<select id="' + prefix + '_lidar_lane_' + j + '_b" name="' + prefix + '_lidar_lane_' + j + '_b">'
         + laneOptsNone(laneCount, selB) + '</select></div>'
         + '</div>'
-        + '<label>中心距離 (mm)</label>'
+        + '<label>Center Distance (mm)</label>'
         + '<input id="' + prefix + '_lidar_center_' + j + '" name="' + prefix + '_lidar_center_' + j
         + '" type="number" min="0" step="1" placeholder="mm" value="' + ctr + '" />'
         + '</div>';
     }
-    html += '<label>' + title + '最後一顆 Lidar 到外側護欄距離 (mm，可留空，可為負值)</label>'
+    html += '<label>' + title + ' Last Lidar to outer barrier distance (mm, optional, may be negative)</label>'
       + '<input id="' + prefix + '_last_lidar_outer_dist" name="' + prefix + '_last_lidar_outer_dist"'
       + ' type="number" step="1" placeholder="mm" value="' + lastOuterValue + '" />';
     html += '</div>';
@@ -159,7 +159,7 @@ _FORM_JS = """
     var primaryCount = getPrimaryCount();
     var html = '';
     html += renderOneLidarGroup(
-      'primary', '主要 Lidar', n, primaryCount, lidarCenters, lidarLanesA, lidarLanesB, primaryLastOuter
+      'primary', 'Primary Lidar', n, primaryCount, lidarCenters, lidarLanesA, lidarLanesB, primaryLastOuter
     );
     if (backupEnabled) {
       html += renderOneLidarGroup(
@@ -167,8 +167,8 @@ _FORM_JS = """
       );
     }
     document.getElementById('lidar-mode-note').textContent = backupEnabled
-      ? '已啟用備援：總數量 ' + total + ' 顆，主要 ' + primaryCount + ' 顆，備援 ' + primaryCount + ' 顆。'
-      : '未啟用備援：目前共 ' + total + ' 顆主要 Lidar。';
+      ? 'Backup enabled: total ' + total + ' units, primary ' + primaryCount + ', backup ' + primaryCount + '.'
+      : 'No backup: ' + total + ' primary Lidar(s) in use.';
     document.getElementById('lidar-section').innerHTML = html;
   }
 
@@ -200,53 +200,53 @@ _FORM_JS = """
 def _parse_float_list(raw: str, field_name: str):
     vals = [x.strip() for x in raw.split(",") if x.strip()]
     if not vals:
-        raise ValueError(f"{field_name} 不能為空")
+        raise ValueError(f"{field_name} cannot be empty")
     out = []
     for v in vals:
         try:
             out.append(float(v))
         except ValueError as exc:
-            raise ValueError(f"{field_name} 需為數字，收到: {v}") from exc
+            raise ValueError(f"{field_name} must be a number, got: {v}") from exc
     return out
 
 
 def _parse_assignments(raw: str):
     lines = [ln.strip() for ln in raw.splitlines() if ln.strip()]
     if not lines:
-        raise ValueError("Lidar 負責車道不能為空")
+        raise ValueError("Lidar assigned lanes cannot be empty")
     assignments = []
     for i, line in enumerate(lines):
         try:
             assigned = [int(x.strip()) for x in line.split(",") if x.strip()]
         except ValueError as exc:
-            raise ValueError(f"LIDAR_{i} 負責車道需為整數") from exc
+            raise ValueError(f"LIDAR_{i} assigned lanes must be integers") from exc
         if not assigned:
-            raise ValueError(f"LIDAR_{i} 至少需指定 1 個車道")
+            raise ValueError(f"LIDAR_{i} must have at least 1 assigned lane")
         if len(assigned) > 2:
-            raise ValueError(f"LIDAR_{i} 最多指定 2 個車道")
+            raise ValueError(f"LIDAR_{i} can have at most 2 assigned lanes")
         assignments.append(sorted(assigned))
     return assignments
 
 
 def _build_warnings(results, all_lanes, lidar_centers, last_lidar_outer_dist, group_label=None):
     warnings = []
-    prefix = f"{group_label}：" if group_label else ""
+    prefix = f"{group_label}: " if group_label else ""
     for r in results:
         if r["scan_right"] > SCAN_LIMIT:
             warnings.append(
-                f"{prefix}LIDAR_{r['index']} scan_right={r['scan_right']:.0f}mm 超過 {SCAN_LIMIT:.0f}mm"
+                f"{prefix}LIDAR_{r['index']} scan_right={r['scan_right']:.0f}mm exceeds {SCAN_LIMIT:.0f}mm"
             )
         if r["scan_left"] > SCAN_LIMIT:
             warnings.append(
-                f"{prefix}LIDAR_{r['index']} scan_left={r['scan_left']:.0f}mm 超過 {SCAN_LIMIT:.0f}mm"
+                f"{prefix}LIDAR_{r['index']} scan_left={r['scan_left']:.0f}mm exceeds {SCAN_LIMIT:.0f}mm"
             )
         if r["scan_right"] < 0:
             warnings.append(
-                f"{prefix}LIDAR_{r['index']} scan_right={r['scan_right']:.0f}mm 為負值（僅提示，不視為錯誤）"
+                f"{prefix}LIDAR_{r['index']} scan_right={r['scan_right']:.0f}mm is negative (informational only, not treated as error)"
             )
         if r["scan_left"] < 0:
             warnings.append(
-                f"{prefix}LIDAR_{r['index']} scan_left={r['scan_left']:.0f}mm 為負值（僅提示，不視為錯誤）"
+                f"{prefix}LIDAR_{r['index']} scan_left={r['scan_left']:.0f}mm is negative (informational only, not treated as error)"
             )
 
     if last_lidar_outer_dist is not None:
@@ -255,7 +255,7 @@ def _build_warnings(results, all_lanes, lidar_centers, last_lidar_outer_dist, gr
         diff = abs(measured - total_lanes)
         if diff >= WIDTH_CONSISTENCY_WARNING_THRESHOLD:
             warnings.append(
-                f"{prefix}路寬一致性警告: 實測合計={measured:.0f}mm、車道總寬={total_lanes:.0f}mm、差距={diff:.0f}mm"
+                f"{prefix}Lane width consistency warning: measured total={measured:.0f}mm, total lane width={total_lanes:.0f}mm, difference={diff:.0f}mm"
             )
     return warnings
 
@@ -279,45 +279,45 @@ def _render_table(headers, rows):
 
 def _status_to_class(status: str):
     return {
-        "正常": "status-ok",
-        "警告": "status-warn",
-        "錯誤": "status-error",
+        "OK": "status-ok",
+        "Warning": "status-warn",
+        "Error": "status-error",
     }.get(status, "status-neutral")
 
 
 def _offset_is_error(offset_value, skip_alert=False):
-    """判斷偏差值是否超出 ±1500mm 告警門檻（最後一顆且只負責 1 車道可略過）。"""
+    """Determine whether the offset exceeds the ±1500mm alert threshold (skipped for the last Lidar responsible for only 1 lane)."""
     if skip_alert:
         return False
     return abs(offset_value) > OFFSET_ALERT_LIMIT
 
 
 def _group_section_titles(group_label):
-    if group_label == "主要 Lidar":
+    if group_label == "Primary Lidar":
         return "Distance From Center Island_Primary Lidar", "Dtmod_Primary Lidar"
     if group_label == "_Backup Lidar":
         return "Distance From Center Island_Backup Lidar", "Dtmod_Backup Lidar"
-    return f"輸入資訊 — {group_label}", f"計算結果 — {group_label}"
+    return f"Input Info — {group_label}", f"Results — {group_label}"
 
 
 def _group_detail_title(group_label):
-    if group_label == "主要 Lidar":
+    if group_label == "Primary Lidar":
         return "Calculation formula_Primary Lidar"
     if group_label == "_Backup Lidar":
         return "Calculation formula_Backup Lidar"
-    return f"詳細計算過程 — {group_label}"
+    return f"Calculation Details — {group_label}"
 
 
 def _group_width_check_title(group_label):
-    if group_label == "主要 Lidar":
+    if group_label == "Primary Lidar":
         return "Roadway width check_Primary Lidar"
     if group_label == "_Backup Lidar":
         return "Roadway width check_Backup Lidar"
-    return f"路寬一致性檢核 — {group_label}"
+    return f"Lane Width Consistency Check — {group_label}"
 
 
 def _group_sopas_title(group_label):
-    if group_label == "主要 Lidar":
+    if group_label == "Primary Lidar":
         return "SOPAS Tool_Primary Lidar"
     if group_label == "_Backup Lidar":
         return "SOPAS Tool_Backup Lidar"
@@ -325,7 +325,7 @@ def _group_sopas_title(group_label):
 
 
 def _render_sopas_section(group_label, all_lanes, lidar_assignments, lidar_centers):
-    """計算並渲染 SOPAS Tool Field1~Field6 偵測角度範圍區段。"""
+    """Calculate and render the SOPAS Tool Field1~Field6 detection angle range section."""
     fields_results = calculate_sopas_fields(all_lanes, lidar_assignments, lidar_centers)
     rows = []
     for fr in fields_results:
@@ -346,8 +346,8 @@ def _render_sopas_section(group_label, all_lanes, lidar_assignments, lidar_cente
             _fmt(fr["field6"]),
         ])
     note = (
-        "Field1~Field3：內側車道；Field4~Field6：外側車道（只有 1 個車道時無 Field4~Field6）。"
-        f"基準：90度；1度 = {SOPAS_MM_PER_DEGREE:.0f} mm；角度計算皆無條件進位。"
+        "Field1~Field3: inner lanes; Field4~Field6: outer lanes (None if only 1 lane). "
+        f"Reference: 90°; 1° = {SOPAS_MM_PER_DEGREE:.0f} mm; angles rounded up."
     )
     return (
         "<section class='report-section'>"
@@ -356,7 +356,7 @@ def _render_sopas_section(group_label, all_lanes, lidar_assignments, lidar_cente
         f"<h2>{escape(_group_sopas_title(group_label))}</h2>"
         f"</div>"
         + _render_table(
-            ["Lidar", "負責車道", "偏差值(mm)", "Field1(°)", "Field2(°)", "Field3(°)", "Field4(°)", "Field5(°)", "Field6(°)"],
+            ["Lidar", "Assigned Lanes", "Offset (mm)", "Field1(°)", "Field2(°)", "Field3(°)", "Field4(°)", "Field5(°)", "Field6(°)"],
             rows,
         )
         + f"<p class='sopas-note'>{escape(note)}</p>"
@@ -395,8 +395,8 @@ def _render_result_table(results):
         "<div class='table-scroll'>"
         "<table class='report-table result-table'>"
         "<thead><tr>"
-        "<th>Lidar</th><th>負責車道</th><th>Lidar Scan Right Bound</th>"
-        "<th>Lidar Scan Left Bound</th><th>偏差值(mm)</th><th>狀態</th>"
+        "<th>Lidar</th><th>Assigned Lanes</th><th>Lidar Scan Right Bound</th>"
+        "<th>Lidar Scan Left Bound</th><th>Offset (mm)</th><th>Status</th>"
         "</tr></thead>"
         f"<tbody>{''.join(row_html)}</tbody>"
         "</table>"
@@ -405,19 +405,19 @@ def _render_result_table(results):
 
 
 def _result_status(result, total_results=None):
-    status = "正常"
+    status = "OK"
     if result["scan_right"] > SCAN_LIMIT or result["scan_left"] > SCAN_LIMIT:
-        status = "警告"
+        status = "Warning"
     if _offset_is_error(
         result["offset_value"],
         skip_alert=is_last_single_lane_lidar(result, total_results=total_results),
     ):
-        status = "錯誤"
+        status = "Error"
     return status
 
 
 def _collect_status_counts(results):
-    counts = {"正常": 0, "警告": 0, "錯誤": 0}
+    counts = {"OK": 0, "Warning": 0, "Error": 0}
     total_results = len(results)
     for result in results:
         counts[_result_status(result, total_results=total_results)] += 1
@@ -442,11 +442,11 @@ def _render_group_report_sections(
             f"<span class='detail-center'>CENTER {r['center']:.0f} mm</span>"
             "</div>"
             "<div class='detail-lines'>"
-            f"<p><span>負責車道邊界</span><strong>{r['inner_boundary']:.0f} mm ~ {r['outer_boundary']:.0f} mm</strong></p>"
-            f"<p><span>補償值</span><strong>右 +{r['right_compensation']:.0f} mm / 左 +{r['left_compensation']:.0f} mm</strong></p>"
+            f"<p><span>Assigned lane boundary</span><strong>{r['inner_boundary']:.0f} mm ~ {r['outer_boundary']:.0f} mm</strong></p>"
+            f"<p><span>Compensation</span><strong>Right +{r['right_compensation']:.0f} mm / Left +{r['left_compensation']:.0f} mm</strong></p>"
             f"<p><span>scan_right</span><code>{r['center']:.0f} - {r['inner_boundary']:.0f} + {r['right_compensation']:.0f} = {r['scan_right']:.0f} mm</code></p>"
             f"<p><span>scan_left</span><code>{r['outer_boundary']:.0f} - {r['center']:.0f} + {r['left_compensation']:.0f} = {r['scan_left']:.0f} mm</code></p>"
-            f"<p><span>偏差值</span><code>{escape(r['offset_formula'])} = {r['offset_value']:.0f} mm</code></p>"
+            f"<p><span>Offset</span><code>{escape(r['offset_formula'])} = {r['offset_value']:.0f} mm</code></p>"
             "</div>"
             "</div>"
         )
@@ -456,19 +456,19 @@ def _render_group_report_sections(
         total_measured = lidar_centers[-1] + last_lidar_outer_dist
         total_lanes = sum(w for _, w in all_lanes)
         diff = abs(total_measured - total_lanes)
-        status = "正常" if diff < WIDTH_CONSISTENCY_WARNING_THRESHOLD else "警告"
+        status = "OK" if diff < WIDTH_CONSISTENCY_WARNING_THRESHOLD else "Warning"
         width_rows = [
-            [f"最後一顆{group_label}中心距離", f"{lidar_centers[-1]:.0f} mm"],
-            [f"最後一顆{group_label}到外側護欄距離", f"{last_lidar_outer_dist:.0f} mm"],
-            ["實測合計", f"{total_measured:.0f} mm"],
-            ["所有車道寬度加總", f"{total_lanes:.0f} mm"],
-            ["差距", f"{diff:.0f} mm"],
-            ["狀態", status],
+            [f"Last {group_label} center distance", f"{lidar_centers[-1]:.0f} mm"],
+            [f"Last {group_label} to outer barrier", f"{last_lidar_outer_dist:.0f} mm"],
+            ["Measured total", f"{total_measured:.0f} mm"],
+            ["Sum of all lane widths", f"{total_lanes:.0f} mm"],
+            ["Difference", f"{diff:.0f} mm"],
+            ["Status", status],
         ]
         width_check_html = (
             "<section class='report-section'>"
             f"<div class='section-heading'><span class='section-tag'>CHECK</span><h2>{escape(_group_width_check_title(group_label))}</h2></div>"
-            + _render_table(["項目", "數值"], width_rows)
+            + _render_table(["Item", "Value"], width_rows)
             + "</section>"
         )
 
@@ -477,7 +477,7 @@ def _render_group_report_sections(
     return (
         "<section class='report-section'>"
         + f"<div class='section-heading'><span class='section-tag'>INPUT</span><h2>{escape(input_title)}</h2></div>"
-        + _render_table(["Lidar", "負責車道", "中心距離(mm)"], lidar_rows)
+        + _render_table(["Lidar", "Assigned Lanes", "Center Distance (mm)"], lidar_rows)
         + "</section>"
         + "<section class='report-section'>"
         + f"<div class='section-heading'><span class='section-tag'>RESULT</span><h2>{escape(result_title)}</h2></div>"
@@ -486,7 +486,7 @@ def _render_group_report_sections(
         + "<section class='report-section'>"
         + f"<div class='section-heading'><span class='section-tag'>DETAIL</span><h2>{escape(_group_detail_title(group_label))}</h2></div>"
         + "<details class='detail-toggle'>"
-        + "<summary>展開詳細計算過程</summary>"
+        + "<summary>Show Calculation Details</summary>"
         + "<div class='detail-grid'>"
         + "".join(detail_cards)
         + "</div>"
@@ -504,27 +504,27 @@ def _render_results_sections(site_name, all_lanes, lidar_groups, total_lidar_cou
         [f"Lane{num}", f"{width:.0f}", f"{lane_coords_map[num][0]:.0f} ~ {lane_coords_map[num][1]:.0f}"]
         for num, width in all_lanes
     ]
-    lane_rows.append(["合計", f"{sum(w for _, w in all_lanes):.0f}", ""])
+    lane_rows.append(["Total", f"{sum(w for _, w in all_lanes):.0f}", ""])
 
-    overall_counts = {"正常": 0, "警告": 0, "錯誤": 0}
+    overall_counts = {"OK": 0, "Warning": 0, "Error": 0}
     for group in lidar_groups:
         counts = _collect_status_counts(group["results"])
         for key in overall_counts:
             overall_counts[key] += counts[key]
 
     summary_items = [
-        ("點位", site_name, "tone-neutral"),
-        ("車道數", str(len(all_lanes)), "tone-neutral"),
-        ("總 Lidar 數", str(total_lidar_count), "tone-neutral"),
-        ("備援模式", "有" if has_backup else "無", "tone-neutral"),
-        ("主要數量", str(len(lidar_groups[0]["results"])), "tone-neutral"),
+        ("Site", site_name, "tone-neutral"),
+        ("Lanes", str(len(all_lanes)), "tone-neutral"),
+        ("Total Lidars", str(total_lidar_count), "tone-neutral"),
+        ("Backup Mode", "Yes" if has_backup else "No", "tone-neutral"),
+        ("Primary Count", str(len(lidar_groups[0]["results"])), "tone-neutral"),
     ]
     if has_backup and len(lidar_groups) > 1:
-        summary_items.append(("備援數量", str(len(lidar_groups[1]["results"])), "tone-neutral"))
+        summary_items.append(("Backup Count", str(len(lidar_groups[1]["results"])), "tone-neutral"))
     summary_items.extend([
-        ("正常", str(overall_counts["正常"]), "tone-ok"),
-        ("警告", str(overall_counts["警告"]), "tone-warn"),
-        ("錯誤", str(overall_counts["錯誤"]), "tone-error"),
+        ("OK", str(overall_counts["OK"]), "tone-ok"),
+        ("Warning", str(overall_counts["Warning"]), "tone-warn"),
+        ("Error", str(overall_counts["Error"]), "tone-error"),
     ])
 
     sections = [
@@ -532,9 +532,9 @@ def _render_results_sections(site_name, all_lanes, lidar_groups, total_lidar_cou
         "<div class='report-banner'>"
         "<div>"
         "<div class='report-kicker'>LIDAR TEST REPORT</div>"
-        f"<h2>計算結果 — {escape(site_name)}</h2>"
-        + ("<p>已啟用備援模式，以下分別列出主要與備援 Lidar 的輸入與計算結果。</p>" if has_backup
-           else "<p>以下內容以測試報表版型整理輸入資料、驗證結果與計算明細。</p>")
+        f"<h2>Results — {escape(site_name)}</h2>"
+        + ("<p>Backup mode enabled. Primary and backup Lidar inputs and results are shown separately below.</p>" if has_backup
+           else "<p>The following presents input data, verification results, and calculation details in a test-report format.</p>")
         + "</div>"
         "<div class='report-stamp'>VERIFIED</div>"
         "</div>"
@@ -542,7 +542,7 @@ def _render_results_sections(site_name, all_lanes, lidar_groups, total_lidar_cou
         + "</section>",
         "<section class='report-section'>"
         "<div class='section-heading'><span class='section-tag'>INPUT</span><h2>Lane_Info</h2></div>"
-        + _render_table(["車道", "寬度(mm)", "座標範圍(mm)"], lane_rows)
+        + _render_table(["Lane", "Width (mm)", "Coordinate Range (mm)"], lane_rows)
         + "</section>",
     ]
 
@@ -578,7 +578,7 @@ def _render_error_block(message):
         return ""
     return (
         "<section class='notice-block error'>"
-        "<h3>輸入錯誤</h3>"
+        "<h3>Input Error</h3>"
         f"<p>{escape(message)}</p>"
         "</section>"
     )
@@ -626,17 +626,17 @@ def _render_history_table(site_name, records):
             "<form method='post' action='/load-site-record'>"
             f"<input type='hidden' name='site_name' value='{escape(site_name)}' />"
             f"<input type='hidden' name='record_index' value='{idx}' />"
-            "<button class='mini-btn' type='submit'>載入這筆設定</button>"
+            "<button class='mini-btn' type='submit'>Load This Configuration</button>"
             "</form>"
             "</td>"
             "</tr>"
         )
     return (
         "<section class='report-section'>"
-        "<div class='section-heading'><span class='section-tag'>HISTORY</span><h2>歷史點位設定</h2></div>"
-        f"<p>點位：{escape(site_name)}（共 {len(records)} 筆）</p>"
+        "<div class='section-heading'><span class='section-tag'>HISTORY</span><h2>Site History</h2></div>"
+        f"<p>Site: {escape(site_name)} ({len(records)} record(s))</p>"
         "<table class='report-table'>"
-        "<thead><tr><th>編號</th><th>時間戳記</th><th>備註</th><th>車道數</th><th>Lidar 數</th><th>車道總寬(mm)</th><th>操作</th></tr></thead>"
+        "<thead><tr><th>#</th><th>Timestamp</th><th>Note</th><th>Lanes</th><th>Lidar Count</th><th>Total Lane Width (mm)</th><th>Actions</th></tr></thead>"
         f"<tbody>{''.join(rows)}</tbody>"
         "</table>"
         "</section>"
@@ -644,7 +644,7 @@ def _render_history_table(site_name, records):
 
 
 def _compute_results_from_record(record):
-    """從歷史記錄計算 lidar_groups 與 all_lanes，供載入時直接輸出結果。"""
+    """Load lidar_groups and all_lanes from a history record for direct result output on load."""
     raw_lanes = record.get("all_lanes", [])
     lidar_assignments = [list(a) for a in record.get("lidar_assignments", [])]
     lidar_centers = [float(c) for c in record.get("lidar_centers", [])]
@@ -660,10 +660,10 @@ def _compute_results_from_record(record):
         all_lanes,
         lidar_centers,
         last_lidar_outer_dist,
-        "主要 Lidar" if has_backup else None,
+        "Primary Lidar" if has_backup else None,
     )
     lidar_groups = [{
-        "label": "主要 Lidar",
+        "label": "Primary Lidar",
         "lidar_assignments": lidar_assignments,
         "lidar_centers": lidar_centers,
         "results": results,
@@ -761,8 +761,8 @@ def _render_page(
             bool(form.get("has_backup")),
         )
 
-    warnings_html = _render_notice_block("警告", warnings or [], "warning")
-    info_html = _render_notice_block("訊息", info or [], "info")
+    warnings_html = _render_notice_block("Warning", warnings or [], "warning")
+    info_html = _render_notice_block("Info", info or [], "info")
     error_html = _render_error_block(error)
 
     lane_count_opts = "".join(
@@ -789,10 +789,10 @@ def _render_page(
     })
 
     return f"""<!doctype html>
-<html lang="zh-Hant">
+<html lang="en">
 <head>
   <meta charset="utf-8" />
-  <title>Lidar 計算 Web UI</title>
+  <title>Lidar Calculator Web UI</title>
   <style>
     :root {{
       color-scheme: light;
@@ -1279,34 +1279,34 @@ def _render_page(
     <header class="app-header">
       <div>
         <div class="eyebrow">DEVICE PARAMETER TOOL</div>
-        <h1>Lidar 有效區計算 Web UI</h1>
-        <p class="header-note">將輸入設定、結果摘要與計算明細整理成更接近測試報表的閱讀方式。</p>
+        <h1>Lidar Effective Zone Calculator Web UI</h1>
+        <p class="header-note">Organizes inputs, result summaries, and calculation details in a test-report style.</p>
       </div>
       <div class="header-badge">WEB TEST REPORT MODE</div>
     </header>
     <div class="layout">
       <aside class="panel form-panel">
         <div class="panel-body">
-          <h2 class="panel-title">測試輸入設定</h2>
-          <p class="panel-subtitle">輸入點位、車道與 Lidar 參數後，即可在右側產出報表式結果畫面。</p>
+          <h2 class="panel-title">Test Input Settings</h2>
+          <p class="panel-subtitle">Enter site, lane, and Lidar parameters to generate a report-style result on the right.</p>
           <form method="post" action="/calculate">
-            <label>點位名稱</label>
+            <label>Site Name</label>
             <input name="site_name" value="{escape(form['site_name'])}" />
-            <button type="submit" formaction="/query-site-history" class="btn-secondary">查詢點位歷史設定</button>
-            <label>車道數</label>
+            <button type="submit" formaction="/query-site-history" class="btn-secondary">Query Site History</button>
+            <label>Number of Lanes</label>
             <select name="lane_count" id="lane-count">{lane_count_opts}</select>
             <div class="checkbox-row">
-              <input id="has-backup" name="has_backup" type="checkbox" value="1" aria-label="啟用備援 Lidar" {"checked" if form.get("has_backup") else ""} />
-              <label for="has-backup" class="checkbox-label">啟用備援 Lidar</label>
+              <input id="has-backup" name="has_backup" type="checkbox" value="1" aria-label="Enable Backup Lidar" {"checked" if form.get("has_backup") else ""} />
+              <label for="has-backup" class="checkbox-label">Enable Backup Lidar</label>
             </div>
-            <label>Lidar 總數量</label>
+            <label>Total Lidar Count</label>
             <select name="lidar_count" id="lidar-count">{lidar_count_opts}</select>
-            <label>車道寬度 (mm)</label>
+            <label>Lane Width (mm)</label>
             <div id="lane-widths-section"></div>
-            <label>Lidar 設定</label>
+            <label>Lidar Settings</label>
             <p class="config-note" id="lidar-mode-note"></p>
             <div id="lidar-section"></div>
-            <button type="submit">產生測試報表</button>
+            <button type="submit">Generate Test Report</button>
           </form>
         </div>
       </aside>
@@ -1315,7 +1315,7 @@ def _render_page(
         {info_html}
         {warnings_html}
         {history_table or ""}
-        {results_html or "<section class='panel'><div class='empty-state'><strong>尚未產生報表</strong><span>請填寫左側測試參數並按下「產生測試報表」。</span></div></section>"}
+        {results_html or "<section class='panel'><div class='empty-state'><strong>No report generated yet</strong><span>Fill in the parameters on the left and click \"Generate Test Report\".</span></div></section>"}
       </main>
     </div>
   </div>
@@ -1346,15 +1346,15 @@ class Handler(BaseHTTPRequestHandler):
         try:
             content_length = int(self.headers.get("Content-Length", "0"))
         except ValueError:
-            self._send_html(_render_page(error="請求格式錯誤：Content-Length 無效"))
+            self._send_html(_render_page(error="Invalid request: Content-Length is invalid"))
             return
         if content_length < 0 or content_length > MAX_BODY_SIZE:
-            self._send_html(_render_page(error=f"請求內容過大，限制 {MAX_BODY_SIZE} bytes"))
+            self._send_html(_render_page(error=f"Request body too large, limit {MAX_BODY_SIZE} bytes"))
             return
         try:
             raw = self.rfile.read(content_length).decode("utf-8")
         except UnicodeDecodeError:
-            self._send_html(_render_page(error="請求格式錯誤：內容需為 UTF-8 編碼"))
+            self._send_html(_render_page(error="Invalid request: body must be UTF-8 encoded"))
             return
         payload = parse_qs(raw)
         site_name = payload.get("site_name", [""])[0].strip()
@@ -1363,36 +1363,36 @@ class Handler(BaseHTTPRequestHandler):
             form = _default_form()
             form["site_name"] = site_name
             if not site_name:
-                self._send_html(_render_page(form=form, error="請先輸入點位名稱"))
+                self._send_html(_render_page(form=form, error="Please enter a site name first"))
                 return
             records = load_records(site_name)
             if not records:
-                self._send_html(_render_page(form=form, error=f"找不到點位「{site_name}」的歷史記錄"))
+                self._send_html(_render_page(form=form, error=f"No history found for site \"{site_name}\""))
                 return
             self._send_html(
                 _render_page(
                     form=form,
                     history_table=_render_history_table(site_name, records),
-                    info=[f"已查詢到點位「{site_name}」的歷史設定，可直接載入。"],
+                    info=[f"History found for site \"{site_name}\". You may load a configuration."],
                 )
             )
             return
 
         if self.path == "/load-site-record":
             if not site_name:
-                self._send_html(_render_page(error="請先輸入點位名稱"))
+                self._send_html(_render_page(error="Please enter a site name first"))
                 return
             records = load_records(site_name)
             if not records:
-                self._send_html(_render_page(error=f"找不到點位「{site_name}」的歷史記錄"))
+                self._send_html(_render_page(error=f"No history found for site \"{site_name}\""))
                 return
             try:
                 record_index = int(payload.get("record_index", ["-1"])[0])
             except ValueError:
-                self._send_html(_render_page(error="記錄編號格式錯誤"))
+                self._send_html(_render_page(error="Invalid record index format"))
                 return
             if record_index < 0 or record_index >= len(records):
-                self._send_html(_render_page(error="記錄編號超出範圍"))
+                self._send_html(_render_page(error="Record index out of range"))
                 return
             form = _form_from_record(site_name, records[record_index])
             lidar_groups, all_lanes, calc_warnings = _compute_results_from_record(records[record_index])
@@ -1403,7 +1403,7 @@ class Handler(BaseHTTPRequestHandler):
                     warnings=calc_warnings or [],
                     all_lanes=all_lanes,
                     history_table=_render_history_table(site_name, records),
-                    info=[f"已載入第 {record_index + 1} 筆歷史設定，請確認後可直接產生報表。"],
+                    info=[f"Loaded configuration #{record_index + 1}. You may now generate a report."],
                 )
             )
             return
@@ -1413,11 +1413,11 @@ class Handler(BaseHTTPRequestHandler):
             lane_count = int(payload.get("lane_count", ["0"])[0])
             lidar_count = int(payload.get("lidar_count", ["0"])[0])
             if not (1 <= lane_count <= 8):
-                raise ValueError("車道數需在 1~8 之間")
+                raise ValueError("Number of lanes must be between 1 and 8")
             if not (1 <= lidar_count <= 8):
-                raise ValueError("Lidar 數量需在 1~8 之間")
+                raise ValueError("Lidar count must be between 1 and 8")
             if has_backup and lidar_count % 2 != 0:
-                raise ValueError("啟用備援時，Lidar 總數量需為偶數")
+                raise ValueError("When backup is enabled, total Lidar count must be even")
         except ValueError as e:
             self._send_html(_render_page(error=str(e)))
             return
@@ -1477,39 +1477,39 @@ class Handler(BaseHTTPRequestHandler):
         backup_lidar_centers_str = ",".join(backup_lidar_center_parts)
 
         try:
-            lane_widths = _parse_float_list(lane_widths_str, "車道寬度")
+            lane_widths = _parse_float_list(lane_widths_str, "Lane width")
             all_lanes = [(i, w) for i, w in enumerate(lane_widths)]
             lidar_assignments = _parse_assignments(lidar_assignments_str)
-            lidar_centers = _parse_float_list(lidar_centers_str, "Lidar 中心距離")
+            lidar_centers = _parse_float_list(lidar_centers_str, "Lidar center distance")
 
             if len(lidar_assignments) != len(lidar_centers):
-                raise ValueError("Lidar 負責車道行數需與 Lidar 中心距離數量相同")
+                raise ValueError("Number of Lidar lane rows must match number of Lidar center distances")
 
             lane_count = len(all_lanes)
             for i, assigned in enumerate(lidar_assignments):
                 for lane_idx in assigned:
                     if lane_idx < 0 or lane_idx >= lane_count:
                         raise ValueError(
-                            f"LIDAR_{i} 指定的 Lane{lane_idx} 超出範圍 (0~{lane_count - 1})"
+                            f"LIDAR_{i}: Lane{lane_idx} is out of range (0~{lane_count - 1})"
                         )
 
             for c in lidar_centers:
                 if c < 0:
-                    raise ValueError("Lidar 中心距離不可為負數")
+                    raise ValueError("Lidar center distance cannot be negative")
 
             last_lidar_outer_dist = None
             if form["last_lidar_outer_dist"]:
                 try:
                     last_lidar_outer_dist = float(form["last_lidar_outer_dist"])
                 except ValueError as exc:
-                    raise ValueError("主要 Lidar 最後一顆到外側護欄距離需為數字") from exc
+                    raise ValueError("Last primary Lidar to outer barrier distance must be a number") from exc
 
             results = calculate_lidar_results(all_lanes, lidar_assignments, lidar_centers)
             warnings = _build_warnings(
-                results, all_lanes, lidar_centers, last_lidar_outer_dist, "主要 Lidar" if has_backup else None
+                results, all_lanes, lidar_centers, last_lidar_outer_dist, "Primary Lidar" if has_backup else None
             )
             lidar_groups = [{
-                "label": "主要 Lidar",
+                "label": "Primary Lidar",
                 "lidar_assignments": lidar_assignments,
                 "lidar_centers": lidar_centers,
                 "results": results,
@@ -1518,25 +1518,25 @@ class Handler(BaseHTTPRequestHandler):
 
             if has_backup:
                 backup_lidar_assignments = _parse_assignments(backup_lidar_assignments_str)
-                backup_lidar_centers = _parse_float_list(backup_lidar_centers_str, "備援 Lidar 中心距離")
+                backup_lidar_centers = _parse_float_list(backup_lidar_centers_str, "Backup Lidar center distance")
                 if len(backup_lidar_assignments) != len(backup_lidar_centers):
-                    raise ValueError("備援 Lidar 負責車道行數需與備援 Lidar 中心距離數量相同")
+                    raise ValueError("Number of backup Lidar lane rows must match number of backup Lidar center distances")
                 for i, assigned in enumerate(backup_lidar_assignments):
                     for lane_idx in assigned:
                         if lane_idx < 0 or lane_idx >= lane_count:
                             raise ValueError(
-                                f"備援 LIDAR_{i} 指定的 Lane{lane_idx} 超出範圍 (0~{lane_count - 1})"
+                                f"Backup LIDAR_{i}: Lane{lane_idx} is out of range (0~{lane_count - 1})"
                             )
                 for c in backup_lidar_centers:
                     if c < 0:
-                        raise ValueError("備援 Lidar 中心距離不可為負數")
+                        raise ValueError("Backup Lidar center distance cannot be negative")
 
                 backup_last_lidar_outer_dist = None
                 if form["backup_last_lidar_outer_dist"]:
                     try:
                         backup_last_lidar_outer_dist = float(form["backup_last_lidar_outer_dist"])
                     except ValueError as exc:
-                        raise ValueError("備援 Lidar 最後一顆到外側護欄距離需為數字") from exc
+                        raise ValueError("Last backup Lidar to outer barrier distance must be a number") from exc
 
                 backup_results = calculate_lidar_results(
                     all_lanes, backup_lidar_assignments, backup_lidar_centers
@@ -1561,7 +1561,7 @@ class Handler(BaseHTTPRequestHandler):
             info_messages = []
             history_table = None
             if site_name:
-                note = "Web UI 產生測試報表（含備援）" if has_backup else "Web UI 產生測試報表"
+                note = "Web UI generated test report (with backup)" if has_backup else "Web UI generated test report"
                 try:
                     save_result(
                         site_name,
@@ -1580,12 +1580,12 @@ class Handler(BaseHTTPRequestHandler):
                     records = load_records(site_name)
                     history_table = _render_history_table(site_name, records)
                     info_messages.append(
-                        f"已儲存點位「{site_name}」歷史設定（共 {len(records)} 筆）。"
+                        f"Saved history for site \"{site_name}\" ({len(records)} records total)."
                     )
                 except OSError as exc:
-                    warnings.append(f"歷史設定儲存失敗：{exc}")
+                    warnings.append(f"Failed to save history: {exc}")
             else:
-                info_messages.append("未填寫點位名稱，本次結果不會寫入歷史設定。")
+                info_messages.append("No site name provided; results will not be saved to history.")
 
             self._send_html(
                 _render_page(
@@ -1605,8 +1605,8 @@ def main():
     host = "127.0.0.1"
     port = 8000
     server = ThreadingHTTPServer((host, port), Handler)
-    print(f"Web UI 啟動中: http://{host}:{port}")
-    print("按 Ctrl+C 停止")
+    print(f"Web UI starting: http://{host}:{port}")
+    print("Press Ctrl+C to stop")
     try:
         server.serve_forever()
     except KeyboardInterrupt:
