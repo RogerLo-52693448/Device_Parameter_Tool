@@ -599,6 +599,7 @@ def _default_form():
         "backup_lidar_lanes_a": [],
         "backup_lidar_lanes_b": [],
         "backup_last_lidar_outer_dist": "",
+        "note": "",
     }
 
 
@@ -738,6 +739,7 @@ def _form_from_record(site_name, record):
         "backup_last_lidar_outer_dist": (
             "" if backup_last_outer is None else _format_number_for_input(backup_last_outer)
         ),
+        "note": record.get("note", ""),
     }
 
 
@@ -1306,6 +1308,8 @@ def _render_page(
             <label>Lidar Settings</label>
             <p class="config-note" id="lidar-mode-note"></p>
             <div id="lidar-section"></div>
+            <label>Note (optional)</label>
+            <input name="note" value="{escape(form.get('note', ''))}" placeholder="e.g. initial setup, post-maintenance check" />
             <button type="submit">Generate Test Report</button>
           </form>
         </div>
@@ -1455,6 +1459,7 @@ class Handler(BaseHTTPRequestHandler):
             for j in range(primary_count)
         ] if has_backup else []
         backup_last_outer = payload.get("backup_last_lidar_outer_dist", [""])[0].strip() if has_backup else ""
+        note_input = payload.get("note", [""])[0].strip()
         form = {
             "site_name": site_name,
             "lane_count": lane_count,
@@ -1469,6 +1474,7 @@ class Handler(BaseHTTPRequestHandler):
             "backup_lidar_lanes_a": backup_lidar_lanes_a,
             "backup_lidar_lanes_b": backup_lidar_lanes_b,
             "backup_last_lidar_outer_dist": backup_last_outer,
+            "note": note_input,
         }
         lane_widths_str = ",".join(lane_width_parts)
         lidar_assignments_str = "\n".join(lidar_assign_parts)
@@ -1561,7 +1567,11 @@ class Handler(BaseHTTPRequestHandler):
             info_messages = []
             history_table = None
             if site_name:
-                note = "Web UI generated test report (with backup)" if has_backup else "Web UI generated test report"
+                if has_backup:
+                    default_note = "Web UI generated test report (with backup)"
+                else:
+                    default_note = "Web UI generated test report"
+                note = note_input if note_input else default_note
                 try:
                     save_result(
                         site_name,
