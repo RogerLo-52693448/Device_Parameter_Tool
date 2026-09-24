@@ -83,8 +83,8 @@ def _build_lidar_rows(form, lidar_count: int, prefix: str = "primary") -> list[L
 
 def _config_from_form(form) -> DeviceConfig:
     lane_count = max(1, _coerce_int(form.get("lane_count"), 1))
-    lidar_count = max(1, _coerce_int(form.get("primary_lidar_count"), 1))
-    backup_lidar_count = max(1, _coerce_int(form.get("backup_lidar_count"), lidar_count))
+    lidar_count = max(0, _coerce_int(form.get("primary_lidar_count"), 1))
+    backup_lidar_count = max(0, _coerce_int(form.get("backup_lidar_count"), lidar_count))
     has_backup = _coerce_bool(form.get("has_backup"))
     return DeviceConfig(
         site_name=form.get("site_name", "未命名點位").strip() or "未命名點位",
@@ -131,8 +131,8 @@ def _form_defaults(config: DeviceConfig) -> dict:
         "note": config.note,
         "has_backup": config.has_backup,
         "lane_count": max(1, len(lane_rows)),
-        "primary_lidar_count": max(1, len(lidar_rows)),
-        "backup_lidar_count": max(1, len(backup_lidar_rows) if backup_lidar_rows else len(lidar_rows)),
+        "primary_lidar_count": len(lidar_rows),
+        "backup_lidar_count": len(backup_lidar_rows),
         "lanes": lane_rows or [{"lane_number": 0, "width_mm": ""}],
         "lidars": lidar_rows or [{"lane_a": 0, "lane_b": "none", "center_distance_mm": "", "auto_calculate": True}],
         "backup_lidars": backup_lidar_rows or [{"lane_a": 0, "lane_b": "none", "center_distance_mm": "", "auto_calculate": True}],
@@ -142,8 +142,8 @@ def _form_defaults(config: DeviceConfig) -> dict:
 
 def _posted_form_state(form) -> dict:
     lane_count = max(1, _coerce_int(form.get("lane_count"), 1))
-    primary_lidar_count = max(1, _coerce_int(form.get("primary_lidar_count"), 1))
-    backup_lidar_count = max(1, _coerce_int(form.get("backup_lidar_count"), primary_lidar_count))
+    primary_lidar_count = max(0, _coerce_int(form.get("primary_lidar_count"), 1))
+    backup_lidar_count = max(0, _coerce_int(form.get("backup_lidar_count"), primary_lidar_count))
     has_backup = _coerce_bool(form.get("has_backup"))
     lanes = [
         {

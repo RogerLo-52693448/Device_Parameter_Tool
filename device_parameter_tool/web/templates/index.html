@@ -61,13 +61,13 @@
               <input id="lane-count" aria-label="車道數量" name="lane_count" type="number" min="1" value="{{ form.lane_count }}">
             </label>
             <label for="primary-lidar-count">主 Lidar 數量
-              <input id="primary-lidar-count" aria-label="主 Lidar 數量" name="primary_lidar_count" type="number" min="1" value="{{ form.primary_lidar_count }}">
+              <input id="primary-lidar-count" aria-label="主 Lidar 數量" name="primary_lidar_count" type="number" min="0" value="{{ form.primary_lidar_count }}">
             </label>
           </div>
 
           <label class="checkbox-line"><input id="has-backup" name="has_backup" type="checkbox" {% if form.has_backup %}checked{% endif %}> 啟用備援 Lidar</label>
           <label id="backup-count-label" for="backup-lidar-count" {% if not form.has_backup %}class="hidden"{% endif %}>備援 Lidar 數量
-            <input id="backup-lidar-count" aria-label="備援 Lidar 數量" name="backup_lidar_count" type="number" min="1" value="{{ form.backup_lidar_count }}" {% if not form.has_backup %}disabled{% endif %}>
+            <input id="backup-lidar-count" aria-label="備援 Lidar 數量" name="backup_lidar_count" type="number" min="0" value="{{ form.backup_lidar_count }}">
           </label>
 
           <div class="section">
@@ -306,7 +306,7 @@
     }
 
     function renderLidars(prefix, containerId, rows, countFieldId) {
-      const count = Math.max(1, Number(document.getElementById(countFieldId).value || '1'));
+      const count = Math.max(0, Number(document.getElementById(countFieldId).value || '0'));
       const container = document.getElementById(containerId);
       container.innerHTML = '';
       const block = document.createElement('div');
@@ -344,7 +344,6 @@
       const enabled = document.getElementById('has-backup').checked;
       document.getElementById('backup-section').classList.toggle('hidden', !enabled);
       document.getElementById('backup-count-label').classList.toggle('hidden', !enabled);
-      document.getElementById('backup-lidar-count').disabled = !enabled;
     }
 
     document.getElementById('lane-count').addEventListener('input', () => {

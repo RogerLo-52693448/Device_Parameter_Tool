@@ -170,6 +170,23 @@ def test_web_save_supports_dynamic_lane_numbers_and_multiple_lidars(tmp_path):
     assert history_data[0]["config"]["backup_lidars"][0]["assigned_lanes"] == [2, 3]
 
 
+def test_web_save_allows_zero_primary_lidars(tmp_path):
+    app = create_app(tmp_path)
+    client = app.test_client()
+
+    zero_data = dict(FORM_DATA)
+    zero_data.pop("has_backup", None)
+    zero_data["primary_lidar_count"] = "0"
+    zero_data["backup_lidar_count"] = "0"
+
+    response = client.post("/save", data=zero_data)
+
+    assert response.status_code == 200
+    history_path = tmp_path / "site_history.json"
+    history_data = json.loads(history_path.read_text(encoding="utf-8"))
+    assert history_data[0]["config"]["lidars"] == []
+
+
 def test_web_save_invalid_backup_input_shows_error(tmp_path):
     app = create_app(tmp_path)
     client = app.test_client()
