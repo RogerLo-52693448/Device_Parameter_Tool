@@ -46,48 +46,55 @@ def prompt_bool(message: str, default: bool = True) -> bool:
 def print_lanes(config: DeviceConfig) -> None:
     print("\n【車道列表】")
     for lane in sorted(config.lanes, key=lambda item: item.lane_number):
-        print(
-            f"- Lane{lane.lane_number} / id={lane.lane_id or '-'} / "
-            f"width={lane.width_mm:.0f} mm / desc={lane.description or '-'}"
-        )
+        print(f"- Lane{lane.lane_number} / width={lane.width_mm:.0f} mm")
 
 
-def print_lidars(config: DeviceConfig) -> None:
-    print("\n【Lidar 列表】")
-    for index, lidar in enumerate(config.lidars):
+def print_lidars(config: DeviceConfig, label: str, lidars: list[LidarConfig]) -> None:
+    print(f"\n【{label} 列表】")
+    for index, lidar in enumerate(lidars):
         lanes = ", ".join(f"Lane{lane}" for lane in lidar.assigned_lanes)
         print(
-            f"- LIDAR_{index} / id={lidar.lidar_id or '-'} / lanes={lanes} / "
-            f"center={lidar.center_distance_mm:.0f} mm / auto={'Y' if lidar.auto_calculate else 'N'} / "
-            f"desc={lidar.description or '-'}"
+            f"- LIDAR_{index} / lanes={lanes or 'None'} / "
+            f"center={lidar.center_distance_mm:.0f} mm / auto={'Y' if lidar.auto_calculate else 'N'}"
         )
 
 
 def build_lane(existing: LaneConfig | None = None, default_number: int = 0) -> LaneConfig:
     existing = existing or LaneConfig(lane_number=default_number, width_mm=3500.0)
     return LaneConfig(
-        lane_id=prompt_text("Lane ID", existing.lane_id),
         lane_number=prompt_int("車道編號", existing.lane_number),
         width_mm=prompt_float("車道寬度(mm)", existing.width_mm),
-        description=prompt_text("描述", existing.description),
     )
+
+
+def prompt_lane_option(message: str, default: int | None = None) -> int | None:
+    default_text = "None" if default is None else f"Lane{default}"
+    while True:
+        raw = prompt_text(f"{message} (None/Lane0-Lane6)", default_text).strip()
+        if not raw or raw.lower() == "none":
+            return None
+        normalized = raw.lower().replace("lane", "")
+        try:
+            lane = int(normalized)
+        except ValueError:
+            print("✗ 請輸入 None 或 Lane0-Lane6")
+            continue
+        if 0 <= lane <= 6:
+            return lane
+        print("✗ 請輸入 None 或 Lane0-Lane6")
 
 
 def build_lidar(existing: LidarConfig | None = None) -> LidarConfig:
     existing = existing or LidarConfig(assigned_lanes=[0], center_distance_mm=0.0)
-    assigned_default = ",".join(str(lane) for lane in existing.assigned_lanes)
-    lidar_id = prompt_text("Lidar ID", existing.lidar_id)
-    assigned = [
-        int(item.strip())
-        for item in prompt_text("負責車道（逗號分隔，例如 0,1）", assigned_default).split(",")
-        if item.strip()
-    ]
+    default_first = existing.assigned_lanes[0] if existing.assigned_lanes else None
+    default_second = existing.assigned_lanes[1] if len(existing.assigned_lanes) > 1 else None
+    lane_a = prompt_lane_option("負責車道 1", default_first)
+    lane_b = prompt_lane_option("負責車道 2", default_second)
+    assigned = [lane for lane in [lane_a, lane_b] if lane is not None]
     return LidarConfig(
-        lidar_id=lidar_id,
         assigned_lanes=assigned,
         center_distance_mm=prompt_float("中心點距離(mm)", existing.center_distance_mm),
         auto_calculate=prompt_bool("自動計算有效偵測範圍", existing.auto_calculate),
-        description=prompt_text("描述", existing.description),
     )
 
 
@@ -116,22 +123,23 @@ def lane_menu(config: DeviceConfig) -> None:
             print(f"✗ {exc}")
 
 
-def lidar_menu(config: DeviceConfig) -> None:
+def lidar_menu(config: DeviceConfig, label: str, target_attr: str) -> None:
     while True:
-        print_lidars(config)
-        choice = prompt_text("Lidar 管理：1新增 2編輯 3刪除 4預覽計算 5返回", "5")
+        lidars = getattr(config, target_attr)
+        print_lidars(config, label, lidars)
+        choice = prompt_text(f"{label} 管理：1新增 2編輯 3刪除 4預覽計算 5返回", "5")
         if choice == "1":
-            config.lidars.append(build_lidar())
+            lidars.append(build_lidar())
         elif choice == "2":
             index = prompt_int("Lidar 索引")
-            if index < 0 or index >= len(config.lidars):
+            if index < 0 or index >= len(lidars):
                 print("✗ 找不到 Lidar")
                 continue
-            config.lidars[index] = build_lidar(existing=config.lidars[index])
+            lidars[index] = build_lidar(existing=lidars[index])
         elif choice == "3":
             index = prompt_int("要刪除的 Lidar 索引")
-            if 0 <= index < len(config.lidars):
-                del config.lidars[index]
+            if 0 <= index < len(lidars):
+                del lidars[index]
         elif choice == "4":
             show_report(config)
         elif choice == "5":
@@ -145,17 +153,30 @@ def lidar_menu(config: DeviceConfig) -> None:
 def quick_setup(config: DeviceConfig) -> None:
     config.site_name = prompt_text("點位名稱", config.site_name)
     config.note = prompt_text("備註（可留空）", config.note)
+    config.has_backup = prompt_bool("是否啟用備援 Lidar", config.has_backup)
     lane_count = prompt_int("車道數量")
-    lidar_count = prompt_int("Lidar 數量")
+    lidar_count = prompt_int("主 Lidar 數量")
     config.lanes = [build_lane(default_number=index) for index in range(lane_count)]
     config.lidars = [build_lidar() for _ in range(lidar_count)]
+    config.backup_lidars = [build_lidar() for _ in range(lidar_count)] if config.has_backup else []
     show_report(config)
 
 
 def show_report(config: DeviceConfig) -> None:
     try:
-        summary = calculate_for_config(config)
-        print("\n" + render_text_report(config, summary))
+        primary_summary = calculate_for_config(config)
+        print("\n【主 Lidar】")
+        print(render_text_report(config, primary_summary))
+        if config.has_backup and config.backup_lidars:
+            backup_config = DeviceConfig(
+                site_name=config.site_name,
+                note=config.note,
+                lanes=config.lanes,
+                lidars=config.backup_lidars,
+            )
+            backup_summary = calculate_for_config(backup_config)
+            print("\n【備援 Lidar】")
+            print(render_text_report(backup_config, backup_summary))
     except ValueError as exc:
         print(f"✗ {exc}")
 
@@ -171,32 +192,41 @@ def main() -> None:
             "\n主選單\n"
             "1. 快速設定\n"
             "2. 車道 CRUD\n"
-            "3. Lidar CRUD\n"
-            "4. 預覽計算結果\n"
-            "5. 讀取設定檔\n"
-            "6. 儲存/匯出設定檔\n"
-            "7. 離開\n"
+            "3. 主 Lidar CRUD\n"
+            "4. 備援開關 / 備援 Lidar CRUD\n"
+            "5. 預覽計算結果\n"
+            "6. 讀取設定檔\n"
+            "7. 儲存/匯出設定檔\n"
+            "8. 離開\n"
         )
-        choice = prompt_text("請選擇功能", "7")
+        choice = prompt_text("請選擇功能", "8")
         try:
             if choice == "1":
                 quick_setup(config)
             elif choice == "2":
                 lane_menu(config)
             elif choice == "3":
-                lidar_menu(config)
+                lidar_menu(config, "主 Lidar", "lidars")
             elif choice == "4":
-                show_report(config)
+                config.has_backup = prompt_bool("是否啟用備援 Lidar", config.has_backup)
+                if not config.has_backup:
+                    config.backup_lidars = []
+                else:
+                    if not config.backup_lidars:
+                        config.backup_lidars = [LidarConfig(assigned_lanes=[0], center_distance_mm=0.0) for _ in range(max(1, len(config.lidars)))]
+                    lidar_menu(config, "備援 Lidar", "backup_lidars")
             elif choice == "5":
+                show_report(config)
+            elif choice == "6":
                 path = Path(prompt_text("請輸入設定檔路徑", str(service.config_path)))
                 config = service.load_config(path)
                 print(f"✓ 已讀取 {path}")
-            elif choice == "6":
+            elif choice == "7":
                 path = Path(prompt_text("請輸入輸出檔案路徑", str(service.config_path)))
                 config.validate()
                 service.save_config(config, path)
                 print(f"✓ 已儲存 {path}（若原檔存在會同步備份 .bak）")
-            elif choice == "7":
+            elif choice == "8":
                 print("再見！")
                 return
             else:

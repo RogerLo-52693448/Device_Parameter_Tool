@@ -6,21 +6,21 @@ from device_parameter_tool.web.app import create_app
 FORM_DATA = {
     "site_name": "台北交流道",
     "note": "中文備註測試",
+    "has_backup": "on",
     "lane_count": "2",
-    "lidar_count": "1",
-    "lane_0_id": "L0",
+    "primary_lidar_count": "1",
     "lane_0_number": "0",
     "lane_0_width_mm": "3500",
-    "lane_0_description": "內側",
-    "lane_1_id": "L1",
     "lane_1_number": "1",
     "lane_1_width_mm": "3300",
-    "lane_1_description": "外側",
-    "lidar_0_id": "LD-01",
-    "lidar_0_assigned_lanes": "0,1",
-    "lidar_0_center_distance_mm": "3600",
-    "lidar_0_auto_calculate": "on",
-    "lidar_0_description": "主要 Lidar",
+    "primary_lidar_0_lane_a": "0",
+    "primary_lidar_0_lane_b": "1",
+    "primary_lidar_0_center_distance_mm": "3600",
+    "primary_lidar_0_auto_calculate": "on",
+    "backup_lidar_0_lane_a": "0",
+    "backup_lidar_0_lane_b": "1",
+    "backup_lidar_0_center_distance_mm": "3650",
+    "backup_lidar_0_auto_calculate": "on",
 }
 
 
@@ -38,8 +38,9 @@ def test_web_save_and_history_round_trip(tmp_path):
     history_data = json.loads(history_path.read_text(encoding="utf-8"))
     assert history_data[0]["note"] == "中文備註測試"
     assert history_data[0]["config"]["site_name"] == "台北交流道"
-    assert history_data[0]["config"]["lanes"][0]["lane_id"] == "L0"
-    assert history_data[0]["config"]["camera"]["camera_id"] == "CAM-01"
+    assert history_data[0]["config"]["lanes"][0]["lane_number"] == 0
+    assert history_data[0]["config"]["has_backup"] is True
+    assert history_data[0]["config"]["backup_lidars"][0]["assigned_lanes"] == [0, 1]
 
     history_response = client.get("/history/0")
     history_text = history_response.get_data(as_text=True)
@@ -47,7 +48,7 @@ def test_web_save_and_history_round_trip(tmp_path):
     assert "台北交流道" in history_text
     assert "中文備註測試" in history_text
     assert "已載入歷史紀錄" in history_text
-    assert "renderLidars()" in history_text
+    assert "備援 Lidar" in history_text
 
 
 def test_web_page_uses_dynamic_lane_and_lidar_sections(tmp_path):
@@ -59,8 +60,11 @@ def test_web_page_uses_dynamic_lane_and_lidar_sections(tmp_path):
 
     assert response.status_code == 200
     assert 'id="lane-count"' in text
-    assert 'id="lidar-count"' in text
+    assert 'id="primary-lidar-count"' in text
     assert "renderLanes()" in text
-    assert "renderLidars()" in text
+    assert "renderLidars('primary'" in text
+    assert 'id="has-backup"' in text
     assert "Camera" not in text
     assert "Host" not in text
+    assert "Lane ID" not in text
+    assert "Lidar ID" not in text

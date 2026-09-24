@@ -62,9 +62,10 @@ python -m device_parameter_tool.core.cli
 
 CLI 提供：
 - 車道 CRUD
-- Lidar CRUD（含 `lidar_id`、負責車道、中心點距離、描述、自動計算旗標）
+- 主 Lidar / 備援 Lidar CRUD
+- Lidar 負責車道使用 2 個欄位（Lane1 / Lane2）
 - 設定檔讀取與儲存
-- 快速設定流程（Lane/Lidar 完整欄位）
+- 快速設定流程（含備援開關）
 
 ### 設定檔存檔/匯出
 
@@ -88,7 +89,9 @@ python -m device_parameter_tool.web.app
 ### Web UI 功能
 
 - 表單輸入/編輯點位、Lane、Lidar
-- 車道數量 / Lidar 數量切換時，前端會即時動態增減表單列
+- 車道數量 / 主 Lidar 數量切換時，前端會即時動態增減表單列
+- 支援「啟用備援 Lidar」選項
+- Lidar 負責車道使用 2 個下拉欄位，選項為 `None`、`Lane0` ~ `Lane6`
 - 使用同一套 `lidar_calculator` 邏輯即時預覽結果
 - 支援 `note` 備註欄位，使用 UTF-8 儲存與顯示中文
 - `Site History` 會保存每次儲存的設定與備註，可重新載入
@@ -103,6 +106,7 @@ python -m device_parameter_tool.web.app
 {
   "site_name": "03F-040.7N",
   "note": "夜間測試點位",
+  "has_backup": true,
   "camera": {
     "latitude": 25.1,
     "longitude": 121.6,
@@ -117,6 +121,9 @@ python -m device_parameter_tool.web.app
   ],
   "lidars": [
     {"assigned_lanes": [0, 1], "center_distance_mm": 3600.0}
+  ],
+  "backup_lidars": [
+    {"assigned_lanes": [0, 1], "center_distance_mm": 3650.0}
   ],
   "host": {
     "ip": "192.168.0.20",

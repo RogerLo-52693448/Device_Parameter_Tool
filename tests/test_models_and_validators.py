@@ -10,6 +10,7 @@ def sample_config(note: str = "測試備註") -> DeviceConfig:
         {
             "site_name": "03F-040.7N",
             "note": note,
+            "has_backup": True,
             "camera": {
                 "camera_id": "CAM-01",
                 "name": "主攝影機",
@@ -29,11 +30,14 @@ def sample_config(note: str = "測試備註") -> DeviceConfig:
                 "protocol": "rtsp",
             },
             "lanes": [
-                {"lane_id": "L0", "lane_number": 0, "width_mm": 3500.0, "description": "內側車道"},
-                {"lane_id": "L1", "lane_number": 1, "width_mm": 3300.0, "description": "外側車道"},
+                {"lane_number": 0, "width_mm": 3500.0},
+                {"lane_number": 1, "width_mm": 3300.0},
             ],
             "lidars": [
-                {"lidar_id": "LD-01", "assigned_lanes": [0, 1], "center_distance_mm": 3600.0, "description": "主要 Lidar"},
+                {"assigned_lanes": [0, 1], "center_distance_mm": 3600.0},
+            ],
+            "backup_lidars": [
+                {"assigned_lanes": [0, 1], "center_distance_mm": 3650.0},
             ],
             "host": {
                 "ip": "192.168.0.20",
@@ -67,6 +71,8 @@ def test_device_config_round_trip_serialization():
     assert restored.note == "測試備註"
     assert restored.camera.camera_id == "CAM-01"
     assert restored.host.mqtt_ip == "192.168.0.21"
+    assert restored.has_backup is True
+    assert restored.backup_lidars[0].center_distance_mm == 3650.0
 
 
 def test_legacy_model_shape_is_supported():
@@ -123,6 +129,9 @@ def test_legacy_model_shape_is_supported():
                 "trigger_topic": "legacy/topic",
                 "trigger_conditions": {"topic_contains": "x", "source": "y", "state": "z"},
             },
+            "has_backup": True,
+            "backup_lidar_assignments": [[0, 1]],
+            "backup_lidar_centers": [3700.0],
         }
     )
 
@@ -131,6 +140,8 @@ def test_legacy_model_shape_is_supported():
     assert config.lanes[0].width_mm == 3500.0
     assert config.lidars[0].assigned_lanes == [0, 1]
     assert config.host.mqtt_port == 1883
+    assert config.has_backup is True
+    assert config.backup_lidars[0].assigned_lanes == [0, 1]
 
 
 def test_save_config_creates_backup(tmp_path):

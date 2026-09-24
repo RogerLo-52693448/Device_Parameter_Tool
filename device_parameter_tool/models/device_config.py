@@ -134,9 +134,11 @@ class HostConfig:
 class DeviceConfig:
     site_name: str = "未命名點位"
     note: str = ""
+    has_backup: bool = False
     camera: CameraConfig = field(default_factory=CameraConfig)
     lanes: list[LaneConfig] = field(default_factory=list)
     lidars: list[LidarConfig] = field(default_factory=list)
+    backup_lidars: list[LidarConfig] = field(default_factory=list)
     host: HostConfig = field(default_factory=HostConfig)
 
     def validate(self) -> None:
@@ -151,6 +153,8 @@ class DeviceConfig:
         if not self.lanes:
             raise ValueError("至少需要 1 個車道")
         for lidar in self.lidars:
+            lidar.validate(seen_lane_numbers)
+        for lidar in self.backup_lidars:
             lidar.validate(seen_lane_numbers)
 
     def to_dict(self) -> dict[str, Any]:
@@ -167,10 +171,26 @@ class DeviceConfig:
         lidars_payload = data.get("lidars", [])
         if isinstance(lidars_payload, dict):
             lidars_payload = lidars_payload.get("units", [])
+        backup_lidars_payload = data.get("backup_lidars", [])
+        if isinstance(backup_lidars_payload, dict):
+            backup_lidars_payload = backup_lidars_payload.get("units", [])
+        if not backup_lidars_payload and data.get("backup_lidar_assignments"):
+            backup_lidars_payload = [
+                {
+                    "assigned_lanes": assigned,
+                    "center_distance": center,
+                    "auto_calculate": True,
+                }
+                for assigned, center in zip(
+                    data.get("backup_lidar_assignments", []),
+                    data.get("backup_lidar_centers", []),
+                )
+            ]
 
         config = cls(
             site_name=data.get("site_name", "未命名點位"),
             note=data.get("note", ""),
+            has_backup=bool(data.get("has_backup", bool(backup_lidars_payload))),
             camera=CameraConfig(
                 camera_id=camera_payload.get("camera_id", "CAM-01"),
                 name=camera_payload.get("name", "Camera 1"),
@@ -211,6 +231,19 @@ class DeviceConfig:
                     description=lidar.get("description", ""),
                 )
                 for lidar in lidars_payload
+            ],
+            backup_lidars=[
+                LidarConfig(
+                    assigned_lanes=[_parse_lane_reference(item) for item in lidar.get("assigned_lanes", [])],
+                    center_distance_mm=lidar.get("center_distance_mm", lidar.get("center_distance", 0.0)),
+                    lidar_id=lidar.get("lidar_id", ""),
+                    offset_distance_mm=lidar.get("offset_distance_mm", lidar.get("offset_distance", 0.0)),
+                    effective_left_mm=lidar.get("effective_left_mm", lidar.get("effective_left", 0.0)),
+                    effective_right_mm=lidar.get("effective_right_mm", lidar.get("effective_right", 0.0)),
+                    auto_calculate=lidar.get("auto_calculate", True),
+                    description=lidar.get("description", ""),
+                )
+                for lidar in backup_lidars_payload
             ],
             host=HostConfig(
                 ip=host_payload.get("ip", host_payload.get("mqtt_ip", "127.0.0.1")),

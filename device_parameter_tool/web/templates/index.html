@@ -5,16 +5,17 @@
   <title>Device Parameter Tool</title>
   <style>
     body { font-family: Arial, sans-serif; margin: 0; background: #f3f6fb; color: #1e293b; }
-    .page { max-width: 1280px; margin: 0 auto; padding: 24px; }
-    .layout { display: grid; grid-template-columns: 520px 1fr; gap: 24px; align-items: start; }
+    .page { max-width: 1320px; margin: 0 auto; padding: 24px; }
+    .layout { display: grid; grid-template-columns: 560px 1fr; gap: 24px; align-items: start; }
     .card { background: #fff; border: 1px solid #dbe3ef; border-radius: 14px; padding: 20px; box-shadow: 0 8px 24px rgba(15, 23, 42, 0.06); }
     h1, h2, h3 { margin-top: 0; }
     .message { color: #0f766e; font-weight: 700; }
     .error { color: #b91c1c; font-weight: 700; }
-    .hint { color: #475569; font-size: 0.92rem; }
+    .hint { color: #475569; font-size: .92rem; }
     .grid-2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+    .grid-3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
     label { display: grid; gap: 6px; margin-bottom: 12px; font-weight: 700; }
-    input { width: 100%; box-sizing: border-box; padding: 10px 12px; border: 1px solid #cbd5e1; border-radius: 10px; font: inherit; }
+    input, select { width: 100%; box-sizing: border-box; padding: 10px 12px; border: 1px solid #cbd5e1; border-radius: 10px; font: inherit; }
     button { border: 0; border-radius: 10px; padding: 11px 16px; font: inherit; font-weight: 700; cursor: pointer; background: #1d4ed8; color: #fff; }
     .secondary { background: #475569; }
     .actions { display: flex; gap: 12px; }
@@ -26,39 +27,31 @@
     ul { padding-left: 20px; }
     .checkbox-line { display: flex; align-items: center; gap: 8px; margin: 6px 0 12px; font-weight: 700; }
     .checkbox-line input { width: auto; }
-    .mono { font-family: Consolas, monospace; }
+    .hidden { display: none; }
     @media (max-width: 1100px) { .layout { grid-template-columns: 1fr; } }
   </style>
 </head>
 <body>
   <div class="page">
     <h1>Device Parameter Tool</h1>
-    <p class="hint">Web UI 已改為接近舊版的動態互動：調整車道數量或 Lidar 數量時，表單列會立即增減；只保留點位、備註、Lane 與 Lidar 設定。</p>
+    <p class="hint">支援主 Lidar 與備援 Lidar；負責車道改為兩個下拉欄位，選項為 None 與 Lane0-Lane6。</p>
     {% if message %}<p class="message">{{ message }}</p>{% endif %}
     {% if error %}<p class="error">{{ error }}</p>{% endif %}
-
     <div class="layout">
       <div class="card">
         <h2>設定表單</h2>
-        <p class="hint">修改數量後會立即增減欄位，不需要先送出預覽。</p>
         <form method="post" id="config-form">
           <div class="grid-2">
-            <label>點位名稱
-              <input name="site_name" value="{{ form.site_name }}">
-            </label>
-            <label>備註（note）
-              <input name="note" value="{{ form.note }}">
-            </label>
+            <label>點位名稱<input name="site_name" value="{{ form.site_name }}"></label>
+            <label>備註（note）<input name="note" value="{{ form.note }}"></label>
           </div>
 
           <div class="grid-2">
-            <label>車道數量
-              <input id="lane-count" name="lane_count" type="number" min="1" value="{{ form.lane_count }}">
-            </label>
-            <label>Lidar 數量
-              <input id="lidar-count" name="lidar_count" type="number" min="1" value="{{ form.lidar_count }}">
-            </label>
+            <label>車道數量<input id="lane-count" name="lane_count" type="number" min="1" value="{{ form.lane_count }}"></label>
+            <label>主 Lidar 數量<input id="primary-lidar-count" name="primary_lidar_count" type="number" min="1" value="{{ form.primary_lidar_count }}"></label>
           </div>
+
+          <label class="checkbox-line"><input id="has-backup" name="has_backup" type="checkbox" {% if form.has_backup %}checked{% endif %}> 啟用備援 Lidar</label>
 
           <div class="section">
             <h3>Lanes</h3>
@@ -66,8 +59,13 @@
           </div>
 
           <div class="section">
-            <h3>Lidars</h3>
-            <div id="lidars-container"></div>
+            <h3>主 Lidar</h3>
+            <div id="primary-lidars-container"></div>
+          </div>
+
+          <div class="section" id="backup-section">
+            <h3>備援 Lidar</h3>
+            <div id="backup-lidars-container"></div>
           </div>
 
           <div class="actions">
@@ -78,14 +76,13 @@
       </div>
 
       <div>
-        {% if summary %}
-        <div class="card">
-          <h2>計算結果</h2>
+        {% for label, summary in summaries %}
+        <div class="card" style="margin-bottom: 24px;">
+          <h2>{{ label }} 計算結果</h2>
           <table>
             <thead>
               <tr>
                 <th>Lidar</th>
-                <th>Lidar ID</th>
                 <th>Assigned Lanes</th>
                 <th>Center</th>
                 <th>scan_right</th>
@@ -98,7 +95,6 @@
               {% for result in summary.results %}
               <tr>
                 <td>LIDAR_{{ result.index }}</td>
-                <td>{{ form.lidars[result.index].lidar_id }}</td>
                 <td>{{ result.assigned|join(', ') }}</td>
                 <td>{{ '%.0f'|format(result.center) }}</td>
                 <td>{{ '%.0f'|format(result.scan_right) }}</td>
@@ -118,22 +114,9 @@
           <ul>{% for error in summary.errors %}<li>{{ error }}</li>{% endfor %}</ul>
           {% endif %}
         </div>
+        {% endfor %}
 
-        <div class="card" style="margin-top: 24px;">
-          <h2>詳細計算過程</h2>
-          {% for result in summary.results %}
-          <div class="item-box">
-            <h3>LIDAR_{{ result.index }} / {{ form.lidars[result.index].lidar_id or '未命名' }}</h3>
-            <p>負責車道邊界：{{ '%.0f'|format(result.inner_boundary) }} mm ~ {{ '%.0f'|format(result.outer_boundary) }} mm</p>
-            <p>scan_right = {{ '%.0f'|format(result.center) }} - {{ '%.0f'|format(result.inner_boundary) }} + {{ '%.0f'|format(result.right_compensation) }} = {{ '%.0f'|format(result.scan_right) }} mm</p>
-            <p>scan_left = {{ '%.0f'|format(result.outer_boundary) }} - {{ '%.0f'|format(result.center) }} + {{ '%.0f'|format(result.left_compensation) }} = {{ '%.0f'|format(result.scan_left) }} mm</p>
-            <p>偏差值：{{ result.offset_formula }} = {{ '%.0f'|format(result.offset_value) }} mm</p>
-          </div>
-          {% endfor %}
-        </div>
-        {% endif %}
-
-        <div class="card" style="margin-top: 24px;">
+        <div class="card">
           <h2>Site History</h2>
           <table>
             <thead>
@@ -142,7 +125,8 @@
                 <th>點位</th>
                 <th>備註</th>
                 <th>車道數</th>
-                <th>Lidar 數</th>
+                <th>主 Lidar</th>
+                <th>備援</th>
                 <th>動作</th>
               </tr>
             </thead>
@@ -154,10 +138,11 @@
                 <td>{{ record.note }}</td>
                 <td>{{ record.config.lanes|length }}</td>
                 <td>{{ record.config.lidars|length }}</td>
+                <td>{{ '是' if record.config.has_backup else '否' }}</td>
                 <td><a href="{{ url_for('load_history', index=loop.index0) }}">載入設定</a></td>
               </tr>
               {% else %}
-              <tr><td colspan="6">目前沒有歷史紀錄</td></tr>
+              <tr><td colspan="7">目前沒有歷史紀錄</td></tr>
               {% endfor %}
             </tbody>
           </table>
@@ -177,45 +162,47 @@
         .replaceAll('"', '&quot;');
     }
 
+    function laneOptions(selected) {
+      return FORM_STATE.lane_options.map((option) => {
+        const value = String(option.value);
+        const isSelected = String(selected) === value ? ' selected' : '';
+        return `<option value="${value}"${isSelected}>${option.label}</option>`;
+      }).join('');
+    }
+
     function cloneLane(index) {
       const row = FORM_STATE.lanes[index] || {};
       return {
-        lane_id: row.lane_id || '',
         lane_number: row.lane_number ?? index,
         width_mm: row.width_mm ?? '',
-        description: row.description || '',
       };
     }
 
-    function cloneLidar(index) {
-      const row = FORM_STATE.lidars[index] || {};
+    function cloneLidar(rows, index) {
+      const row = rows[index] || {};
       return {
-        lidar_id: row.lidar_id || '',
-        assigned_lanes: row.assigned_lanes || '',
+        lane_a: row.lane_a ?? 'none',
+        lane_b: row.lane_b ?? 'none',
         center_distance_mm: row.center_distance_mm ?? '',
         auto_calculate: row.auto_calculate !== false,
-        description: row.description || '',
       };
     }
 
     function captureLaneState() {
       const count = Number(document.getElementById('lane-count').value || '1');
       FORM_STATE.lanes = Array.from({ length: count }, (_, index) => ({
-        lane_id: document.querySelector(`[name="lane_${index}_id"]`)?.value || '',
         lane_number: document.querySelector(`[name="lane_${index}_number"]`)?.value || index,
         width_mm: document.querySelector(`[name="lane_${index}_width_mm"]`)?.value || '',
-        description: document.querySelector(`[name="lane_${index}_description"]`)?.value || '',
       }));
     }
 
-    function captureLidarState() {
-      const count = Number(document.getElementById('lidar-count').value || '1');
-      FORM_STATE.lidars = Array.from({ length: count }, (_, index) => ({
-        lidar_id: document.querySelector(`[name="lidar_${index}_id"]`)?.value || '',
-        assigned_lanes: document.querySelector(`[name="lidar_${index}_assigned_lanes"]`)?.value || '',
-        center_distance_mm: document.querySelector(`[name="lidar_${index}_center_distance_mm"]`)?.value || '',
-        auto_calculate: !!document.querySelector(`[name="lidar_${index}_auto_calculate"]`)?.checked,
-        description: document.querySelector(`[name="lidar_${index}_description"]`)?.value || '',
+    function captureLidarState(prefix, targetKey) {
+      const count = Number(document.getElementById('primary-lidar-count').value || '1');
+      FORM_STATE[targetKey] = Array.from({ length: count }, (_, index) => ({
+        lane_a: document.querySelector(`[name="${prefix}_lidar_${index}_lane_a"]`)?.value || 'none',
+        lane_b: document.querySelector(`[name="${prefix}_lidar_${index}_lane_b"]`)?.value || 'none',
+        center_distance_mm: document.querySelector(`[name="${prefix}_lidar_${index}_center_distance_mm"]`)?.value || '',
+        auto_calculate: !!document.querySelector(`[name="${prefix}_lidar_${index}_auto_calculate"]`)?.checked,
       }));
     }
 
@@ -230,36 +217,44 @@
         box.innerHTML = `
           <strong>Lane ${index}</strong>
           <div class="grid-2">
-            <label>Lane ID<input name="lane_${index}_id" value="${escapeHtml(lane.lane_id)}"></label>
             <label>Lane Number<input name="lane_${index}_number" type="number" min="0" value="${escapeHtml(lane.lane_number)}"></label>
             <label>Width (mm)<input name="lane_${index}_width_mm" type="number" min="1" value="${escapeHtml(lane.width_mm)}"></label>
-            <label>描述<input name="lane_${index}_description" value="${escapeHtml(lane.description)}"></label>
           </div>
         `;
         container.appendChild(box);
       }
     }
 
-    function renderLidars() {
-      const count = Math.max(1, Number(document.getElementById('lidar-count').value || '1'));
-      const container = document.getElementById('lidars-container');
+    function renderLidars(prefix, containerId, rows) {
+      const count = Math.max(1, Number(document.getElementById('primary-lidar-count').value || '1'));
+      const container = document.getElementById(containerId);
       container.innerHTML = '';
       for (let index = 0; index < count; index += 1) {
-        const lidar = cloneLidar(index);
+        const lidar = cloneLidar(rows, index);
         const box = document.createElement('div');
         box.className = 'item-box';
         box.innerHTML = `
-          <strong>LIDAR_${index}</strong>
-          <div class="grid-2">
-            <label>Lidar ID<input name="lidar_${index}_id" value="${escapeHtml(lidar.lidar_id)}"></label>
-            <label>負責車道（逗號分隔）<input class="mono" name="lidar_${index}_assigned_lanes" value="${escapeHtml(lidar.assigned_lanes)}"></label>
-            <label>Center Distance (mm)<input name="lidar_${index}_center_distance_mm" type="number" min="0" value="${escapeHtml(lidar.center_distance_mm)}"></label>
-            <label>描述<input name="lidar_${index}_description" value="${escapeHtml(lidar.description)}"></label>
+          <strong>${prefix === 'primary' ? '主' : '備援'} LIDAR_${index}</strong>
+          <div class="grid-3">
+            <label>Lane 1
+              <select name="${prefix}_lidar_${index}_lane_a">${laneOptions(lidar.lane_a)}</select>
+            </label>
+            <label>Lane 2
+              <select name="${prefix}_lidar_${index}_lane_b">${laneOptions(lidar.lane_b)}</select>
+            </label>
+            <label>Center Distance (mm)
+              <input name="${prefix}_lidar_${index}_center_distance_mm" type="number" min="0" value="${escapeHtml(lidar.center_distance_mm)}">
+            </label>
           </div>
-          <label class="checkbox-line"><input name="lidar_${index}_auto_calculate" type="checkbox" ${lidar.auto_calculate ? 'checked' : ''}> 自動計算有效偵測範圍</label>
+          <label class="checkbox-line"><input name="${prefix}_lidar_${index}_auto_calculate" type="checkbox" ${lidar.auto_calculate ? 'checked' : ''}> 自動計算有效偵測範圍</label>
         `;
         container.appendChild(box);
       }
+    }
+
+    function syncBackupVisibility() {
+      const enabled = document.getElementById('has-backup').checked;
+      document.getElementById('backup-section').classList.toggle('hidden', !enabled);
     }
 
     document.getElementById('lane-count').addEventListener('input', () => {
@@ -267,13 +262,22 @@
       renderLanes();
     });
 
-    document.getElementById('lidar-count').addEventListener('input', () => {
-      captureLidarState();
-      renderLidars();
+    document.getElementById('primary-lidar-count').addEventListener('input', () => {
+      captureLidarState('primary', 'lidars');
+      captureLidarState('backup', 'backup_lidars');
+      renderLidars('primary', 'primary-lidars-container', FORM_STATE.lidars);
+      renderLidars('backup', 'backup-lidars-container', FORM_STATE.backup_lidars);
+    });
+
+    document.getElementById('has-backup').addEventListener('change', () => {
+      captureLidarState('backup', 'backup_lidars');
+      syncBackupVisibility();
     });
 
     renderLanes();
-    renderLidars();
+    renderLidars('primary', 'primary-lidars-container', FORM_STATE.lidars);
+    renderLidars('backup', 'backup-lidars-container', FORM_STATE.backup_lidars);
+    syncBackupVisibility();
   </script>
 </body>
 </html>
