@@ -34,9 +34,19 @@ Device_Parameter_Tool/
 
 ## 安裝
 
+### macOS / Linux / PowerShell
+
 ```bash
 python -m pip install -e '.[dev]'
 ```
+
+### Windows CMD
+
+```bat
+python -m pip install -e ".[dev]"
+```
+
+> 說明：Windows `cmd.exe` 不會像 Bash / PowerShell 一樣處理單引號，若使用 `'.[dev]'`，pip 會把單引號一起當成路徑字串，導致安裝失敗。
 
 ## CLI 使用方式
 
