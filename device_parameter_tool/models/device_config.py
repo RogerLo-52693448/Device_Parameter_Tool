@@ -142,6 +142,8 @@ class DeviceConfig:
     host: HostConfig = field(default_factory=HostConfig)
 
     def validate(self) -> None:
+        if not self.has_backup:
+            self.backup_lidars = []
         self.camera.validate()
         self.host.validate()
         seen_lane_numbers: set[int] = set()

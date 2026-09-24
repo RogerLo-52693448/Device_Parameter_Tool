@@ -49,6 +49,7 @@ def calculate_lidar_results(lanes: list[LaneConfig], lidars: list[LidarConfig]) 
     results: list[LidarCalculationResult] = []
     warnings: list[str] = []
     errors: list[str] = []
+    prev_lidars_total = 0.0
 
     for i, lidar in enumerate(lidars):
         assigned = sorted(lidar.assigned_lanes)
@@ -70,11 +71,6 @@ def calculate_lidar_results(lanes: list[LaneConfig], lidars: list[LidarConfig]) 
         scan_right = center - inner_boundary + right_compensation
         scan_left = outer_boundary - center + left_compensation
 
-        prev_lidars_total = sum(
-            lane_width_map[lane_number]
-            for prev_lidar in lidars[:i]
-            for lane_number in sorted(prev_lidar.assigned_lanes)
-        )
         if len(assigned) == 2:
             right_lane_width = lane_width_map[assigned[0]]
             offset_value = abs(center - prev_lidars_total - right_lane_width)
@@ -136,6 +132,7 @@ def calculate_lidar_results(lanes: list[LaneConfig], lidars: list[LidarConfig]) 
                 messages=messages,
             )
         )
+        prev_lidars_total += assigned_width
 
     return LidarCalculationSummary(results=results, warnings=warnings, errors=errors)
 

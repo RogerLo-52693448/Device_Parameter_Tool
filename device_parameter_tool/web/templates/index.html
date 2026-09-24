@@ -52,7 +52,7 @@
           </div>
 
           <label class="checkbox-line"><input id="has-backup" name="has_backup" type="checkbox" {% if form.has_backup %}checked{% endif %}> 啟用備援 Lidar</label>
-          <label id="backup-count-label">備援 Lidar 數量<input id="backup-lidar-count" name="backup_lidar_count" type="number" min="1" value="{{ form.backup_lidar_count }}"></label>
+          <label id="backup-count-label" {% if not form.has_backup %}class="hidden"{% endif %}>備援 Lidar 數量<input id="backup-lidar-count" name="backup_lidar_count" type="number" min="1" value="{{ form.backup_lidar_count }}" {% if not form.has_backup %}disabled{% endif %}></label>
 
           <div class="section">
             <h3>Lanes</h3>
@@ -64,7 +64,7 @@
             <div id="primary-lidars-container"></div>
           </div>
 
-          <div class="section" id="backup-section">
+          <div class="section{% if not form.has_backup %} hidden{% endif %}" id="backup-section">
             <h3>備援 Lidar</h3>
             <div id="backup-lidars-container"></div>
           </div>
@@ -160,7 +160,8 @@
         .replaceAll('&', '&amp;')
         .replaceAll('<', '&lt;')
         .replaceAll('>', '&gt;')
-        .replaceAll('"', '&quot;');
+        .replaceAll('"', '&quot;')
+        .replaceAll("'", '&#39;');
     }
 
     function laneOptions(selected) {
@@ -257,6 +258,7 @@
       const enabled = document.getElementById('has-backup').checked;
       document.getElementById('backup-section').classList.toggle('hidden', !enabled);
       document.getElementById('backup-count-label').classList.toggle('hidden', !enabled);
+      document.getElementById('backup-lidar-count').disabled = !enabled;
     }
 
     document.getElementById('lane-count').addEventListener('input', () => {

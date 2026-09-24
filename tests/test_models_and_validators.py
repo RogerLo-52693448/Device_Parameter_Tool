@@ -157,6 +157,20 @@ def test_save_config_creates_backup(tmp_path):
     assert "第一次" in backup_path.read_text(encoding="utf-8")
 
 
+def test_save_config_override_path_creates_backup(tmp_path):
+    service = ConfigService(config_path=tmp_path / "config.json", history_path=tmp_path / "history.json")
+    target_path = tmp_path / "nested" / "custom.json"
+    first = sample_config("自訂第一次")
+    second = sample_config("自訂第二次")
+
+    service.save_config(first, path=target_path)
+    service.save_config(second, path=target_path)
+
+    backup_path = tmp_path / "nested" / "custom.json.bak"
+    assert backup_path.exists()
+    assert "自訂第一次" in backup_path.read_text(encoding="utf-8")
+
+
 def test_validate_port_and_lidar_assignment_errors():
     with pytest.raises(ValueError):
         validate_port(70000)
