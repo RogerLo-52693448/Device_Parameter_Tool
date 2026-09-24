@@ -133,7 +133,7 @@ def create_app(data_dir: str | Path | None = None) -> Flask:
 
 
 def main() -> None:
-    create_app().run(debug=True)
+    create_app().run(debug=False)
 
 
 if __name__ == "__main__":
