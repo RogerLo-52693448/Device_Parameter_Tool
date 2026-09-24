@@ -183,3 +183,5 @@ def test_validate_port_and_lidar_assignment_errors():
 
     with pytest.raises(ValueError):
         validate_lidar_assignment([0, 2], {0, 1, 2})
+
+    assert validate_lidar_assignment([2, 3], [2, 3, 6]) == [2, 3]

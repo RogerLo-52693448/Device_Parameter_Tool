@@ -53,14 +53,17 @@ def validate_log_level(value: str) -> str:
     return level
 
 
-def validate_lidar_assignment(assigned_lanes: list[int], available_lane_numbers: set[int]) -> list[int]:
+def validate_lidar_assignment(assigned_lanes: list[int], available_lane_numbers: set[int] | list[int]) -> list[int]:
     normalized = sorted(set(assigned_lanes))
+    ordered_lane_numbers = sorted(available_lane_numbers)
     if not normalized:
         raise ValueError("Lidar 至少要負責 1 個車道")
     if len(normalized) > 2:
         raise ValueError("Lidar 最多只能負責 2 個車道")
-    if any(lane not in available_lane_numbers for lane in normalized):
+    if any(lane not in ordered_lane_numbers for lane in normalized):
         raise ValueError("Lidar 指派了不存在的車道")
-    if len(normalized) == 2 and normalized[1] - normalized[0] != 1:
-        raise ValueError("Lidar 若負責 2 個車道，車道必須相鄰")
+    if len(normalized) == 2:
+        lane_positions = {lane: index for index, lane in enumerate(ordered_lane_numbers)}
+        if lane_positions[normalized[1]] - lane_positions[normalized[0]] != 1:
+            raise ValueError("Lidar 若負責 2 個車道，車道必須相鄰")
     return normalized
