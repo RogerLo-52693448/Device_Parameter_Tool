@@ -69,6 +69,7 @@ def _build_lidar_rows(form, lidar_count: int, prefix: str = "primary") -> list[L
 def _config_from_form(form) -> DeviceConfig:
     lane_count = _coerce_int(form.get("lane_count"), 1)
     lidar_count = _coerce_int(form.get("primary_lidar_count"), 1)
+    backup_lidar_count = _coerce_int(form.get("backup_lidar_count"), lidar_count)
     has_backup = _coerce_bool(form.get("has_backup"))
     return DeviceConfig(
         site_name=form.get("site_name", "未命名點位").strip() or "未命名點位",
@@ -76,7 +77,7 @@ def _config_from_form(form) -> DeviceConfig:
         has_backup=has_backup,
         lanes=_build_lane_rows(form, lane_count),
         lidars=_build_lidar_rows(form, lidar_count, prefix="primary"),
-        backup_lidars=_build_lidar_rows(form, lidar_count, prefix="backup") if has_backup else [],
+        backup_lidars=_build_lidar_rows(form, backup_lidar_count, prefix="backup") if has_backup else [],
     )
 
 
@@ -108,6 +109,7 @@ def _form_defaults(config: DeviceConfig) -> dict:
         "has_backup": config.has_backup,
         "lane_count": max(1, len(lane_rows)),
         "primary_lidar_count": max(1, len(lidar_rows)),
+        "backup_lidar_count": max(1, len(backup_lidar_rows) if backup_lidar_rows else len(lidar_rows)),
         "lanes": lane_rows or [{"lane_number": 0, "width_mm": ""}],
         "lidars": lidar_rows or [{"lane_a": 0, "lane_b": "none", "center_distance_mm": "", "auto_calculate": True}],
         "backup_lidars": backup_lidar_rows or [{"lane_a": 0, "lane_b": "none", "center_distance_mm": "", "auto_calculate": True}],
@@ -149,6 +151,10 @@ def create_app(data_dir: str | Path | None = None) -> Flask:
     @app.post("/preview")
     def preview():
         config = _config_from_form(request.form)
+        try:
+            config.validate()
+        except ValueError as exc:
+            return render_page(config, error=str(exc))
         return render_page(config, message="已更新預覽")
 
     @app.post("/save")

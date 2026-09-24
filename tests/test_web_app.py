@@ -9,6 +9,7 @@ FORM_DATA = {
     "has_backup": "on",
     "lane_count": "2",
     "primary_lidar_count": "1",
+    "backup_lidar_count": "1",
     "lane_0_number": "0",
     "lane_0_width_mm": "3500",
     "lane_1_number": "1",
@@ -61,6 +62,7 @@ def test_web_page_uses_dynamic_lane_and_lidar_sections(tmp_path):
     assert response.status_code == 200
     assert 'id="lane-count"' in text
     assert 'id="primary-lidar-count"' in text
+    assert 'id="backup-lidar-count"' in text
     assert "renderLanes()" in text
     assert "renderLidars('primary'" in text
     assert 'id="has-backup"' in text

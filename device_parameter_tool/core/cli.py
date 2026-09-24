@@ -43,6 +43,10 @@ def prompt_bool(message: str, default: bool = True) -> bool:
         print("✗ 請輸入 Y 或 N")
 
 
+def config_clone(config: DeviceConfig) -> DeviceConfig:
+    return DeviceConfig.from_dict(config.to_dict())
+
+
 def print_lanes(config: DeviceConfig) -> None:
     print("\n【車道列表】")
     for lane in sorted(config.lanes, key=lambda item: item.lane_number):
@@ -102,6 +106,7 @@ def lane_menu(config: DeviceConfig) -> None:
     while True:
         print_lanes(config)
         choice = prompt_text("車道管理：1新增 2編輯 3刪除 4返回", "4")
+        snapshot = config_clone(config)
         if choice == "1":
             config.lanes.append(build_lane(default_number=len(config.lanes)))
         elif choice == "2":
@@ -120,6 +125,10 @@ def lane_menu(config: DeviceConfig) -> None:
         try:
             config.validate()
         except ValueError as exc:
+            config.lanes = snapshot.lanes
+            config.lidars = snapshot.lidars
+            config.backup_lidars = snapshot.backup_lidars
+            config.has_backup = snapshot.has_backup
             print(f"✗ {exc}")
 
 
@@ -128,6 +137,7 @@ def lidar_menu(config: DeviceConfig, label: str, target_attr: str) -> None:
         lidars = getattr(config, target_attr)
         print_lidars(config, label, lidars)
         choice = prompt_text(f"{label} 管理：1新增 2編輯 3刪除 4預覽計算 5返回", "5")
+        snapshot = config_clone(config)
         if choice == "1":
             lidars.append(build_lidar())
         elif choice == "2":
@@ -147,6 +157,10 @@ def lidar_menu(config: DeviceConfig, label: str, target_attr: str) -> None:
         try:
             config.validate()
         except ValueError as exc:
+            config.lanes = snapshot.lanes
+            config.lidars = snapshot.lidars
+            config.backup_lidars = snapshot.backup_lidars
+            config.has_backup = snapshot.has_backup
             print(f"✗ {exc}")
 
 
@@ -154,6 +168,8 @@ def quick_setup(config: DeviceConfig) -> None:
     config.site_name = prompt_text("點位名稱", config.site_name)
     config.note = prompt_text("備註（可留空）", config.note)
     config.has_backup = prompt_bool("是否啟用備援 Lidar", config.has_backup)
+    if not config.has_backup:
+        config.backup_lidars = []
     lane_count = prompt_int("車道數量")
     lidar_count = prompt_int("主 Lidar 數量")
     config.lanes = [build_lane(default_number=index) for index in range(lane_count)]

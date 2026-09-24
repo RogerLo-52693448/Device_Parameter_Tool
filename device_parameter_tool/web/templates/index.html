@@ -52,6 +52,7 @@
           </div>
 
           <label class="checkbox-line"><input id="has-backup" name="has_backup" type="checkbox" {% if form.has_backup %}checked{% endif %}> 啟用備援 Lidar</label>
+          <label id="backup-count-label">備援 Lidar 數量<input id="backup-lidar-count" name="backup_lidar_count" type="number" min="1" value="{{ form.backup_lidar_count }}"></label>
 
           <div class="section">
             <h3>Lanes</h3>
@@ -196,8 +197,8 @@
       }));
     }
 
-    function captureLidarState(prefix, targetKey) {
-      const count = Number(document.getElementById('primary-lidar-count').value || '1');
+    function captureLidarState(prefix, targetKey, countFieldId) {
+      const count = Number(document.getElementById(countFieldId).value || '1');
       FORM_STATE[targetKey] = Array.from({ length: count }, (_, index) => ({
         lane_a: document.querySelector(`[name="${prefix}_lidar_${index}_lane_a"]`)?.value || 'none',
         lane_b: document.querySelector(`[name="${prefix}_lidar_${index}_lane_b"]`)?.value || 'none',
@@ -225,8 +226,8 @@
       }
     }
 
-    function renderLidars(prefix, containerId, rows) {
-      const count = Math.max(1, Number(document.getElementById('primary-lidar-count').value || '1'));
+    function renderLidars(prefix, containerId, rows, countFieldId) {
+      const count = Math.max(1, Number(document.getElementById(countFieldId).value || '1'));
       const container = document.getElementById(containerId);
       container.innerHTML = '';
       for (let index = 0; index < count; index += 1) {
@@ -255,6 +256,7 @@
     function syncBackupVisibility() {
       const enabled = document.getElementById('has-backup').checked;
       document.getElementById('backup-section').classList.toggle('hidden', !enabled);
+      document.getElementById('backup-count-label').classList.toggle('hidden', !enabled);
     }
 
     document.getElementById('lane-count').addEventListener('input', () => {
@@ -263,20 +265,23 @@
     });
 
     document.getElementById('primary-lidar-count').addEventListener('input', () => {
-      captureLidarState('primary', 'lidars');
-      captureLidarState('backup', 'backup_lidars');
-      renderLidars('primary', 'primary-lidars-container', FORM_STATE.lidars);
-      renderLidars('backup', 'backup-lidars-container', FORM_STATE.backup_lidars);
+      captureLidarState('primary', 'lidars', 'primary-lidar-count');
+      renderLidars('primary', 'primary-lidars-container', FORM_STATE.lidars, 'primary-lidar-count');
+    });
+
+    document.getElementById('backup-lidar-count').addEventListener('input', () => {
+      captureLidarState('backup', 'backup_lidars', 'backup-lidar-count');
+      renderLidars('backup', 'backup-lidars-container', FORM_STATE.backup_lidars, 'backup-lidar-count');
     });
 
     document.getElementById('has-backup').addEventListener('change', () => {
-      captureLidarState('backup', 'backup_lidars');
+      captureLidarState('backup', 'backup_lidars', 'backup-lidar-count');
       syncBackupVisibility();
     });
 
     renderLanes();
-    renderLidars('primary', 'primary-lidars-container', FORM_STATE.lidars);
-    renderLidars('backup', 'backup-lidars-container', FORM_STATE.backup_lidars);
+    renderLidars('primary', 'primary-lidars-container', FORM_STATE.lidars, 'primary-lidar-count');
+    renderLidars('backup', 'backup-lidars-container', FORM_STATE.backup_lidars, 'backup-lidar-count');
     syncBackupVisibility();
   </script>
 </body>
