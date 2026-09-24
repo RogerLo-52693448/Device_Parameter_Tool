@@ -1,7 +1,7 @@
 # Device Parameter Tool
 
 一個從 `main` 重新設計與實作的設備參數工具，提供：
-- **繁體中文 CLI**：管理 Camera / Lane / Lidar / Host 設定、快速設定、預覽計算、JSON 匯入匯出
+- **繁體中文 CLI**：管理 Lane / Lidar / 備援 Lidar 設定、快速設定、預覽計算、JSON 匯入匯出
 - **簡易 Web UI**：表單編輯、即時預覽、UTF-8 備註欄位、Site History 載入歷史設定
 - **可測試核心模組**：Lidar 有效偵測範圍計算邏輯、資料模型、驗證器、設定檔存讀
 
@@ -20,7 +20,7 @@
 Device_Parameter_Tool/
 ├── device_parameter_tool/
 │   ├── core/cli.py                 # CLI 主程式
-│   ├── models/device_config.py     # Camera / Lane / Lidar / Host / DeviceConfig
+│   ├── models/device_config.py     # 相容性資料模型（Camera / Lane / Lidar / Host / DeviceConfig）
 │   ├── services/config_service.py  # JSON 存讀、備份、Site History
 │   ├── services/lidar_calculator.py# Lidar 核心公式與報表輸出
 │   ├── utils/validators.py         # 驗證器

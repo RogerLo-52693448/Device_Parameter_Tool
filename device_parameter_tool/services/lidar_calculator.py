@@ -94,9 +94,8 @@ def calculate_lidar_results(lanes: list[LaneConfig], lidars: list[LidarConfig]) 
     results: list[LidarCalculationResult] = []
     warnings: list[str] = []
     errors: list[str] = []
-    prev_lidars_total = 0.0
 
-    for ordered_index, (original_index, assigned, lidar) in enumerate(ordered_lidars):
+    for _, (original_index, assigned, lidar) in enumerate(ordered_lidars):
         center = lidar.center_distance_mm
         min_assigned = assigned[0]
         max_assigned = assigned[-1]
@@ -113,28 +112,28 @@ def calculate_lidar_results(lanes: list[LaneConfig], lidars: list[LidarConfig]) 
         scan_right = center - inner_boundary + right_compensation
         scan_left = outer_boundary - center + left_compensation
 
+        before_parts = [
+            f"Lane{lane.lane_number}({lane.width_mm:.0f})"
+            for lane in all_lanes_sorted
+            if lane_start_map[lane.lane_number] < inner_boundary
+        ]
         if len(assigned) == 2:
             right_lane_width = lane_width_map[assigned[0]]
-            offset_value = abs(center - prev_lidars_total - right_lane_width)
+            offset_value = abs(center - inner_boundary - right_lane_width)
         else:
-            offset_value = abs(center - prev_lidars_total)
+            offset_value = abs(center - inner_boundary)
 
-        prev_parts = [
-            f"Lane{lane_number}({lane_width_map[lane_number]:.0f})"
-            for _, previous_assigned, _ in ordered_lidars[:ordered_index]
-            for lane_number in previous_assigned
-        ]
-        if ordered_index == 0 and len(assigned) == 2:
+        if not before_parts and len(assigned) == 2:
             offset_formula = f"|{center:.0f} - Lane{assigned[0]}({lane_width_map[assigned[0]]:.0f})|"
-        elif ordered_index == 0:
+        elif not before_parts:
             offset_formula = f"|{center:.0f} - 0|"
         elif len(assigned) == 2:
             offset_formula = (
-                f"|{center:.0f} - {' + '.join(prev_parts)} - "
+                f"|{center:.0f} - {' + '.join(before_parts)} - "
                 f"Lane{assigned[0]}({lane_width_map[assigned[0]]:.0f})|"
             )
         else:
-            offset_formula = f"|{center:.0f} - {' + '.join(prev_parts)}|"
+            offset_formula = f"|{center:.0f} - {' + '.join(before_parts)}|"
 
         status = "normal"
         messages: list[str] = []
@@ -183,7 +182,6 @@ def calculate_lidar_results(lanes: list[LaneConfig], lidars: list[LidarConfig]) 
                 ],
             )
         )
-        prev_lidars_total += assigned_width
 
     return LidarCalculationSummary(results=results, warnings=warnings, errors=errors)
 
