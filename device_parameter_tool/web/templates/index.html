@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <title>Device Parameter Tool</title>
+  <style>
+    body { font-family: sans-serif; margin: 2rem; }
+    form { display: grid; gap: 0.75rem; max-width: 900px; }
+    label { display: grid; gap: 0.25rem; }
+    textarea { min-height: 6rem; }
+    table { border-collapse: collapse; margin-top: 1rem; }
+    th, td { border: 1px solid #999; padding: 0.4rem 0.6rem; }
+    .message { color: #0a7; }
+    .error { color: #c22; }
+  </style>
+</head>
+<body>
+  <h1>Device Parameter Tool</h1>
+  <p>車道格式：<code>lane_number,width_mm</code>；Lidar 格式：<code>lane1[,lane2]:center_distance_mm</code></p>
+  {% if message %}<p class="message">{{ message }}</p>{% endif %}
+  {% if error %}<p class="error">{{ error }}</p>{% endif %}
+  <form method="post">
+    <label>點位名稱<input name="site_name" value="{{ form.site_name }}"></label>
+    <label>備註（note，可選填）<input name="note" value="{{ form.note }}"></label>
+    <fieldset>
+      <legend>Camera</legend>
+      <label>緯度<input name="camera_latitude" value="{{ form.camera_latitude }}"></label>
+      <label>經度<input name="camera_longitude" value="{{ form.camera_longitude }}"></label>
+      <label>朝向角度<input name="camera_orientation_deg" value="{{ form.camera_orientation_deg }}"></label>
+      <label>IP<input name="camera_ip" value="{{ form.camera_ip }}"></label>
+      <label>Port<input name="camera_port" value="{{ form.camera_port }}"></label>
+      <label>協定<input name="camera_protocol" value="{{ form.camera_protocol }}"></label>
+    </fieldset>
+    <fieldset>
+      <legend>Lanes</legend>
+      <label>車道清單<textarea name="lanes">{{ form.lanes }}</textarea></label>
+    </fieldset>
+    <fieldset>
+      <legend>Lidars</legend>
+      <label>Lidar 清單<textarea name="lidars">{{ form.lidars }}</textarea></label>
+    </fieldset>
+    <fieldset>
+      <legend>Host</legend>
+      <label>IP<input name="host_ip" value="{{ form.host_ip }}"></label>
+      <label>Port<input name="host_port" value="{{ form.host_port }}"></label>
+      <label>Log Level<input name="host_log_level" value="{{ form.host_log_level }}"></label>
+    </fieldset>
+    <div>
+      <button formaction="{{ url_for('preview') }}" type="submit">即時預覽</button>
+      <button formaction="{{ url_for('save') }}" type="submit">儲存設定</button>
+    </div>
+  </form>
+
+  {% if summary %}
+  <h2>計算結果</h2>
+  <table>
+    <thead>
+      <tr>
+        <th>Lidar</th>
+        <th>負責車道</th>
+        <th>scan_right</th>
+        <th>scan_left</th>
+        <th>偏差值</th>
+        <th>狀態</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for result in summary.results %}
+      <tr>
+        <td>LIDAR_{{ result.index }}</td>
+        <td>{{ result.assigned|join(', ') }}</td>
+        <td>{{ '%.0f'|format(result.scan_right) }}</td>
+        <td>{{ '%.0f'|format(result.scan_left) }}</td>
+        <td>{{ '%.0f'|format(result.offset_value) }}</td>
+        <td>{{ result.status }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% if summary.warnings %}
+  <h3>警告訊息</h3>
+  <ul>{% for warning in summary.warnings %}<li>{{ warning }}</li>{% endfor %}</ul>
+  {% endif %}
+  {% if summary.errors %}
+  <h3>錯誤訊息</h3>
+  <ul>{% for error in summary.errors %}<li>{{ error }}</li>{% endfor %}</ul>
+  {% endif %}
+  {% endif %}
+
+  <h2>Site History</h2>
+  <ul>
+    {% for record in history %}
+    <li>
+      <a href="{{ url_for('load_history', index=loop.index0) }}">{{ record.saved_at }}</a>
+      — {{ record.config.site_name }}
+      {% if record.note %}— 備註：{{ record.note }}{% endif %}
+    </li>
+    {% else %}
+    <li>目前沒有歷史紀錄</li>
+    {% endfor %}
+  </ul>
+</body>
+</html>
