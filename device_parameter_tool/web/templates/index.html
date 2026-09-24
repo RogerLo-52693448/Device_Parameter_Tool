@@ -4,100 +4,232 @@
   <meta charset="utf-8">
   <title>Device Parameter Tool</title>
   <style>
-    body { font-family: sans-serif; margin: 2rem; }
-    form { display: grid; gap: 0.75rem; max-width: 900px; }
-    label { display: grid; gap: 0.25rem; }
-    textarea { min-height: 6rem; }
-    table { border-collapse: collapse; margin-top: 1rem; }
-    th, td { border: 1px solid #999; padding: 0.4rem 0.6rem; }
-    .message { color: #0a7; }
-    .error { color: #c22; }
+    body { font-family: Arial, sans-serif; margin: 0; background: #f3f6fb; color: #1e293b; }
+    .page { max-width: 1280px; margin: 0 auto; padding: 24px; }
+    .layout { display: grid; grid-template-columns: 520px 1fr; gap: 24px; align-items: start; }
+    .card { background: #fff; border: 1px solid #dbe3ef; border-radius: 14px; padding: 20px; box-shadow: 0 8px 24px rgba(15, 23, 42, 0.06); }
+    h1, h2, h3 { margin-top: 0; }
+    .message { color: #0f766e; font-weight: 700; }
+    .error { color: #b91c1c; font-weight: 700; }
+    .hint { color: #475569; font-size: 0.92rem; }
+    .grid-2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+    .grid-3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+    label { display: grid; gap: 6px; margin-bottom: 12px; font-weight: 700; }
+    input, textarea, select { width: 100%; box-sizing: border-box; padding: 10px 12px; border: 1px solid #cbd5e1; border-radius: 10px; font: inherit; }
+    textarea { min-height: 72px; resize: vertical; }
+    button { border: 0; border-radius: 10px; padding: 11px 16px; font: inherit; font-weight: 700; cursor: pointer; background: #1d4ed8; color: #fff; }
+    .secondary { background: #475569; }
+    .actions { display: flex; gap: 12px; }
+    .section { border-top: 1px solid #e2e8f0; margin-top: 16px; padding-top: 16px; }
+    .item-box { border: 1px solid #dbe3ef; background: #f8fafc; border-radius: 12px; padding: 14px; margin-bottom: 12px; }
+    table { width: 100%; border-collapse: collapse; margin-top: 12px; }
+    th, td { border: 1px solid #cbd5e1; padding: 8px 10px; text-align: left; vertical-align: top; }
+    th { background: #eff6ff; }
+    ul { padding-left: 20px; }
+    .checkbox-line { display: flex; align-items: center; gap: 8px; margin: 6px 0 12px; }
+    .checkbox-line input { width: auto; }
+    .mono { font-family: Consolas, monospace; }
+    @media (max-width: 1100px) { .layout { grid-template-columns: 1fr; } }
   </style>
 </head>
 <body>
-  <h1>Device Parameter Tool</h1>
-  <p>車道格式：<code>lane_number,width_mm</code>；Lidar 格式：<code>lane1[,lane2]:center_distance_mm</code></p>
-  {% if message %}<p class="message">{{ message }}</p>{% endif %}
-  {% if error %}<p class="error">{{ error }}</p>{% endif %}
-  <form method="post">
-    <label>點位名稱<input name="site_name" value="{{ form.site_name }}"></label>
-    <label>備註（note，可選填）<input name="note" value="{{ form.note }}"></label>
-    <fieldset>
-      <legend>Camera</legend>
-      <label>緯度<input name="camera_latitude" value="{{ form.camera_latitude }}"></label>
-      <label>經度<input name="camera_longitude" value="{{ form.camera_longitude }}"></label>
-      <label>朝向角度<input name="camera_orientation_deg" value="{{ form.camera_orientation_deg }}"></label>
-      <label>IP<input name="camera_ip" value="{{ form.camera_ip }}"></label>
-      <label>Port<input name="camera_port" value="{{ form.camera_port }}"></label>
-      <label>協定<input name="camera_protocol" value="{{ form.camera_protocol }}"></label>
-    </fieldset>
-    <fieldset>
-      <legend>Lanes</legend>
-      <label>車道清單<textarea name="lanes">{{ form.lanes }}</textarea></label>
-    </fieldset>
-    <fieldset>
-      <legend>Lidars</legend>
-      <label>Lidar 清單<textarea name="lidars">{{ form.lidars }}</textarea></label>
-    </fieldset>
-    <fieldset>
-      <legend>Host</legend>
-      <label>IP<input name="host_ip" value="{{ form.host_ip }}"></label>
-      <label>Port<input name="host_port" value="{{ form.host_port }}"></label>
-      <label>Log Level<input name="host_log_level" value="{{ form.host_log_level }}"></label>
-    </fieldset>
-    <div>
-      <button formaction="{{ url_for('preview') }}" type="submit">即時預覽</button>
-      <button formaction="{{ url_for('save') }}" type="submit">儲存設定</button>
+  <div class="page">
+    <h1>Device Parameter Tool</h1>
+    <p class="hint">新版 Web UI 已參考舊 draft model 欄位設計：補回 Camera / Lane / Lidar / Host 的舊欄位結構，並維持同一套 Lidar 計算邏輯。</p>
+    {% if message %}<p class="message">{{ message }}</p>{% endif %}
+    {% if error %}<p class="error">{{ error }}</p>{% endif %}
+
+    <div class="layout">
+      <div class="card">
+        <h2>設定表單</h2>
+        <p class="hint">修改車道數 / Lidar 數後，按「即時預覽」可刷新表單列數。</p>
+        <form method="post">
+          <div class="grid-2">
+            <label>點位名稱
+              <input name="site_name" value="{{ form.site_name }}">
+            </label>
+            <label>備註（note）
+              <input name="note" value="{{ form.note }}">
+            </label>
+          </div>
+
+          <div class="grid-2">
+            <label>車道數量
+              <input name="lane_count" type="number" min="1" value="{{ form.lane_count }}">
+            </label>
+            <label>Lidar 數量
+              <input name="lidar_count" type="number" min="1" value="{{ form.lidar_count }}">
+            </label>
+          </div>
+
+          <div class="section">
+            <h3>Camera</h3>
+            <div class="grid-2">
+              <label>Camera ID<input name="camera_id" value="{{ form.camera.camera_id }}"></label>
+              <label>名稱<input name="camera_name" value="{{ form.camera.name }}"></label>
+              <label>緯度<input name="camera_latitude" value="{{ form.camera.latitude }}"></label>
+              <label>經度<input name="camera_longitude" value="{{ form.camera.longitude }}"></label>
+              <label>朝向角度<input name="camera_orientation_deg" value="{{ form.camera.orientation_deg }}"></label>
+              <label>朝向標籤<input name="camera_orientation_label" value="{{ form.camera.orientation_label }}"></label>
+              <label>解析度<input name="camera_resolution" value="{{ form.camera.resolution }}"></label>
+              <label>FPS<input name="camera_fps" type="number" min="1" value="{{ form.camera.fps }}"></label>
+              <label>Exposure<input name="camera_exposure" value="{{ form.camera.exposure }}"></label>
+              <label>White Balance<input name="camera_white_balance" value="{{ form.camera.white_balance }}"></label>
+              <label>Gain<input name="camera_gain" value="{{ form.camera.gain }}"></label>
+              <label>Shutter Speed<input name="camera_shutter_speed" value="{{ form.camera.shutter_speed }}"></label>
+              <label>Camera IP<input name="camera_ip" value="{{ form.camera.ip }}"></label>
+              <label>Camera Port<input name="camera_port" type="number" min="1" value="{{ form.camera.port }}"></label>
+              <label>傳輸協定<input name="camera_protocol" value="{{ form.camera.protocol }}"></label>
+              <label>RTSP URL<input name="camera_rtsp_url" value="{{ form.camera.rtsp_url }}"></label>
+            </div>
+          </div>
+
+          <div class="section">
+            <h3>Lanes</h3>
+            {% for lane in form.lanes %}
+            <div class="item-box">
+              <strong>Lane {{ loop.index0 }}</strong>
+              <div class="grid-2">
+                <label>Lane ID<input name="lane_{{ loop.index0 }}_id" value="{{ lane.lane_id }}"></label>
+                <label>Lane Number<input name="lane_{{ loop.index0 }}_number" type="number" min="0" value="{{ lane.lane_number }}"></label>
+                <label>Width (mm)<input name="lane_{{ loop.index0 }}_width_mm" type="number" min="1" value="{{ lane.width_mm }}"></label>
+                <label>描述<input name="lane_{{ loop.index0 }}_description" value="{{ lane.description }}"></label>
+              </div>
+            </div>
+            {% endfor %}
+          </div>
+
+          <div class="section">
+            <h3>Lidars</h3>
+            {% for lidar in form.lidars %}
+            <div class="item-box">
+              <strong>LIDAR_{{ loop.index0 }}</strong>
+              <div class="grid-2">
+                <label>Lidar ID<input name="lidar_{{ loop.index0 }}_id" value="{{ lidar.lidar_id }}"></label>
+                <label>負責車道（逗號分隔）<input class="mono" name="lidar_{{ loop.index0 }}_assigned_lanes" value="{{ lidar.assigned_lanes }}"></label>
+                <label>Center Distance (mm)<input name="lidar_{{ loop.index0 }}_center_distance_mm" type="number" min="0" value="{{ lidar.center_distance_mm }}"></label>
+                <label>描述<input name="lidar_{{ loop.index0 }}_description" value="{{ lidar.description }}"></label>
+              </div>
+              <label class="checkbox-line"><input name="lidar_{{ loop.index0 }}_auto_calculate" type="checkbox" {% if lidar.auto_calculate %}checked{% endif %}> 自動計算有效偵測範圍</label>
+            </div>
+            {% endfor %}
+          </div>
+
+          <div class="section">
+            <h3>Host</h3>
+            <div class="grid-2">
+              <label>Host IP<input name="host_ip" value="{{ form.host.ip }}"></label>
+              <label>Host Port<input name="host_port" type="number" min="1" value="{{ form.host.port }}"></label>
+              <label>Log Level<input name="host_log_level" value="{{ form.host.log_level }}"></label>
+              <label>MQTT IP<input name="host_mqtt_ip" value="{{ form.host.mqtt_ip }}"></label>
+              <label>MQTT Port<input name="host_mqtt_port" type="number" min="1" value="{{ form.host.mqtt_port }}"></label>
+              <label>MQTT Timeout<input name="host_mqtt_timeout" type="number" min="0" value="{{ form.host.mqtt_timeout }}"></label>
+              <label>RTSP Transport<input name="host_rtsp_transport" value="{{ form.host.rtsp_transport }}"></label>
+              <label>Save Root<input name="host_save_root" value="{{ form.host.save_root }}"></label>
+              <label>Buffer Seconds<input name="host_buffer_seconds" value="{{ form.host.buffer_seconds }}"></label>
+              <label>Max Retries<input name="host_max_retries" type="number" min="0" value="{{ form.host.max_retries }}"></label>
+              <label>Log Dir<input name="host_log_dir" value="{{ form.host.log_dir }}"></label>
+              <label>Trigger Topic<input name="host_trigger_topic" value="{{ form.host.trigger_topic }}"></label>
+              <label>Trigger Topic Contains<input name="host_trigger_topic_contains" value="{{ form.host.trigger_topic_contains }}"></label>
+              <label>Trigger Source<input name="host_trigger_source" value="{{ form.host.trigger_source }}"></label>
+              <label>Trigger State<input name="host_trigger_state" value="{{ form.host.trigger_state }}"></label>
+            </div>
+          </div>
+
+          <div class="actions">
+            <button formaction="{{ url_for('preview') }}" type="submit">即時預覽</button>
+            <button class="secondary" formaction="{{ url_for('save') }}" type="submit">儲存設定</button>
+          </div>
+        </form>
+      </div>
+
+      <div>
+        {% if summary %}
+        <div class="card">
+          <h2>計算結果</h2>
+          <table>
+            <thead>
+              <tr>
+                <th>Lidar</th>
+                <th>Lidar ID</th>
+                <th>Assigned Lanes</th>
+                <th>Center</th>
+                <th>scan_right</th>
+                <th>scan_left</th>
+                <th>Offset</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for result in summary.results %}
+              <tr>
+                <td>LIDAR_{{ result.index }}</td>
+                <td>{{ form.lidars[result.index].lidar_id }}</td>
+                <td>{{ result.assigned|join(', ') }}</td>
+                <td>{{ '%.0f'|format(result.center) }}</td>
+                <td>{{ '%.0f'|format(result.scan_right) }}</td>
+                <td>{{ '%.0f'|format(result.scan_left) }}</td>
+                <td>{{ '%.0f'|format(result.offset_value) }}</td>
+                <td>{{ result.status }}</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+          {% if summary.warnings %}
+          <h3>警告訊息</h3>
+          <ul>{% for warning in summary.warnings %}<li>{{ warning }}</li>{% endfor %}</ul>
+          {% endif %}
+          {% if summary.errors %}
+          <h3>錯誤訊息</h3>
+          <ul>{% for error in summary.errors %}<li>{{ error }}</li>{% endfor %}</ul>
+          {% endif %}
+        </div>
+
+        <div class="card" style="margin-top: 24px;">
+          <h2>詳細計算過程</h2>
+          {% for result in summary.results %}
+          <div class="item-box">
+            <h3>LIDAR_{{ result.index }} / {{ form.lidars[result.index].lidar_id or '未命名' }}</h3>
+            <p>負責車道邊界：{{ '%.0f'|format(result.inner_boundary) }} mm ~ {{ '%.0f'|format(result.outer_boundary) }} mm</p>
+            <p>scan_right = {{ '%.0f'|format(result.center) }} - {{ '%.0f'|format(result.inner_boundary) }} + {{ '%.0f'|format(result.right_compensation) }} = {{ '%.0f'|format(result.scan_right) }} mm</p>
+            <p>scan_left = {{ '%.0f'|format(result.outer_boundary) }} - {{ '%.0f'|format(result.center) }} + {{ '%.0f'|format(result.left_compensation) }} = {{ '%.0f'|format(result.scan_left) }} mm</p>
+            <p>偏差值：{{ result.offset_formula }} = {{ '%.0f'|format(result.offset_value) }} mm</p>
+          </div>
+          {% endfor %}
+        </div>
+        {% endif %}
+
+        <div class="card" style="margin-top: 24px;">
+          <h2>Site History</h2>
+          <table>
+            <thead>
+              <tr>
+                <th>時間</th>
+                <th>點位</th>
+                <th>備註</th>
+                <th>車道數</th>
+                <th>Lidar 數</th>
+                <th>動作</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for record in history %}
+              <tr>
+                <td>{{ record.saved_at }}</td>
+                <td>{{ record.config.site_name }}</td>
+                <td>{{ record.note }}</td>
+                <td>{{ record.config.lanes|length }}</td>
+                <td>{{ record.config.lidars|length }}</td>
+                <td><a href="{{ url_for('load_history', index=loop.index0) }}">載入設定</a></td>
+              </tr>
+              {% else %}
+              <tr><td colspan="6">目前沒有歷史紀錄</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
     </div>
-  </form>
-
-  {% if summary %}
-  <h2>計算結果</h2>
-  <table>
-    <thead>
-      <tr>
-        <th>Lidar</th>
-        <th>負責車道</th>
-        <th>scan_right</th>
-        <th>scan_left</th>
-        <th>偏差值</th>
-        <th>狀態</th>
-      </tr>
-    </thead>
-    <tbody>
-      {% for result in summary.results %}
-      <tr>
-        <td>LIDAR_{{ result.index }}</td>
-        <td>{{ result.assigned|join(', ') }}</td>
-        <td>{{ '%.0f'|format(result.scan_right) }}</td>
-        <td>{{ '%.0f'|format(result.scan_left) }}</td>
-        <td>{{ '%.0f'|format(result.offset_value) }}</td>
-        <td>{{ result.status }}</td>
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>
-  {% if summary.warnings %}
-  <h3>警告訊息</h3>
-  <ul>{% for warning in summary.warnings %}<li>{{ warning }}</li>{% endfor %}</ul>
-  {% endif %}
-  {% if summary.errors %}
-  <h3>錯誤訊息</h3>
-  <ul>{% for error in summary.errors %}<li>{{ error }}</li>{% endfor %}</ul>
-  {% endif %}
-  {% endif %}
-
-  <h2>Site History</h2>
-  <ul>
-    {% for record in history %}
-    <li>
-      <a href="{{ url_for('load_history', index=loop.index0) }}">{{ record.saved_at }}</a>
-      — {{ record.config.site_name }}
-      {% if record.note %}— 備註：{{ record.note }}{% endif %}
-    </li>
-    {% else %}
-    <li>目前沒有歷史紀錄</li>
-    {% endfor %}
-  </ul>
+  </div>
 </body>
 </html>
