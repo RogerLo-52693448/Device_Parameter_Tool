@@ -205,12 +205,10 @@ def show_report(config: DeviceConfig) -> None:
         print("\n【主 Lidar】")
         print(render_text_report(config, primary_summary))
         if config.has_backup and config.backup_lidars:
-            backup_config = DeviceConfig(
-                site_name=config.site_name,
-                note=config.note,
-                lanes=config.lanes,
-                lidars=config.backup_lidars,
-            )
+            backup_config = DeviceConfig.from_dict(config.to_dict())
+            backup_config.lidars = list(config.backup_lidars)
+            backup_config.has_backup = False
+            backup_config.backup_lidars = []
             backup_summary = calculate_for_config(backup_config)
             print("\n【備援 Lidar】")
             print(render_text_report(backup_config, backup_summary))

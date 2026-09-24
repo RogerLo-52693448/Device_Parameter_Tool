@@ -1,3 +1,5 @@
+from datetime import datetime
+
 import pytest
 
 from device_parameter_tool.models.device_config import DeviceConfig
@@ -158,6 +160,7 @@ def test_save_config_creates_backup(tmp_path):
     history_record = service.append_history(second, note="本機時間測試")
     assert "T" not in history_record.saved_at
     assert "Z" not in history_record.saved_at
+    assert datetime.strptime(history_record.saved_at, "%Y-%m-%d %H:%M:%S")
 
 
 def test_save_config_override_path_creates_backup(tmp_path):
