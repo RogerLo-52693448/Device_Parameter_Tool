@@ -71,29 +71,30 @@ def build_lane(existing: LaneConfig | None = None, default_number: int = 0) -> L
     )
 
 
-def prompt_lane_option(message: str, default: int | None = None) -> int | None:
+def prompt_lane_option(message: str, available_lane_numbers: list[int], default: int | None = None) -> int | None:
     default_text = "None" if default is None else f"Lane{default}"
+    option_text = ", ".join([f"Lane{lane}" for lane in available_lane_numbers]) or "無可用車道"
     while True:
-        raw = prompt_text(f"{message} (None/Lane0-Lane6)", default_text).strip()
+        raw = prompt_text(f"{message} (None/{option_text})", default_text).strip()
         if not raw or raw.lower() == "none":
             return None
         normalized = raw.lower().replace("lane", "")
         try:
             lane = int(normalized)
         except ValueError:
-            print("✗ 請輸入 None 或 Lane0-Lane6")
+            print(f"✗ 請輸入 None 或 {option_text}")
             continue
-        if 0 <= lane <= 6:
+        if lane in available_lane_numbers:
             return lane
-        print("✗ 請輸入 None 或 Lane0-Lane6")
+        print(f"✗ 請輸入 None 或 {option_text}")
 
 
-def build_lidar(existing: LidarConfig | None = None) -> LidarConfig:
+def build_lidar(available_lane_numbers: list[int], existing: LidarConfig | None = None) -> LidarConfig:
     existing = existing or LidarConfig(assigned_lanes=[0], center_distance_mm=0.0)
     default_first = existing.assigned_lanes[0] if existing.assigned_lanes else None
     default_second = existing.assigned_lanes[1] if len(existing.assigned_lanes) > 1 else None
-    lane_a = prompt_lane_option("負責車道 1", default_first)
-    lane_b = prompt_lane_option("負責車道 2", default_second)
+    lane_a = prompt_lane_option("負責車道 1", available_lane_numbers, default_first)
+    lane_b = prompt_lane_option("負責車道 2", available_lane_numbers, default_second)
     assigned = [lane for lane in [lane_a, lane_b] if lane is not None]
     return LidarConfig(
         assigned_lanes=assigned,
@@ -138,14 +139,15 @@ def lidar_menu(config: DeviceConfig, label: str, target_attr: str) -> None:
         print_lidars(config, label, lidars)
         choice = prompt_text(f"{label} 管理：1新增 2編輯 3刪除 4預覽計算 5返回", "5")
         snapshot = config_clone(config)
+        available_lane_numbers = sorted(lane.lane_number for lane in config.lanes)
         if choice == "1":
-            lidars.append(build_lidar())
+            lidars.append(build_lidar(available_lane_numbers))
         elif choice == "2":
             index = prompt_int("Lidar 索引")
             if index < 0 or index >= len(lidars):
                 print("✗ 找不到 Lidar")
                 continue
-            lidars[index] = build_lidar(existing=lidars[index])
+            lidars[index] = build_lidar(available_lane_numbers, existing=lidars[index])
         elif choice == "3":
             index = prompt_int("要刪除的 Lidar 索引")
             if 0 <= index < len(lidars):
@@ -174,8 +176,9 @@ def quick_setup(config: DeviceConfig) -> None:
     lidar_count = prompt_int("主 Lidar 數量")
     backup_lidar_count = prompt_int("備援 Lidar 數量") if config.has_backup else 0
     config.lanes = [build_lane(default_number=index) for index in range(lane_count)]
-    config.lidars = [build_lidar() for _ in range(lidar_count)]
-    config.backup_lidars = [build_lidar() for _ in range(backup_lidar_count)] if config.has_backup else []
+    available_lane_numbers = sorted(lane.lane_number for lane in config.lanes)
+    config.lidars = [build_lidar(available_lane_numbers) for _ in range(lidar_count)]
+    config.backup_lidars = [build_lidar(available_lane_numbers) for _ in range(backup_lidar_count)] if config.has_backup else []
     show_report(config)
 
 

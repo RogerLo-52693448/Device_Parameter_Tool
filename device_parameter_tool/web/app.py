@@ -93,6 +93,15 @@ def _lidar_form_rows(lidars: list[LidarConfig]) -> list[dict]:
     ]
 
 
+def _lane_options(config: DeviceConfig) -> list[dict]:
+    lane_numbers = {lane.lane_number for lane in config.lanes}
+    lane_numbers.update(range(7))
+    return [{"value": "none", "label": "None"}] + [
+        {"value": lane_number, "label": f"Lane{lane_number}"}
+        for lane_number in sorted(lane_numbers)
+    ]
+
+
 def _form_defaults(config: DeviceConfig) -> dict:
     lane_rows = [
         {
@@ -113,7 +122,7 @@ def _form_defaults(config: DeviceConfig) -> dict:
         "lanes": lane_rows or [{"lane_number": 0, "width_mm": ""}],
         "lidars": lidar_rows or [{"lane_a": 0, "lane_b": "none", "center_distance_mm": "", "auto_calculate": True}],
         "backup_lidars": backup_lidar_rows or [{"lane_a": 0, "lane_b": "none", "center_distance_mm": "", "auto_calculate": True}],
-        "lane_options": [{"value": "none", "label": "None"}] + [{"value": i, "label": f"Lane{i}"} for i in range(7)],
+        "lane_options": _lane_options(config),
     }
 
 

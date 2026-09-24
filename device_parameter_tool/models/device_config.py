@@ -246,11 +246,11 @@ class DeviceConfig:
                 for lidar in backup_lidars_payload
             ],
             host=HostConfig(
-                ip=host_payload.get("ip", host_payload.get("mqtt_ip", "127.0.0.1")),
-                port=host_payload.get("port", host_payload.get("mqtt_port", 8080)),
+                ip=host_payload.get("ip", "127.0.0.1"),
+                port=host_payload.get("port", 8080),
                 log_level=host_payload.get("log_level", "INFO"),
-                mqtt_ip=host_payload.get("mqtt_ip", host_payload.get("ip", "127.0.0.1")),
-                mqtt_port=host_payload.get("mqtt_port", host_payload.get("port", 1883)),
+                mqtt_ip=host_payload.get("mqtt_ip", "127.0.0.1"),
+                mqtt_port=host_payload.get("mqtt_port", 1883),
                 mqtt_timeout=host_payload.get("mqtt_timeout", 60),
                 rtsp_transport=host_payload.get("rtsp_transport", "tcp"),
                 save_root=host_payload.get("save_root", "./data"),
