@@ -66,6 +66,8 @@ def test_web_page_uses_dynamic_lane_and_lidar_sections(tmp_path):
     assert "renderLanes()" in text
     assert "renderLidars('primary'" in text
     assert 'id="has-backup"' in text
+    assert "lidar-block-title" in text
+    assert "Primary Lidar Configuration" in text
     assert "Lane0" in text
     assert "Lane6" in text
     assert "None" in text
