@@ -160,7 +160,10 @@ def create_app(data_dir: str | Path | None = None) -> Flask:
     @app.post("/save")
     def save():
         config = _config_from_form(request.form)
-        config.validate()
+        try:
+            config.validate()
+        except ValueError as exc:
+            return render_page(config, error=str(exc))
         service.save_config(config)
         service.append_history(config, note=config.note)
         return render_page(config, message="設定已儲存，並寫入 Site History")

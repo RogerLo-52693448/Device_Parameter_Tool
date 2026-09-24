@@ -172,9 +172,10 @@ def quick_setup(config: DeviceConfig) -> None:
         config.backup_lidars = []
     lane_count = prompt_int("車道數量")
     lidar_count = prompt_int("主 Lidar 數量")
+    backup_lidar_count = prompt_int("備援 Lidar 數量") if config.has_backup else 0
     config.lanes = [build_lane(default_number=index) for index in range(lane_count)]
     config.lidars = [build_lidar() for _ in range(lidar_count)]
-    config.backup_lidars = [build_lidar() for _ in range(lidar_count)] if config.has_backup else []
+    config.backup_lidars = [build_lidar() for _ in range(backup_lidar_count)] if config.has_backup else []
     show_report(config)
 
 

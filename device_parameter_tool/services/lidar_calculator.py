@@ -52,6 +52,8 @@ def calculate_lidar_results(lanes: list[LaneConfig], lidars: list[LidarConfig]) 
 
     for i, lidar in enumerate(lidars):
         assigned = sorted(lidar.assigned_lanes)
+        if not assigned:
+            raise ValueError(f"LIDAR_{i} 至少要負責 1 個車道")
         center = lidar.center_distance_mm
         min_assigned = assigned[0]
         max_assigned = assigned[-1]
