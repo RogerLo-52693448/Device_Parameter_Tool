@@ -44,7 +44,7 @@
 <body>
   <div class="page">
     <h1>Device Parameter Tool</h1>
-    <p class="hint">支援主 Lidar 與備援 Lidar；負責車道改為兩個下拉欄位，選項為 None 與 Lane0-Lane6。</p>
+    <p class="hint">支援主 Lidar 與備援 Lidar；負責車道使用右(Lane1) / 左(Lane2) 兩個欄位，並依目前 lane number 動態提供選項。</p>
     <p class="message" role="status" aria-live="polite" {% if not message %}aria-hidden="true"{% endif %}>{{ message or '' }}</p>
     <p class="error" role="alert" aria-live="assertive" {% if not error %}aria-hidden="true"{% endif %}>{{ error or '' }}</p>
     <div class="layout">
@@ -102,7 +102,8 @@
             <thead>
               <tr>
                 <th>Lidar</th>
-                <th>Assigned Lanes</th>
+                <th>右(Lane1)</th>
+                <th>左(Lane2)</th>
                 <th>Center</th>
                 <th>scan_right</th>
                 <th>scan_left</th>
@@ -114,7 +115,8 @@
               {% for result in section.summary.results %}
               <tr>
                 <td>LIDAR_{{ result.index }}</td>
-                <td>{{ result.assigned|join(', ') }}</td>
+                <td>{{ result.assigned[0] if result.assigned else '—' }}</td>
+                <td>{{ result.assigned[1] if result.assigned|length > 1 else '—' }}</td>
                 <td>{{ '%.0f'|format(result.center) }}</td>
                 <td>{{ '%.0f'|format(result.scan_right) }}</td>
                 <td>{{ '%.0f'|format(result.scan_left) }}</td>
@@ -139,7 +141,8 @@
             <thead>
               <tr>
                 <th>Lidar</th>
-                <th>Assigned Lanes</th>
+                <th>右(Lane1)</th>
+                <th>左(Lane2)</th>
                 <th>Offset (mm)</th>
                 <th>Field1</th>
                 <th>Field2</th>
@@ -153,7 +156,8 @@
               {% for field in section.fields %}
               <tr>
                 <td>LIDAR_{{ field.index }}</td>
-                <td>{{ field.assigned|join(', ') }}</td>
+                <td>{{ field.assigned[0] if field.assigned else '—' }}</td>
+                <td>{{ field.assigned[1] if field.assigned|length > 1 else '—' }}</td>
                 <td>{{ '%.0f'|format(field.offset_value) }}</td>
                 <td>{{ field.field1[0] }}° ~ {{ field.field1[1] }}°</td>
                 <td>{{ field.field2[0] }}° ~ {{ field.field2[1] }}°</td>
@@ -165,7 +169,17 @@
               {% endfor %}
             </tbody>
           </table>
-          <p class="hint">Field1~Field3 為內側車道；Field4~Field6 為外側車道；角度基準為 90°，1° = 200 mm。</p>
+          <p class="hint">右(Lane1) 對應 Field1~Field3；左(Lane2) 對應 Field4~Field6；角度基準為 90°，1° = 200 mm。</p>
+          <h3>偵錯資訊</h3>
+          {% for result in section.summary.results %}
+          <div class="item-box">
+            <strong>LIDAR_{{ result.index }}</strong>
+            <ul>{% for line in result.debug_lines %}<li>{{ line }}</li>{% endfor %}</ul>
+            {% for field in section.fields if field.index == result.index %}
+            <ul>{% for line in field.debug_lines %}<li>{{ line }}</li>{% endfor %}</ul>
+            {% endfor %}
+          </div>
+          {% endfor %}
           {% endif %}
         </div>
         {% endfor %}
@@ -218,7 +232,12 @@
     }
 
     function laneOptions(selected) {
-      return FORM_STATE.lane_options.map((option) => {
+      const laneNumbers = [...new Set((FORM_STATE.lanes || [])
+        .map((lane) => String(lane.lane_number ?? '').trim())
+        .filter((value) => value !== ''))]
+        .sort((a, b) => Number(a) - Number(b));
+      const options = [{ value: 'none', label: 'None' }, ...laneNumbers.map((value) => ({ value, label: value }))];
+      return options.map((option) => {
         const value = String(option.value);
         const isSelected = String(selected) === value ? ' selected' : '';
         return `<option value="${value}"${isSelected}>${option.label}</option>`;
@@ -270,7 +289,7 @@
         const box = document.createElement('div');
         box.className = 'item-box';
         box.innerHTML = `
-          <strong>Lane ${index}</strong>
+          <strong>車道設定 ${index + 1}</strong>
           <div class="grid-2">
             <label>Lane Number<input name="lane_${index}_number" type="number" min="0" value="${escapeHtml(lane.lane_number)}"></label>
             <label>Width (mm)<input name="lane_${index}_width_mm" type="number" min="1" value="${escapeHtml(lane.width_mm)}"></label>
@@ -298,10 +317,10 @@
         box.innerHTML = `
           <div class="lidar-group-title">${prefix === 'primary' ? 'Primary' : 'Backup'} — LIDAR_${index}</div>
           <div class="grid-3">
-            <label>Lane 1
+            <label>右(Lane1)
               <select name="${prefix}_lidar_${index}_lane_a">${laneOptions(lidar.lane_a)}</select>
             </label>
-            <label>Lane 2
+            <label>左(Lane2)
               <select name="${prefix}_lidar_${index}_lane_b">${laneOptions(lidar.lane_b)}</select>
             </label>
             <label>Center Distance (mm)
@@ -325,6 +344,14 @@
     document.getElementById('lane-count').addEventListener('input', () => {
       captureLaneState();
       renderLanes();
+      renderLidars('primary', 'primary-lidars-container', FORM_STATE.lidars, 'primary-lidar-count');
+      renderLidars('backup', 'backup-lidars-container', FORM_STATE.backup_lidars, 'backup-lidar-count');
+    });
+
+    document.getElementById('lanes-container').addEventListener('input', () => {
+      captureLaneState();
+      renderLidars('primary', 'primary-lidars-container', FORM_STATE.lidars, 'primary-lidar-count');
+      renderLidars('backup', 'backup-lidars-container', FORM_STATE.backup_lidars, 'backup-lidar-count');
     });
 
     document.getElementById('primary-lidar-count').addEventListener('input', () => {

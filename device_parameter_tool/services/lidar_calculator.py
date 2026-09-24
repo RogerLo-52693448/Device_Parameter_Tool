@@ -31,6 +31,7 @@ class LidarCalculationResult:
     left_compensation: float
     status: str
     messages: list[str] = field(default_factory=list)
+    debug_lines: list[str] = field(default_factory=list)
 
 
 @dataclass(slots=True)
@@ -57,6 +58,7 @@ class SopasFieldResult:
     field6: tuple[int, int] | None
     center_inner: int
     center_outer: int | None
+    debug_lines: list[str] = field(default_factory=list)
 
 
 def _build_lane_context(lanes: list[LaneConfig]) -> tuple[list[LaneConfig], dict[int, float], dict[int, float]]:
@@ -170,6 +172,15 @@ def calculate_lidar_results(lanes: list[LaneConfig], lidars: list[LidarConfig]) 
                 left_compensation=left_compensation,
                 status=status,
                 messages=messages,
+                debug_lines=[
+                    f"右(Lane1)={assigned[0] if assigned else '—'} / 左(Lane2)={assigned[1] if len(assigned) > 1 else '—'}",
+                    f"負責車道邊界: {inner_boundary:.0f}mm ~ {outer_boundary:.0f}mm",
+                    f"最內側: {'是' if is_innermost else '否'} (右補償 +{right_compensation:.0f}mm)",
+                    f"最外側: {'是' if is_outermost else '否'} (左補償 +{left_compensation:.0f}mm)",
+                    f"scan_right = {center:.0f} - {inner_boundary:.0f} + {right_compensation:.0f} = {scan_right:.0f}mm",
+                    f"scan_left  = {outer_boundary:.0f} - {center:.0f} + {left_compensation:.0f} = {scan_left:.0f}mm",
+                    f"偏差值     = {offset_formula} = {offset_value:.0f}mm",
+                ],
             )
         )
         prev_lidars_total += assigned_width
@@ -240,6 +251,17 @@ def calculate_sopas_fields(lanes: list[LaneConfig], lidars: list[LidarConfig]) -
                 field6=field6,
                 center_inner=center_inner,
                 center_outer=center_outer,
+                debug_lines=[
+                    f"右(Lane1)={assigned[0] if assigned else '—'} → Field1~Field3",
+                    *([f"左(Lane2)={assigned[1]} → Field4~Field6"] if len(assigned) > 1 else ["左(Lane2)=—"]),
+                    f"右側 offset = {center:.0f} - {inner_boundary:.0f} - {inner_lane_width:.0f} = {offset_right:.0f}mm",
+                    f"Field1 = {field1_lower}° ~ {field1_upper}° / Field2 = {field2_lower}° ~ {field2_upper}° / Field3 = {field3_lower}° ~ {field3_upper}°",
+                    (
+                        f"左側 offset = {center:.0f} - {outer_boundary:.0f} = {offset_left:.0f}mm / "
+                        f"Field4 = {field4_lower}° ~ {field4_upper}° / Field5 = {field5[0]}° ~ {field5[1]}° / "
+                        f"Field6 = {field6[0]}° ~ {field6[1]}°"
+                    ) if len(assigned) > 1 and field4 and field5 and field6 else "左側未配置第二車道，不產生 Field4~Field6",
+                ],
             )
         )
 
@@ -280,18 +302,10 @@ def render_text_report(config: DeviceConfig, summary: LidarCalculationSummary) -
     lines.append("  【詳細計算過程】")
     for result in summary.results:
         lanes_str = "+".join(f"Lane{lane}" for lane in result.assigned)
-        lines.extend([
-            "",
-            f"  LIDAR_{result.index} ({lanes_str}, center={result.center:.0f}mm):",
-            f"    負責車道邊界: {result.inner_boundary:.0f}mm ~ {result.outer_boundary:.0f}mm",
-            f"    最內側: {'是' if result.is_innermost else '否'} (右補償 +{result.right_compensation:.0f}mm)",
-            f"    最外側: {'是' if result.is_outermost else '否'} (左補償 +{result.left_compensation:.0f}mm)",
-            f"    scan_right = {result.center:.0f} - {result.inner_boundary:.0f} + {result.right_compensation:.0f} = {result.scan_right:.0f}mm",
-            f"    scan_left  = {result.outer_boundary:.0f} - {result.center:.0f} + {result.left_compensation:.0f} = {result.scan_left:.0f}mm",
-            f"    偏差值     = {result.offset_formula} = {result.offset_value:.0f}mm",
-        ])
+        lines.extend(["", f"  LIDAR_{result.index} ({lanes_str}, center={result.center:.0f}mm):"])
+        lines.extend(f"    {line}" for line in result.debug_lines)
     if field_results:
-        lines.extend(["", "  【Field 範圍】", ""])
+        lines.extend(["", "  【Field 範圍 / 偵錯資訊】", ""])
         for field in field_results:
             lanes_str = "+".join(f"Lane{lane}" for lane in field.assigned)
             def fmt(value: tuple[int, int] | None) -> str:
@@ -301,5 +315,6 @@ def render_text_report(config: DeviceConfig, summary: LidarCalculationSummary) -
                 f"F1 {fmt(field.field1)} | F2 {fmt(field.field2)} | F3 {fmt(field.field3)} | "
                 f"F4 {fmt(field.field4)} | F5 {fmt(field.field5)} | F6 {fmt(field.field6)}"
             )
+            lines.extend(f"    {line}" for line in field.debug_lines)
     lines.extend(["", "=" * 90, "  完成！", "=" * 90])
     return "\n".join(lines)

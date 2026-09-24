@@ -33,6 +33,7 @@ def test_lidar_boundary_and_compensation_scenarios():
     assert summary.results[1].scan_right == 4000.0
     assert summary.results[1].scan_left == 3500.0
     assert summary.results[1].offset_value == 200.0
+    assert "右(Lane1)=1 / 左(Lane2)=2" in summary.results[1].debug_lines[0]
 
     assert summary.results[2].is_outermost is True
     assert summary.results[2].left_compensation == 0.0
@@ -64,6 +65,8 @@ def test_sopas_field_ranges_for_single_and_dual_lane_lidar():
     assert fields[0].field4 == (69, 87)
     assert fields[0].field5 == (76, 89)
     assert fields[0].field6 == (67, 80)
+    assert "右(Lane1)=0 → Field1~Field3" in fields[0].debug_lines[0]
+    assert "左(Lane2)=1 → Field4~Field6" in fields[0].debug_lines[1]
     assert fields[1].field4 is None
     assert fields[1].field5 is None
     assert fields[1].field6 is None

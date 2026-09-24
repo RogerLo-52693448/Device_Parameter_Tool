@@ -63,7 +63,7 @@ python -m device_parameter_tool.core.cli
 CLI 提供：
 - 車道 CRUD
 - 主 Lidar / 備援 Lidar CRUD
-- Lidar 負責車道使用 2 個欄位（Lane1 / Lane2）
+- Lidar 負責車道使用 2 個欄位：右(Lane1) / 左(Lane2)
 - 設定檔讀取與儲存
 - 快速設定流程（含備援開關）
 
@@ -91,9 +91,10 @@ python -m device_parameter_tool.web.app
 - 表單輸入/編輯點位、Lane、Lidar
 - 車道數量 / 主 Lidar 數量切換時，前端會即時動態增減表單列
 - 支援「啟用備援 Lidar」選項
-- Lidar 負責車道使用 2 個下拉欄位，選項為 `None`、`Lane0` ~ `Lane6`
+- Lidar 負責車道使用 2 個下拉欄位：右(Lane1) / 左(Lane2)，選項依目前 lane number 動態更新
 - 使用同一套 `lidar_calculator` 邏輯即時預覽結果
 - 顯示舊版 SOPAS Tool 的 `Field1` ~ `Field6` 範圍計算結果
+- 顯示舊版風格的偵錯資訊 / 詳細計算過程
 - 支援 `note` 備註欄位，使用 UTF-8 儲存與顯示中文
 - `Site History` 會以**本機時間**保存每次儲存的設定與備註，可重新載入
 
@@ -170,12 +171,12 @@ scan_left  = outer_boundary - center_distance + (0 if is_outermost else 500)
 
 新版工具已補回舊版的 `Field1` ~ `Field6` 計算：
 
-- `Field1` ~ `Field3`：內側車道範圍
-- `Field4` ~ `Field6`：外側車道範圍（僅雙車道 Lidar 會有）
+- `右(Lane1)` 對應 `Field1` ~ `Field3`
+- `左(Lane2)` 對應 `Field4` ~ `Field6`（僅雙車道 Lidar 會有）
 - 角度基準：`90°`
 - 換算規則：`1° = 200 mm`
 
-Web UI 會直接顯示每個主 / 備援 Lidar 的 field 範圍表格。
+Web UI / CLI 都會顯示每個主 / 備援 Lidar 的 field 範圍與偵錯資訊。
 
 ## 測試
 

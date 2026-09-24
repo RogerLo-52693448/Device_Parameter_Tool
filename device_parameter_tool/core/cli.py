@@ -72,8 +72,8 @@ def build_lane(existing: LaneConfig | None = None, default_number: int = 0) -> L
 
 
 def prompt_lane_option(message: str, available_lane_numbers: list[int], default: int | None = None) -> int | None:
-    default_text = "None" if default is None else f"Lane{default}"
-    option_text = ", ".join([f"Lane{lane}" for lane in available_lane_numbers]) or "無可用車道"
+    default_text = "None" if default is None else str(default)
+    option_text = ", ".join([str(lane) for lane in available_lane_numbers]) or "無可用車道"
     while True:
         raw = prompt_text(f"{message} (None/{option_text})", default_text).strip()
         if not raw or raw.lower() == "none":
@@ -93,8 +93,8 @@ def build_lidar(available_lane_numbers: list[int], existing: LidarConfig | None 
     existing = existing or LidarConfig(assigned_lanes=[0], center_distance_mm=0.0)
     default_first = existing.assigned_lanes[0] if existing.assigned_lanes else None
     default_second = existing.assigned_lanes[1] if len(existing.assigned_lanes) > 1 else None
-    lane_a = prompt_lane_option("負責車道 1", available_lane_numbers, default_first)
-    lane_b = prompt_lane_option("負責車道 2", available_lane_numbers, default_second)
+    lane_a = prompt_lane_option("右(Lane1)", available_lane_numbers, default_first)
+    lane_b = prompt_lane_option("左(Lane2)", available_lane_numbers, default_second)
     assigned = [lane for lane in [lane_a, lane_b] if lane is not None]
     return LidarConfig(
         assigned_lanes=assigned,

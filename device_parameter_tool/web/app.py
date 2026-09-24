@@ -110,9 +110,8 @@ def _lidar_form_rows(lidars: list[LidarConfig]) -> list[dict]:
 
 def _lane_options(config: DeviceConfig) -> list[dict]:
     lane_numbers = {lane.lane_number for lane in config.lanes}
-    lane_numbers.update(range(7))
     return [{"value": "none", "label": "None"}] + [
-        {"value": lane_number, "label": f"Lane{lane_number}"}
+        {"value": lane_number, "label": str(lane_number)}
         for lane_number in sorted(lane_numbers)
     ]
 

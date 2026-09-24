@@ -54,6 +54,9 @@ def test_web_save_and_history_round_trip(tmp_path):
     assert "備援 Lidar" in history_text
     assert "Field 範圍" in history_text
     assert "Field1" in history_text
+    assert "偵錯資訊" in history_text
+    assert "右(Lane1)" in history_text
+    assert "左(Lane2)" in history_text
 
 
 def test_web_page_uses_dynamic_lane_and_lidar_sections(tmp_path):
@@ -72,9 +75,9 @@ def test_web_page_uses_dynamic_lane_and_lidar_sections(tmp_path):
     assert 'id="has-backup"' in text
     assert "lidar-block-title" in text
     assert "Primary Lidar Configuration" in text
-    assert "Lane0" in text
-    assert "Lane6" in text
     assert "None" in text
+    assert "右(Lane1)" in text
+    assert "左(Lane2)" in text
     assert "Camera" not in text
     assert "Host" not in text
     assert "Lane ID" not in text
