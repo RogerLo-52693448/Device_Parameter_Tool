@@ -1,5 +1,7 @@
-from device_parameter_tool.models.device_config import LaneConfig, LidarConfig
-from device_parameter_tool.services.lidar_calculator import SCAN_LIMIT, calculate_lidar_results, calculate_sopas_fields
+import pytest
+
+from device_parameter_tool.models.device_config import DeviceConfig, LaneConfig, LidarConfig
+from device_parameter_tool.services.lidar_calculator import SCAN_LIMIT, calculate_for_config, calculate_lidar_results, calculate_sopas_fields
 
 
 def test_lidar_boundary_and_compensation_scenarios():
@@ -92,3 +94,16 @@ def test_lidar_results_use_lane_order_for_offsets_and_sparse_numbers():
     assert summary.results[1].offset_value == 3500.0
     assert summary.results[1].inner_boundary == 3500.0
     assert summary.results[2].inner_boundary == 6800.0
+
+
+def test_calculate_for_config_validates_backup_configuration_too():
+    config = DeviceConfig(
+        site_name="驗證範圍",
+        lanes=[LaneConfig(0, 3500.0), LaneConfig(1, 3300.0)],
+        lidars=[LidarConfig([0], 1200.0)],
+        has_backup=True,
+        backup_lidars=[LidarConfig([], 3600.0)],
+    )
+
+    with pytest.raises(ValueError, match="至少要負責 1 個車道"):
+        calculate_for_config(config)

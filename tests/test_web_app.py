@@ -111,6 +111,20 @@ def test_web_preview_invalid_input_shows_error(tmp_path):
     assert "至少要負責 1 個車道" in text
 
 
+def test_web_rejects_missing_rows_when_count_is_tampered(tmp_path):
+    app = create_app(tmp_path)
+    client = app.test_client()
+
+    bad_data = dict(FORM_DATA)
+    bad_data["lane_count"] = "3"
+
+    response = client.post("/save", data=bad_data)
+    text = response.get_data(as_text=True)
+
+    assert response.status_code == 200
+    assert "表單缺少必要欄位" in text
+
+
 def test_web_save_invalid_backup_input_shows_error(tmp_path):
     app = create_app(tmp_path)
     client = app.test_client()

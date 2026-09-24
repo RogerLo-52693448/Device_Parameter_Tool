@@ -203,6 +203,8 @@ def calculate_sopas_fields(lanes: list[LaneConfig], lidars: list[LidarConfig]) -
 
         field1_upper = SOPAS_CENTER_ANGLE + math.ceil((inner_lane_width + offset_right) / SOPAS_MM_PER_DEGREE)
         field1_lower = SOPAS_CENTER_ANGLE + math.floor(offset_right / SOPAS_MM_PER_DEGREE)
+        if field1_lower > field1_upper:
+            raise ValueError(f"LIDAR_{original_index}: Field1 範圍計算失敗，請檢查中心點距離")
         center_inner = math.ceil((field1_upper + field1_lower) / 2)
 
         is_innermost = assigned[0] == all_lanes_sorted[0].lane_number
@@ -218,6 +220,8 @@ def calculate_sopas_fields(lanes: list[LaneConfig], lidars: list[LidarConfig]) -
         if len(assigned) == 2:
             field4_upper = field1_lower - 1
             field4_lower = SOPAS_CENTER_ANGLE + math.floor(offset_left / SOPAS_MM_PER_DEGREE)
+            if field4_lower > field4_upper:
+                raise ValueError(f"LIDAR_{original_index}: 外側車道 Field 範圍計算失敗，請檢查中心點距離")
             center_outer = math.ceil((field4_upper + field4_lower) / 2)
             field4 = (field4_lower, field4_upper)
             field5 = (center_outer - 2, field4_upper + 2)

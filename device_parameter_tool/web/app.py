@@ -38,9 +38,16 @@ def _parse_lane_pair(first_value: str | None, second_value: str | None) -> list[
     return lanes
 
 
+def _require_fields(form, field_names: list[str]) -> None:
+    missing = [field_name for field_name in field_names if field_name not in form]
+    if missing:
+        raise ValueError(f"表單缺少必要欄位: {', '.join(missing)}")
+
+
 def _build_lane_rows(form, lane_count: int) -> list[LaneConfig]:
     lanes: list[LaneConfig] = []
     for index in range(lane_count):
+        _require_fields(form, [f"lane_{index}_number", f"lane_{index}_width_mm"])
         lanes.append(
             LaneConfig(
                 lane_number=_coerce_int(form.get(f"lane_{index}_number"), index),
@@ -53,6 +60,14 @@ def _build_lane_rows(form, lane_count: int) -> list[LaneConfig]:
 def _build_lidar_rows(form, lidar_count: int, prefix: str = "primary") -> list[LidarConfig]:
     lidars: list[LidarConfig] = []
     for index in range(lidar_count):
+        _require_fields(
+            form,
+            [
+                f"{prefix}_lidar_{index}_lane_a",
+                f"{prefix}_lidar_{index}_lane_b",
+                f"{prefix}_lidar_{index}_center_distance_mm",
+            ],
+        )
         lidars.append(
             LidarConfig(
                 assigned_lanes=_parse_lane_pair(
@@ -167,19 +182,21 @@ def create_app(data_dir: str | Path | None = None) -> Flask:
 
     @app.post("/preview")
     def preview():
-        config = _config_from_form(request.form)
         try:
+            config = _config_from_form(request.form)
             config.validate()
         except ValueError as exc:
+            config = DeviceConfig(lanes=[LaneConfig(lane_number=0, width_mm=3500.0)])
             return render_page(config, error=str(exc))
         return render_page(config, message="已更新預覽")
 
     @app.post("/save")
     def save():
-        config = _config_from_form(request.form)
         try:
+            config = _config_from_form(request.form)
             config.validate()
         except ValueError as exc:
+            config = DeviceConfig(lanes=[LaneConfig(lane_number=0, width_mm=3500.0)])
             return render_page(config, error=str(exc))
         service.save_config(config)
         service.append_history(config, note=config.note)
