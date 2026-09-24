@@ -140,21 +140,72 @@ def _form_defaults(config: DeviceConfig) -> dict:
     }
 
 
+def _posted_form_state(form) -> dict:
+    lane_count = max(1, _coerce_int(form.get("lane_count"), 1))
+    primary_lidar_count = max(1, _coerce_int(form.get("primary_lidar_count"), 1))
+    backup_lidar_count = max(1, _coerce_int(form.get("backup_lidar_count"), primary_lidar_count))
+    has_backup = _coerce_bool(form.get("has_backup"))
+    lanes = [
+        {
+            "lane_number": form.get(f"lane_{index}_number", index),
+            "width_mm": form.get(f"lane_{index}_width_mm", ""),
+        }
+        for index in range(lane_count)
+    ]
+    lidars = [
+        {
+            "lane_a": form.get(f"primary_lidar_{index}_lane_a", "none"),
+            "lane_b": form.get(f"primary_lidar_{index}_lane_b", "none"),
+            "center_distance_mm": form.get(f"primary_lidar_{index}_center_distance_mm", ""),
+            "auto_calculate": _coerce_bool(form.get(f"primary_lidar_{index}_auto_calculate")),
+        }
+        for index in range(primary_lidar_count)
+    ]
+    backup_lidars = [
+        {
+            "lane_a": form.get(f"backup_lidar_{index}_lane_a", "none"),
+            "lane_b": form.get(f"backup_lidar_{index}_lane_b", "none"),
+            "center_distance_mm": form.get(f"backup_lidar_{index}_center_distance_mm", ""),
+            "auto_calculate": _coerce_bool(form.get(f"backup_lidar_{index}_auto_calculate")),
+        }
+        for index in range(backup_lidar_count)
+    ]
+    lane_numbers = {str(lane["lane_number"]).strip() for lane in lanes if str(lane["lane_number"]).strip() != ""}
+    return {
+        "site_name": form.get("site_name", "未命名點位").strip() or "未命名點位",
+        "note": form.get("note", ""),
+        "has_backup": has_backup,
+        "lane_count": lane_count,
+        "primary_lidar_count": primary_lidar_count,
+        "backup_lidar_count": backup_lidar_count,
+        "lanes": lanes,
+        "lidars": lidars,
+        "backup_lidars": backup_lidars,
+        "lane_options": [{"value": "none", "label": "None"}] + [
+            {"value": lane_number, "label": lane_number}
+            for lane_number in sorted(
+                lane_numbers,
+                key=lambda value: (not str(value).lstrip("-").isdigit(), int(value) if str(value).lstrip("-").isdigit() else str(value)),
+            )
+        ],
+    }
+
+
 def create_app(data_dir: str | Path | None = None) -> Flask:
     app = Flask(__name__, template_folder="templates")
     base_dir = Path(data_dir or "data")
     service = ConfigService(config_path=base_dir / "current_config.json", history_path=base_dir / "site_history.json")
 
-    def render_page(config: DeviceConfig, message: str = "", error: str = ""):
+    def render_page(config: DeviceConfig | None = None, message: str = "", error: str = "", form_state: dict | None = None):
         summaries = []
         try:
-            if config.lanes and config.lidars:
+            if config and config.lanes and config.lidars:
                 summaries.append({
                     "label": "主 Lidar",
                     "summary": calculate_lidar_results(config.lanes, config.lidars),
                     "fields": calculate_sopas_fields(config.lanes, config.lidars),
                 })
-            if config.has_backup and config.lanes and config.backup_lidars:
+            if config and config.has_backup and config.lanes and config.backup_lidars:
                 summaries.append({
                     "label": "備援 Lidar",
                     "summary": calculate_lidar_results(config.lanes, config.backup_lidars),
@@ -164,7 +215,7 @@ def create_app(data_dir: str | Path | None = None) -> Flask:
             error = str(exc)
         return render_template(
             "index.html",
-            form=_form_defaults(config),
+            form=form_state or _form_defaults(config or DeviceConfig(lanes=[LaneConfig(lane_number=0, width_mm=3500.0)])),
             summaries=summaries,
             message=message,
             error=error,
@@ -185,8 +236,7 @@ def create_app(data_dir: str | Path | None = None) -> Flask:
             config = _config_from_form(request.form)
             config.validate()
         except ValueError as exc:
-            config = DeviceConfig(lanes=[LaneConfig(lane_number=0, width_mm=3500.0)])
-            return render_page(config, error=str(exc))
+            return render_page(error=str(exc), form_state=_posted_form_state(request.form))
         return render_page(config, message="已更新預覽")
 
     @app.post("/save")
@@ -195,8 +245,7 @@ def create_app(data_dir: str | Path | None = None) -> Flask:
             config = _config_from_form(request.form)
             config.validate()
         except ValueError as exc:
-            config = DeviceConfig(lanes=[LaneConfig(lane_number=0, width_mm=3500.0)])
-            return render_page(config, error=str(exc))
+            return render_page(error=str(exc), form_state=_posted_form_state(request.form))
         service.save_config(config)
         service.append_history(config, note=config.note)
         return render_page(config, message="設定已儲存，並寫入 Site History")

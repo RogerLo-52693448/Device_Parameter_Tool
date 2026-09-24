@@ -190,7 +190,10 @@ def calculate_lidar_results(lanes: list[LaneConfig], lidars: list[LidarConfig]) 
 
 def calculate_for_config(config: DeviceConfig) -> LidarCalculationSummary:
     config.validate()
-    return calculate_lidar_results(config.lanes, config.lidars)
+    primary_summary = calculate_lidar_results(config.lanes, config.lidars)
+    if config.has_backup and config.backup_lidars:
+        calculate_lidar_results(config.lanes, config.backup_lidars)
+    return primary_summary
 
 
 def calculate_sopas_fields(lanes: list[LaneConfig], lidars: list[LidarConfig]) -> list[SopasFieldResult]:

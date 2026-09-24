@@ -97,6 +97,8 @@ def test_web_save_invalid_input_shows_error(tmp_path):
 
     assert response.status_code == 200
     assert "至少要負責 1 個車道" in text
+    assert "台北交流道" in text
+    assert "中文備註測試" in text
 
 
 def test_web_preview_invalid_input_shows_error(tmp_path):
@@ -112,6 +114,7 @@ def test_web_preview_invalid_input_shows_error(tmp_path):
 
     assert response.status_code == 200
     assert "至少要負責 1 個車道" in text
+    assert "台北交流道" in text
 
 
 def test_web_rejects_missing_rows_when_count_is_tampered(tmp_path):
@@ -126,6 +129,45 @@ def test_web_rejects_missing_rows_when_count_is_tampered(tmp_path):
 
     assert response.status_code == 200
     assert "表單缺少必要欄位" in text
+
+
+def test_web_save_supports_dynamic_lane_numbers_and_multiple_lidars(tmp_path):
+    app = create_app(tmp_path)
+    client = app.test_client()
+
+    dynamic_data = {
+        "site_name": "動態車道點位",
+        "note": "多組態測試",
+        "has_backup": "on",
+        "lane_count": "3",
+        "primary_lidar_count": "2",
+        "backup_lidar_count": "1",
+        "lane_0_number": "2",
+        "lane_0_width_mm": "3400",
+        "lane_1_number": "3",
+        "lane_1_width_mm": "3200",
+        "lane_2_number": "6",
+        "lane_2_width_mm": "3100",
+        "primary_lidar_0_lane_a": "2",
+        "primary_lidar_0_lane_b": "3",
+        "primary_lidar_0_center_distance_mm": "3500",
+        "primary_lidar_1_lane_a": "6",
+        "primary_lidar_1_lane_b": "none",
+        "primary_lidar_1_center_distance_mm": "9900",
+        "backup_lidar_0_lane_a": "2",
+        "backup_lidar_0_lane_b": "3",
+        "backup_lidar_0_center_distance_mm": "6900",
+    }
+
+    response = client.post("/save", data=dynamic_data)
+
+    assert response.status_code == 200
+    history_path = tmp_path / "site_history.json"
+    history_data = json.loads(history_path.read_text(encoding="utf-8"))
+    assert [lane["lane_number"] for lane in history_data[0]["config"]["lanes"]] == [2, 3, 6]
+    assert history_data[0]["config"]["lidars"][0]["assigned_lanes"] == [2, 3]
+    assert history_data[0]["config"]["lidars"][1]["assigned_lanes"] == [6]
+    assert history_data[0]["config"]["backup_lidars"][0]["assigned_lanes"] == [2, 3]
 
 
 def test_web_save_invalid_backup_input_shows_error(tmp_path):

@@ -1,6 +1,7 @@
 import pytest
 
 from device_parameter_tool.models.device_config import DeviceConfig, LaneConfig, LidarConfig
+from device_parameter_tool.services import lidar_calculator
 from device_parameter_tool.services.lidar_calculator import SCAN_LIMIT, calculate_for_config, calculate_lidar_results, calculate_sopas_fields
 
 
@@ -110,3 +111,25 @@ def test_calculate_for_config_validates_backup_configuration_too():
 
     with pytest.raises(ValueError, match="至少要負責 1 個車道"):
         calculate_for_config(config)
+
+
+def test_calculate_for_config_runs_backup_geometry_when_enabled(monkeypatch):
+    config = DeviceConfig(
+        site_name="備援驗證",
+        lanes=[LaneConfig(0, 3500.0), LaneConfig(1, 3300.0)],
+        lidars=[LidarConfig([0], 1200.0)],
+        has_backup=True,
+        backup_lidars=[LidarConfig([1], 3600.0)],
+    )
+    original = lidar_calculator.calculate_lidar_results
+    calls: list[list[list[int]]] = []
+
+    def wrapped(lanes, lidars):
+        calls.append([sorted(lidar.assigned_lanes) for lidar in lidars])
+        return original(lanes, lidars)
+
+    monkeypatch.setattr(lidar_calculator, "calculate_lidar_results", wrapped)
+
+    calculate_for_config(config)
+
+    assert calls == [[[0]], [[1]]]
