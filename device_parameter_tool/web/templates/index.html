@@ -13,10 +13,8 @@
     .error { color: #b91c1c; font-weight: 700; }
     .hint { color: #475569; font-size: 0.92rem; }
     .grid-2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
-    .grid-3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
     label { display: grid; gap: 6px; margin-bottom: 12px; font-weight: 700; }
-    input, textarea, select { width: 100%; box-sizing: border-box; padding: 10px 12px; border: 1px solid #cbd5e1; border-radius: 10px; font: inherit; }
-    textarea { min-height: 72px; resize: vertical; }
+    input { width: 100%; box-sizing: border-box; padding: 10px 12px; border: 1px solid #cbd5e1; border-radius: 10px; font: inherit; }
     button { border: 0; border-radius: 10px; padding: 11px 16px; font: inherit; font-weight: 700; cursor: pointer; background: #1d4ed8; color: #fff; }
     .secondary { background: #475569; }
     .actions { display: flex; gap: 12px; }
@@ -26,7 +24,7 @@
     th, td { border: 1px solid #cbd5e1; padding: 8px 10px; text-align: left; vertical-align: top; }
     th { background: #eff6ff; }
     ul { padding-left: 20px; }
-    .checkbox-line { display: flex; align-items: center; gap: 8px; margin: 6px 0 12px; }
+    .checkbox-line { display: flex; align-items: center; gap: 8px; margin: 6px 0 12px; font-weight: 700; }
     .checkbox-line input { width: auto; }
     .mono { font-family: Consolas, monospace; }
     @media (max-width: 1100px) { .layout { grid-template-columns: 1fr; } }
@@ -35,15 +33,15 @@
 <body>
   <div class="page">
     <h1>Device Parameter Tool</h1>
-    <p class="hint">新版 Web UI 已參考舊 draft model 欄位設計：補回 Camera / Lane / Lidar / Host 的舊欄位結構，並維持同一套 Lidar 計算邏輯。</p>
+    <p class="hint">Web UI 已改為接近舊版的動態互動：調整車道數量或 Lidar 數量時，表單列會立即增減；只保留點位、備註、Lane 與 Lidar 設定。</p>
     {% if message %}<p class="message">{{ message }}</p>{% endif %}
     {% if error %}<p class="error">{{ error }}</p>{% endif %}
 
     <div class="layout">
       <div class="card">
         <h2>設定表單</h2>
-        <p class="hint">修改車道數 / Lidar 數後，按「即時預覽」可刷新表單列數。</p>
-        <form method="post">
+        <p class="hint">修改數量後會立即增減欄位，不需要先送出預覽。</p>
+        <form method="post" id="config-form">
           <div class="grid-2">
             <label>點位名稱
               <input name="site_name" value="{{ form.site_name }}">
@@ -55,85 +53,21 @@
 
           <div class="grid-2">
             <label>車道數量
-              <input name="lane_count" type="number" min="1" value="{{ form.lane_count }}">
+              <input id="lane-count" name="lane_count" type="number" min="1" value="{{ form.lane_count }}">
             </label>
             <label>Lidar 數量
-              <input name="lidar_count" type="number" min="1" value="{{ form.lidar_count }}">
+              <input id="lidar-count" name="lidar_count" type="number" min="1" value="{{ form.lidar_count }}">
             </label>
-          </div>
-
-          <div class="section">
-            <h3>Camera</h3>
-            <div class="grid-2">
-              <label>Camera ID<input name="camera_id" value="{{ form.camera.camera_id }}"></label>
-              <label>名稱<input name="camera_name" value="{{ form.camera.name }}"></label>
-              <label>緯度<input name="camera_latitude" value="{{ form.camera.latitude }}"></label>
-              <label>經度<input name="camera_longitude" value="{{ form.camera.longitude }}"></label>
-              <label>朝向角度<input name="camera_orientation_deg" value="{{ form.camera.orientation_deg }}"></label>
-              <label>朝向標籤<input name="camera_orientation_label" value="{{ form.camera.orientation_label }}"></label>
-              <label>解析度<input name="camera_resolution" value="{{ form.camera.resolution }}"></label>
-              <label>FPS<input name="camera_fps" type="number" min="1" value="{{ form.camera.fps }}"></label>
-              <label>Exposure<input name="camera_exposure" value="{{ form.camera.exposure }}"></label>
-              <label>White Balance<input name="camera_white_balance" value="{{ form.camera.white_balance }}"></label>
-              <label>Gain<input name="camera_gain" value="{{ form.camera.gain }}"></label>
-              <label>Shutter Speed<input name="camera_shutter_speed" value="{{ form.camera.shutter_speed }}"></label>
-              <label>Camera IP<input name="camera_ip" value="{{ form.camera.ip }}"></label>
-              <label>Camera Port<input name="camera_port" type="number" min="1" value="{{ form.camera.port }}"></label>
-              <label>傳輸協定<input name="camera_protocol" value="{{ form.camera.protocol }}"></label>
-              <label>RTSP URL<input name="camera_rtsp_url" value="{{ form.camera.rtsp_url }}"></label>
-            </div>
           </div>
 
           <div class="section">
             <h3>Lanes</h3>
-            {% for lane in form.lanes %}
-            <div class="item-box">
-              <strong>Lane {{ loop.index0 }}</strong>
-              <div class="grid-2">
-                <label>Lane ID<input name="lane_{{ loop.index0 }}_id" value="{{ lane.lane_id }}"></label>
-                <label>Lane Number<input name="lane_{{ loop.index0 }}_number" type="number" min="0" value="{{ lane.lane_number }}"></label>
-                <label>Width (mm)<input name="lane_{{ loop.index0 }}_width_mm" type="number" min="1" value="{{ lane.width_mm }}"></label>
-                <label>描述<input name="lane_{{ loop.index0 }}_description" value="{{ lane.description }}"></label>
-              </div>
-            </div>
-            {% endfor %}
+            <div id="lanes-container"></div>
           </div>
 
           <div class="section">
             <h3>Lidars</h3>
-            {% for lidar in form.lidars %}
-            <div class="item-box">
-              <strong>LIDAR_{{ loop.index0 }}</strong>
-              <div class="grid-2">
-                <label>Lidar ID<input name="lidar_{{ loop.index0 }}_id" value="{{ lidar.lidar_id }}"></label>
-                <label>負責車道（逗號分隔）<input class="mono" name="lidar_{{ loop.index0 }}_assigned_lanes" value="{{ lidar.assigned_lanes }}"></label>
-                <label>Center Distance (mm)<input name="lidar_{{ loop.index0 }}_center_distance_mm" type="number" min="0" value="{{ lidar.center_distance_mm }}"></label>
-                <label>描述<input name="lidar_{{ loop.index0 }}_description" value="{{ lidar.description }}"></label>
-              </div>
-              <label class="checkbox-line"><input name="lidar_{{ loop.index0 }}_auto_calculate" type="checkbox" {% if lidar.auto_calculate %}checked{% endif %}> 自動計算有效偵測範圍</label>
-            </div>
-            {% endfor %}
-          </div>
-
-          <div class="section">
-            <h3>Host</h3>
-            <div class="grid-2">
-              <label>Host IP<input name="host_ip" value="{{ form.host.ip }}"></label>
-              <label>Host Port<input name="host_port" type="number" min="1" value="{{ form.host.port }}"></label>
-              <label>Log Level<input name="host_log_level" value="{{ form.host.log_level }}"></label>
-              <label>MQTT IP<input name="host_mqtt_ip" value="{{ form.host.mqtt_ip }}"></label>
-              <label>MQTT Port<input name="host_mqtt_port" type="number" min="1" value="{{ form.host.mqtt_port }}"></label>
-              <label>MQTT Timeout<input name="host_mqtt_timeout" type="number" min="0" value="{{ form.host.mqtt_timeout }}"></label>
-              <label>RTSP Transport<input name="host_rtsp_transport" value="{{ form.host.rtsp_transport }}"></label>
-              <label>Save Root<input name="host_save_root" value="{{ form.host.save_root }}"></label>
-              <label>Buffer Seconds<input name="host_buffer_seconds" value="{{ form.host.buffer_seconds }}"></label>
-              <label>Max Retries<input name="host_max_retries" type="number" min="0" value="{{ form.host.max_retries }}"></label>
-              <label>Log Dir<input name="host_log_dir" value="{{ form.host.log_dir }}"></label>
-              <label>Trigger Topic<input name="host_trigger_topic" value="{{ form.host.trigger_topic }}"></label>
-              <label>Trigger Topic Contains<input name="host_trigger_topic_contains" value="{{ form.host.trigger_topic_contains }}"></label>
-              <label>Trigger Source<input name="host_trigger_source" value="{{ form.host.trigger_source }}"></label>
-              <label>Trigger State<input name="host_trigger_state" value="{{ form.host.trigger_state }}"></label>
-            </div>
+            <div id="lidars-container"></div>
           </div>
 
           <div class="actions">
@@ -231,5 +165,115 @@
       </div>
     </div>
   </div>
+
+  <script>
+    const FORM_STATE = {{ form|tojson }};
+
+    function escapeHtml(value) {
+      return String(value ?? '')
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;')
+        .replaceAll('"', '&quot;');
+    }
+
+    function cloneLane(index) {
+      const row = FORM_STATE.lanes[index] || {};
+      return {
+        lane_id: row.lane_id || '',
+        lane_number: row.lane_number ?? index,
+        width_mm: row.width_mm ?? '',
+        description: row.description || '',
+      };
+    }
+
+    function cloneLidar(index) {
+      const row = FORM_STATE.lidars[index] || {};
+      return {
+        lidar_id: row.lidar_id || '',
+        assigned_lanes: row.assigned_lanes || '',
+        center_distance_mm: row.center_distance_mm ?? '',
+        auto_calculate: row.auto_calculate !== false,
+        description: row.description || '',
+      };
+    }
+
+    function captureLaneState() {
+      const count = Number(document.getElementById('lane-count').value || '1');
+      FORM_STATE.lanes = Array.from({ length: count }, (_, index) => ({
+        lane_id: document.querySelector(`[name="lane_${index}_id"]`)?.value || '',
+        lane_number: document.querySelector(`[name="lane_${index}_number"]`)?.value || index,
+        width_mm: document.querySelector(`[name="lane_${index}_width_mm"]`)?.value || '',
+        description: document.querySelector(`[name="lane_${index}_description"]`)?.value || '',
+      }));
+    }
+
+    function captureLidarState() {
+      const count = Number(document.getElementById('lidar-count').value || '1');
+      FORM_STATE.lidars = Array.from({ length: count }, (_, index) => ({
+        lidar_id: document.querySelector(`[name="lidar_${index}_id"]`)?.value || '',
+        assigned_lanes: document.querySelector(`[name="lidar_${index}_assigned_lanes"]`)?.value || '',
+        center_distance_mm: document.querySelector(`[name="lidar_${index}_center_distance_mm"]`)?.value || '',
+        auto_calculate: !!document.querySelector(`[name="lidar_${index}_auto_calculate"]`)?.checked,
+        description: document.querySelector(`[name="lidar_${index}_description"]`)?.value || '',
+      }));
+    }
+
+    function renderLanes() {
+      const count = Math.max(1, Number(document.getElementById('lane-count').value || '1'));
+      const container = document.getElementById('lanes-container');
+      container.innerHTML = '';
+      for (let index = 0; index < count; index += 1) {
+        const lane = cloneLane(index);
+        const box = document.createElement('div');
+        box.className = 'item-box';
+        box.innerHTML = `
+          <strong>Lane ${index}</strong>
+          <div class="grid-2">
+            <label>Lane ID<input name="lane_${index}_id" value="${escapeHtml(lane.lane_id)}"></label>
+            <label>Lane Number<input name="lane_${index}_number" type="number" min="0" value="${escapeHtml(lane.lane_number)}"></label>
+            <label>Width (mm)<input name="lane_${index}_width_mm" type="number" min="1" value="${escapeHtml(lane.width_mm)}"></label>
+            <label>描述<input name="lane_${index}_description" value="${escapeHtml(lane.description)}"></label>
+          </div>
+        `;
+        container.appendChild(box);
+      }
+    }
+
+    function renderLidars() {
+      const count = Math.max(1, Number(document.getElementById('lidar-count').value || '1'));
+      const container = document.getElementById('lidars-container');
+      container.innerHTML = '';
+      for (let index = 0; index < count; index += 1) {
+        const lidar = cloneLidar(index);
+        const box = document.createElement('div');
+        box.className = 'item-box';
+        box.innerHTML = `
+          <strong>LIDAR_${index}</strong>
+          <div class="grid-2">
+            <label>Lidar ID<input name="lidar_${index}_id" value="${escapeHtml(lidar.lidar_id)}"></label>
+            <label>負責車道（逗號分隔）<input class="mono" name="lidar_${index}_assigned_lanes" value="${escapeHtml(lidar.assigned_lanes)}"></label>
+            <label>Center Distance (mm)<input name="lidar_${index}_center_distance_mm" type="number" min="0" value="${escapeHtml(lidar.center_distance_mm)}"></label>
+            <label>描述<input name="lidar_${index}_description" value="${escapeHtml(lidar.description)}"></label>
+          </div>
+          <label class="checkbox-line"><input name="lidar_${index}_auto_calculate" type="checkbox" ${lidar.auto_calculate ? 'checked' : ''}> 自動計算有效偵測範圍</label>
+        `;
+        container.appendChild(box);
+      }
+    }
+
+    document.getElementById('lane-count').addEventListener('input', () => {
+      captureLaneState();
+      renderLanes();
+    });
+
+    document.getElementById('lidar-count').addEventListener('input', () => {
+      captureLidarState();
+      renderLidars();
+    });
+
+    renderLanes();
+    renderLidars();
+  </script>
 </body>
 </html>

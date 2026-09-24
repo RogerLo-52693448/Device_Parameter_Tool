@@ -62,10 +62,9 @@ python -m device_parameter_tool.core.cli
 
 CLI 提供：
 - 車道 CRUD
-- Lidar CRUD（含負責車道、中心點距離、預覽有效偵測範圍）
-- Camera / Host 編輯
+- Lidar CRUD（含 `lidar_id`、負責車道、中心點距離、描述、自動計算旗標）
 - 設定檔讀取與儲存
-- 快速設定流程
+- 快速設定流程（Lane/Lidar 完整欄位）
 
 ### 設定檔存檔/匯出
 
@@ -88,29 +87,13 @@ python -m device_parameter_tool.web.app
 
 ### Web UI 功能
 
-- 表單輸入/編輯 Camera、Lane、Lidar、Host
+- 表單輸入/編輯點位、Lane、Lidar
+- 車道數量 / Lidar 數量切換時，前端會即時動態增減表單列
 - 使用同一套 `lidar_calculator` 邏輯即時預覽結果
 - 支援 `note` 備註欄位，使用 UTF-8 儲存與顯示中文
 - `Site History` 會保存每次儲存的設定與備註，可重新載入
 
-### Web 表單格式
-
-目前為簡潔設計：
-- `Lanes` 文字區：每行 `lane_number,width_mm`
-- `Lidars` 文字區：每行 `lane1[,lane2]:center_distance_mm`
-
-例如：
-
-```text
-0,3500
-1,3300
-2,3200
-```
-
-```text
-0,1:3600
-2:7100
-```
+> 依照目前需求，**不提供 Camera 與 Host 的設定操作介面**；這兩部分會保留在資料模型中作為相容性欄位，但 CLI / Web UI 不會要求使用者編輯。
 
 ## Device Config 資料模型
 
