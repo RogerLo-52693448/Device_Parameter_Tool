@@ -250,7 +250,11 @@ def main() -> None:
                     config.backup_lidars = []
                 else:
                     if not config.backup_lidars:
-                        config.backup_lidars = [LidarConfig(assigned_lanes=[0], center_distance_mm=0.0) for _ in range(max(1, len(config.lidars)))]
+                        default_lane = config.lanes[0].lane_number if config.lanes else 0
+                        config.backup_lidars = [
+                            LidarConfig(assigned_lanes=[default_lane], center_distance_mm=0.0)
+                            for _ in range(max(1, len(config.lidars)))
+                        ]
                     lidar_menu(config, "備援 Lidar", "backup_lidars")
             elif choice == "5":
                 show_report(config)

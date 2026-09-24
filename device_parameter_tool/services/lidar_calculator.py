@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 from device_parameter_tool.models.device_config import DeviceConfig, LaneConfig, LidarConfig
+from device_parameter_tool.utils.validators import validate_lidar_assignment
 
 SCAN_LIMIT = 5500.0
 
@@ -47,6 +48,7 @@ def calculate_lidar_results(lanes: list[LaneConfig], lidars: list[LidarConfig]) 
     lane_width_map = {lane.lane_number: lane.width_mm for lane in all_lanes_sorted}
     min_lane_number = all_lanes_sorted[0].lane_number
     max_lane_number = all_lanes_sorted[-1].lane_number
+    available_lane_numbers = {lane.lane_number for lane in all_lanes_sorted}
 
     results: list[LidarCalculationResult] = []
     warnings: list[str] = []
@@ -54,7 +56,7 @@ def calculate_lidar_results(lanes: list[LaneConfig], lidars: list[LidarConfig]) 
     prev_lidars_total = 0.0
 
     for i, lidar in enumerate(lidars):
-        assigned = sorted(lidar.assigned_lanes)
+        assigned = validate_lidar_assignment(sorted(lidar.assigned_lanes), available_lane_numbers)
         if not assigned:
             raise ValueError(f"LIDAR_{i} 至少要負責 1 個車道")
         center = lidar.center_distance_mm

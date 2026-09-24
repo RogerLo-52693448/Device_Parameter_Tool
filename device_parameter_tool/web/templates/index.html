@@ -278,8 +278,8 @@
 
     document.getElementById('has-backup').addEventListener('change', () => {
       captureLidarState('backup', 'backup_lidars', 'backup-lidar-count');
-      syncBackupVisibility();
       renderLidars('backup', 'backup-lidars-container', FORM_STATE.backup_lidars, 'backup-lidar-count');
+      syncBackupVisibility();
     });
 
     renderLanes();
