@@ -45,8 +45,8 @@
   <div class="page">
     <h1>Device Parameter Tool</h1>
     <p class="hint">支援主 Lidar 與備援 Lidar；負責車道改為兩個下拉欄位，選項為 None 與 Lane0-Lane6。</p>
-    {% if message %}<p class="message" role="status" aria-live="polite">{{ message }}</p>{% endif %}
-    {% if error %}<p class="error" role="alert" aria-live="assertive">{{ error }}</p>{% endif %}
+    <p class="message" role="status" aria-live="polite">{{ message or '' }}</p>
+    <p class="error" role="alert" aria-live="assertive">{{ error or '' }}</p>
     <div class="layout">
       <div class="card">
         <h2>設定表單</h2>

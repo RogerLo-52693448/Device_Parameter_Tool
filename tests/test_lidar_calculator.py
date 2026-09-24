@@ -79,3 +79,16 @@ def test_sopas_field_ranges_do_not_depend_on_lidar_input_order():
     assert fields[1].assigned == [2]
     assert fields[1].field1 == (90, 108)
     assert fields[1].field4 is None
+
+
+def test_lidar_results_use_lane_order_for_offsets_and_sparse_numbers():
+    lanes = [LaneConfig(1, 3500.0), LaneConfig(3, 3300.0), LaneConfig(4, 3200.0)]
+    lidars = [LidarConfig([4], 10300.0), LidarConfig([1], 1200.0), LidarConfig([3], 7000.0)]
+
+    summary = calculate_lidar_results(lanes, lidars)
+
+    assert [result.index for result in summary.results] == [1, 2, 0]
+    assert [result.assigned for result in summary.results] == [[1], [3], [4]]
+    assert summary.results[1].offset_value == 3500.0
+    assert summary.results[1].inner_boundary == 3500.0
+    assert summary.results[2].inner_boundary == 6800.0

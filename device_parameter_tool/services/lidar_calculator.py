@@ -59,29 +59,47 @@ class SopasFieldResult:
     center_outer: int | None
 
 
+def _build_lane_context(lanes: list[LaneConfig]) -> tuple[list[LaneConfig], dict[int, float], dict[int, float]]:
+    all_lanes_sorted = sorted(lanes, key=lambda lane: lane.lane_number)
+    lane_width_map = {lane.lane_number: lane.width_mm for lane in all_lanes_sorted}
+    lane_start_map: dict[int, float] = {}
+    current = 0.0
+    for lane in all_lanes_sorted:
+        lane_start_map[lane.lane_number] = current
+        current += lane.width_mm
+    return all_lanes_sorted, lane_width_map, lane_start_map
+
+
+def _ordered_lidars(
+    lidars: list[LidarConfig], available_lane_numbers: set[int]
+) -> list[tuple[int, list[int], LidarConfig]]:
+    validated: list[tuple[int, list[int], LidarConfig]] = []
+    for original_index, lidar in enumerate(lidars):
+        assigned = validate_lidar_assignment(sorted(lidar.assigned_lanes), available_lane_numbers)
+        validated.append((original_index, assigned, lidar))
+    return sorted(validated, key=lambda item: (item[1][0], item[1][-1], item[0]))
+
+
 def calculate_lidar_results(lanes: list[LaneConfig], lidars: list[LidarConfig]) -> LidarCalculationSummary:
     if not lanes:
         raise ValueError("至少需要 1 個車道")
-    all_lanes_sorted = sorted(lanes, key=lambda lane: lane.lane_number)
-    lane_width_map = {lane.lane_number: lane.width_mm for lane in all_lanes_sorted}
+    all_lanes_sorted, lane_width_map, lane_start_map = _build_lane_context(lanes)
     min_lane_number = all_lanes_sorted[0].lane_number
     max_lane_number = all_lanes_sorted[-1].lane_number
     available_lane_numbers = {lane.lane_number for lane in all_lanes_sorted}
+    ordered_lidars = _ordered_lidars(lidars, available_lane_numbers)
 
     results: list[LidarCalculationResult] = []
     warnings: list[str] = []
     errors: list[str] = []
     prev_lidars_total = 0.0
 
-    for i, lidar in enumerate(lidars):
-        assigned = validate_lidar_assignment(sorted(lidar.assigned_lanes), available_lane_numbers)
-        if not assigned:
-            raise ValueError(f"LIDAR_{i} 至少要負責 1 個車道")
+    for ordered_index, (original_index, assigned, lidar) in enumerate(ordered_lidars):
         center = lidar.center_distance_mm
         min_assigned = assigned[0]
         max_assigned = assigned[-1]
 
-        inner_boundary = sum(width for lane_number, width in lane_width_map.items() if lane_number < min_assigned)
+        inner_boundary = lane_start_map[min_assigned]
         assigned_width = sum(lane_width_map[lane_number] for lane_number in assigned)
         outer_boundary = inner_boundary + assigned_width
 
@@ -101,12 +119,12 @@ def calculate_lidar_results(lanes: list[LaneConfig], lidars: list[LidarConfig]) 
 
         prev_parts = [
             f"Lane{lane_number}({lane_width_map[lane_number]:.0f})"
-            for prev_lidar in lidars[:i]
-            for lane_number in sorted(prev_lidar.assigned_lanes)
+            for _, previous_assigned, _ in ordered_lidars[:ordered_index]
+            for lane_number in previous_assigned
         ]
-        if i == 0 and len(assigned) == 2:
+        if ordered_index == 0 and len(assigned) == 2:
             offset_formula = f"|{center:.0f} - Lane{assigned[0]}({lane_width_map[assigned[0]]:.0f})|"
-        elif i == 0:
+        elif ordered_index == 0:
             offset_formula = f"|{center:.0f} - 0|"
         elif len(assigned) == 2:
             offset_formula = (
@@ -119,24 +137,24 @@ def calculate_lidar_results(lanes: list[LaneConfig], lidars: list[LidarConfig]) 
         status = "normal"
         messages: list[str] = []
         if scan_right > SCAN_LIMIT:
-            warning = f"LIDAR_{i}: scan_right={scan_right:.0f}mm 超過 {SCAN_LIMIT:.0f}mm 偵測上限，建議拆分車道並增加 Lidar 數量"
+            warning = f"LIDAR_{original_index}: scan_right={scan_right:.0f}mm 超過 {SCAN_LIMIT:.0f}mm 偵測上限，建議拆分車道並增加 Lidar 數量"
             warnings.append(warning)
             messages.append(warning)
             status = "warning"
         if scan_left > SCAN_LIMIT:
-            warning = f"LIDAR_{i}: scan_left={scan_left:.0f}mm 超過 {SCAN_LIMIT:.0f}mm 偵測上限，建議拆分車道並增加 Lidar 數量"
+            warning = f"LIDAR_{original_index}: scan_left={scan_left:.0f}mm 超過 {SCAN_LIMIT:.0f}mm 偵測上限，建議拆分車道並增加 Lidar 數量"
             warnings.append(warning)
             messages.append(warning)
             status = "warning"
         if scan_right < 0 or scan_left < 0:
-            error = f"LIDAR_{i}: 有效偵測範圍出現負值，請檢查中心點距離與車道指派"
+            error = f"LIDAR_{original_index}: 有效偵測範圍出現負值，請檢查中心點距離與車道指派"
             errors.append(error)
             messages.append(error)
             status = "error"
 
         results.append(
             LidarCalculationResult(
-                index=i,
+                index=original_index,
                 assigned=assigned,
                 center=center,
                 scan_right=scan_right,
@@ -167,24 +185,17 @@ def calculate_for_config(config: DeviceConfig) -> LidarCalculationSummary:
 def calculate_sopas_fields(lanes: list[LaneConfig], lidars: list[LidarConfig]) -> list[SopasFieldResult]:
     if not lanes:
         raise ValueError("至少需要 1 個車道")
-    lane_width_map = {lane.lane_number: lane.width_mm for lane in sorted(lanes, key=lambda lane: lane.lane_number)}
+    all_lanes_sorted, lane_width_map, lane_start_map = _build_lane_context(lanes)
     available_lane_numbers = set(lane_width_map)
     results: list[SopasFieldResult] = []
-    ordered_lidars = sorted(
-        ((sorted(lidar.assigned_lanes), lidar) for lidar in lidars),
-        key=lambda item: tuple(item[0]),
-    )
+    ordered_lidars = _ordered_lidars(lidars, available_lane_numbers)
 
-    for index, (assigned_lanes, lidar) in enumerate(ordered_lidars):
-        assigned = validate_lidar_assignment(assigned_lanes, available_lane_numbers)
-        if not assigned:
-            raise ValueError(f"LIDAR_{index} 至少要負責 1 個車道")
-
+    for original_index, assigned, lidar in ordered_lidars:
         center = lidar.center_distance_mm
         min_assigned = assigned[0]
         inner_lane_width = lane_width_map[assigned[0]]
         assigned_width = sum(lane_width_map[lane_number] for lane_number in assigned)
-        inner_boundary = sum(width for lane_number, width in lane_width_map.items() if lane_number < min_assigned)
+        inner_boundary = lane_start_map[min_assigned]
         outer_boundary = inner_boundary + assigned_width
 
         offset_right = center - inner_boundary - inner_lane_width
@@ -194,7 +205,7 @@ def calculate_sopas_fields(lanes: list[LaneConfig], lidars: list[LidarConfig]) -
         field1_lower = SOPAS_CENTER_ANGLE + math.floor(offset_right / SOPAS_MM_PER_DEGREE)
         center_inner = math.ceil((field1_upper + field1_lower) / 2)
 
-        is_innermost = assigned[0] == min(available_lane_numbers)
+        is_innermost = assigned[0] == all_lanes_sorted[0].lane_number
         field2_lower = center_inner - 2
         field2_upper = field1_upper if is_innermost else field1_upper + 2
         field3_lower = field1_lower - 2
@@ -214,7 +225,7 @@ def calculate_sopas_fields(lanes: list[LaneConfig], lidars: list[LidarConfig]) -
 
         results.append(
             SopasFieldResult(
-                index=index,
+                index=original_index,
                 assigned=assigned,
                 offset_value=offset_right,
                 field1=(field1_lower, field1_upper),
