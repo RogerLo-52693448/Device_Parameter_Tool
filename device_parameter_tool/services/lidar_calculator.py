@@ -216,7 +216,7 @@ def calculate_sopas_fields(lanes: list[LaneConfig], lidars: list[LidarConfig]) -
         field6 = None
         center_outer = None
         if len(assigned) == 2:
-            field4_upper = field1_lower
+            field4_upper = field1_lower - 1
             field4_lower = SOPAS_CENTER_ANGLE + math.floor(offset_left / SOPAS_MM_PER_DEGREE)
             center_outer = math.ceil((field4_upper + field4_lower) / 2)
             field4 = (field4_lower, field4_upper)

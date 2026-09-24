@@ -59,9 +59,9 @@ def test_sopas_field_ranges_for_single_and_dual_lane_lidar():
     assert fields[0].field1 == (88, 110)
     assert fields[0].field2 == (97, 110)
     assert fields[0].field3 == (86, 101)
-    assert fields[0].field4 == (69, 88)
-    assert fields[0].field5 == (77, 90)
-    assert fields[0].field6 == (67, 81)
+    assert fields[0].field4 == (69, 87)
+    assert fields[0].field5 == (76, 89)
+    assert fields[0].field6 == (67, 80)
     assert fields[1].field4 is None
     assert fields[1].field5 is None
     assert fields[1].field6 is None
@@ -75,7 +75,7 @@ def test_sopas_field_ranges_do_not_depend_on_lidar_input_order():
 
     assert fields[0].assigned == [0, 1]
     assert fields[0].field1 == (88, 110)
-    assert fields[0].field4 == (69, 88)
+    assert fields[0].field4 == (69, 87)
     assert fields[1].assigned == [2]
     assert fields[1].field1 == (90, 108)
     assert fields[1].field4 is None
