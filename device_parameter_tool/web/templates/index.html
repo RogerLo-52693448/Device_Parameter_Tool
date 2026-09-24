@@ -57,12 +57,18 @@
           </div>
 
           <div class="grid-2">
-            <label>車道數量<input id="lane-count" name="lane_count" type="number" min="1" value="{{ form.lane_count }}"></label>
-            <label>主 Lidar 數量<input id="primary-lidar-count" name="primary_lidar_count" type="number" min="1" value="{{ form.primary_lidar_count }}"></label>
+            <label for="lane-count">車道數量
+              <input id="lane-count" aria-label="車道數量" name="lane_count" type="number" min="1" value="{{ form.lane_count }}">
+            </label>
+            <label for="primary-lidar-count">主 Lidar 數量
+              <input id="primary-lidar-count" aria-label="主 Lidar 數量" name="primary_lidar_count" type="number" min="1" value="{{ form.primary_lidar_count }}">
+            </label>
           </div>
 
           <label class="checkbox-line"><input id="has-backup" name="has_backup" type="checkbox" {% if form.has_backup %}checked{% endif %}> 啟用備援 Lidar</label>
-          <label id="backup-count-label" {% if not form.has_backup %}class="hidden"{% endif %}>備援 Lidar 數量<input id="backup-lidar-count" name="backup_lidar_count" type="number" min="1" value="{{ form.backup_lidar_count }}" {% if not form.has_backup %}disabled{% endif %}></label>
+          <label id="backup-count-label" for="backup-lidar-count" {% if not form.has_backup %}class="hidden"{% endif %}>備援 Lidar 數量
+            <input id="backup-lidar-count" aria-label="備援 Lidar 數量" name="backup_lidar_count" type="number" min="1" value="{{ form.backup_lidar_count }}" {% if not form.has_backup %}disabled{% endif %}>
+          </label>
 
           <div class="section">
             <h3>Lanes</h3>

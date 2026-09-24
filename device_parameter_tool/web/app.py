@@ -82,9 +82,9 @@ def _build_lidar_rows(form, lidar_count: int, prefix: str = "primary") -> list[L
 
 
 def _config_from_form(form) -> DeviceConfig:
-    lane_count = _coerce_int(form.get("lane_count"), 1)
-    lidar_count = _coerce_int(form.get("primary_lidar_count"), 1)
-    backup_lidar_count = _coerce_int(form.get("backup_lidar_count"), lidar_count)
+    lane_count = max(1, _coerce_int(form.get("lane_count"), 1))
+    lidar_count = max(1, _coerce_int(form.get("primary_lidar_count"), 1))
+    backup_lidar_count = max(1, _coerce_int(form.get("backup_lidar_count"), lidar_count))
     has_backup = _coerce_bool(form.get("has_backup"))
     return DeviceConfig(
         site_name=form.get("site_name", "未命名點位").strip() or "未命名點位",
