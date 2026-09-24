@@ -65,3 +65,17 @@ def test_sopas_field_ranges_for_single_and_dual_lane_lidar():
     assert fields[1].field4 is None
     assert fields[1].field5 is None
     assert fields[1].field6 is None
+
+
+def test_sopas_field_ranges_do_not_depend_on_lidar_input_order():
+    lanes = [LaneConfig(0, 4300.0), LaneConfig(1, 3800.0), LaneConfig(2, 3600.0)]
+    lidars = [LidarConfig([2], 11700.0), LidarConfig([0, 1], 4000.0)]
+
+    fields = calculate_sopas_fields(lanes, lidars)
+
+    assert fields[0].assigned == [0, 1]
+    assert fields[0].field1 == (88, 110)
+    assert fields[0].field4 == (69, 88)
+    assert fields[1].assigned == [2]
+    assert fields[1].field1 == (90, 108)
+    assert fields[1].field4 is None

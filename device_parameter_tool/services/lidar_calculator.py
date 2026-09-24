@@ -169,20 +169,25 @@ def calculate_sopas_fields(lanes: list[LaneConfig], lidars: list[LidarConfig]) -
         raise ValueError("至少需要 1 個車道")
     lane_width_map = {lane.lane_number: lane.width_mm for lane in sorted(lanes, key=lambda lane: lane.lane_number)}
     available_lane_numbers = set(lane_width_map)
-    prev_lidars_total = 0.0
     results: list[SopasFieldResult] = []
+    ordered_lidars = sorted(
+        ((sorted(lidar.assigned_lanes), lidar) for lidar in lidars),
+        key=lambda item: tuple(item[0]),
+    )
 
-    for index, lidar in enumerate(lidars):
-        assigned = validate_lidar_assignment(sorted(lidar.assigned_lanes), available_lane_numbers)
+    for index, (assigned_lanes, lidar) in enumerate(ordered_lidars):
+        assigned = validate_lidar_assignment(assigned_lanes, available_lane_numbers)
         if not assigned:
             raise ValueError(f"LIDAR_{index} 至少要負責 1 個車道")
 
         center = lidar.center_distance_mm
+        min_assigned = assigned[0]
         inner_lane_width = lane_width_map[assigned[0]]
         assigned_width = sum(lane_width_map[lane_number] for lane_number in assigned)
-        outer_boundary = prev_lidars_total + assigned_width
+        inner_boundary = sum(width for lane_number, width in lane_width_map.items() if lane_number < min_assigned)
+        outer_boundary = inner_boundary + assigned_width
 
-        offset_right = center - prev_lidars_total - inner_lane_width
+        offset_right = center - inner_boundary - inner_lane_width
         offset_left = center - outer_boundary
 
         field1_upper = SOPAS_CENTER_ANGLE + math.ceil((inner_lane_width + offset_right) / SOPAS_MM_PER_DEGREE)
@@ -222,7 +227,6 @@ def calculate_sopas_fields(lanes: list[LaneConfig], lidars: list[LidarConfig]) -
                 center_outer=center_outer,
             )
         )
-        prev_lidars_total += assigned_width
 
     return results
 
