@@ -167,18 +167,35 @@ def lidar_menu(config: DeviceConfig, label: str, target_attr: str) -> None:
 
 
 def quick_setup(config: DeviceConfig) -> None:
-    config.site_name = prompt_text("點位名稱", config.site_name)
-    config.note = prompt_text("備註（可留空）", config.note)
-    config.has_backup = prompt_bool("是否啟用備援 Lidar", config.has_backup)
-    if not config.has_backup:
-        config.backup_lidars = []
+    site_name = prompt_text("點位名稱", config.site_name)
+    note = prompt_text("備註（可留空）", config.note)
+    has_backup = prompt_bool("是否啟用備援 Lidar", config.has_backup)
     lane_count = prompt_int("車道數量")
     lidar_count = prompt_int("主 Lidar 數量")
-    backup_lidar_count = prompt_int("備援 Lidar 數量") if config.has_backup else 0
-    config.lanes = [build_lane(default_number=index) for index in range(lane_count)]
-    available_lane_numbers = sorted(lane.lane_number for lane in config.lanes)
-    config.lidars = [build_lidar(available_lane_numbers) for _ in range(lidar_count)]
-    config.backup_lidars = [build_lidar(available_lane_numbers) for _ in range(backup_lidar_count)] if config.has_backup else []
+    backup_lidar_count = prompt_int("備援 Lidar 數量") if has_backup else 0
+    lanes = [build_lane(default_number=index) for index in range(lane_count)]
+    available_lane_numbers = sorted(lane.lane_number for lane in lanes)
+    lidars = [build_lidar(available_lane_numbers) for _ in range(lidar_count)]
+    backup_lidars = [build_lidar(available_lane_numbers) for _ in range(backup_lidar_count)] if has_backup else []
+    candidate = DeviceConfig(
+        site_name=site_name,
+        note=note,
+        has_backup=has_backup,
+        lanes=lanes,
+        lidars=lidars,
+        backup_lidars=backup_lidars,
+    )
+    try:
+        candidate.validate()
+    except ValueError as exc:
+        print(f"✗ {exc}")
+        return
+    config.site_name = candidate.site_name
+    config.note = candidate.note
+    config.has_backup = candidate.has_backup
+    config.lanes = candidate.lanes
+    config.lidars = candidate.lidars
+    config.backup_lidars = candidate.backup_lidars
     show_report(config)
 
 

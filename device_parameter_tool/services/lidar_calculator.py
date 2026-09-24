@@ -41,6 +41,8 @@ class LidarCalculationSummary:
 
 
 def calculate_lidar_results(lanes: list[LaneConfig], lidars: list[LidarConfig]) -> LidarCalculationSummary:
+    if not lanes:
+        raise ValueError("至少需要 1 個車道")
     all_lanes_sorted = sorted(lanes, key=lambda lane: lane.lane_number)
     lane_width_map = {lane.lane_number: lane.width_mm for lane in all_lanes_sorted}
     min_lane_number = all_lanes_sorted[0].lane_number
