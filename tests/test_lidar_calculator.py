@@ -1,0 +1,135 @@
+import pytest
+
+from device_parameter_tool.models.device_config import DeviceConfig, LaneConfig, LidarConfig
+from device_parameter_tool.services import lidar_calculator
+from device_parameter_tool.services.lidar_calculator import SCAN_LIMIT, calculate_for_config, calculate_lidar_results, calculate_sopas_fields
+
+
+def test_lidar_boundary_and_compensation_scenarios():
+    lanes = [
+        LaneConfig(0, 3500.0),
+        LaneConfig(1, 3300.0),
+        LaneConfig(2, 3200.0),
+        LaneConfig(3, 3100.0),
+    ]
+    lidars = [
+        LidarConfig([0], 1200.0),
+        LidarConfig([1, 2], 7000.0),
+        LidarConfig([3], 10300.0),
+    ]
+
+    summary = calculate_lidar_results(lanes, lidars)
+
+    assert summary.errors == []
+    assert summary.results[0].is_innermost is True
+    assert summary.results[0].right_compensation == 0.0
+    assert summary.results[0].left_compensation == 500.0
+    assert summary.results[0].scan_right == 1200.0
+    assert summary.results[0].scan_left == 2800.0
+
+    assert summary.results[1].is_innermost is False
+    assert summary.results[1].is_outermost is False
+    assert summary.results[1].right_compensation == 500.0
+    assert summary.results[1].left_compensation == 500.0
+    assert summary.results[1].scan_right == 4000.0
+    assert summary.results[1].scan_left == 3500.0
+    assert summary.results[1].offset_value == 200.0
+    assert "右(Lane1)=1 / 左(Lane2)=2" in summary.results[1].debug_lines[0]
+
+    assert summary.results[2].is_outermost is True
+    assert summary.results[2].left_compensation == 0.0
+    assert summary.results[2].scan_right == 800.0
+    assert summary.results[2].scan_left == 2800.0
+
+
+def test_lidar_warning_and_negative_error():
+    lanes = [LaneConfig(0, 3500.0), LaneConfig(1, 3500.0)]
+
+    warning_summary = calculate_lidar_results(lanes, [LidarConfig([0, 1], 1000.0)])
+    assert any(str(int(SCAN_LIMIT)) in message for message in warning_summary.warnings)
+    assert warning_summary.results[0].status == "warning"
+
+    error_summary = calculate_lidar_results(lanes, [LidarConfig([1], 1000.0)])
+    assert error_summary.errors
+    assert error_summary.results[0].status == "error"
+
+
+def test_sopas_field_ranges_for_single_and_dual_lane_lidar():
+    lanes = [LaneConfig(0, 4300.0), LaneConfig(1, 3800.0), LaneConfig(2, 3600.0)]
+    lidars = [LidarConfig([0, 1], 4000.0), LidarConfig([2], 11700.0)]
+
+    fields = calculate_sopas_fields(lanes, lidars)
+
+    assert fields[0].field1 == (88, 110)
+    assert fields[0].field2 == (97, 110)
+    assert fields[0].field3 == (86, 101)
+    assert fields[0].field4 == (69, 87)
+    assert fields[0].field5 == (76, 89)
+    assert fields[0].field6 == (67, 80)
+    assert "右(Lane1)=0 → Field1~Field3" in fields[0].debug_lines[0]
+    assert "左(Lane2)=1 → Field4~Field6" in fields[0].debug_lines[1]
+    assert fields[1].field4 is None
+    assert fields[1].field5 is None
+    assert fields[1].field6 is None
+
+
+def test_sopas_field_ranges_do_not_depend_on_lidar_input_order():
+    lanes = [LaneConfig(0, 4300.0), LaneConfig(1, 3800.0), LaneConfig(2, 3600.0)]
+    lidars = [LidarConfig([2], 11700.0), LidarConfig([0, 1], 4000.0)]
+
+    fields = calculate_sopas_fields(lanes, lidars)
+
+    assert fields[0].assigned == [0, 1]
+    assert fields[0].field1 == (88, 110)
+    assert fields[0].field4 == (69, 87)
+    assert fields[1].assigned == [2]
+    assert fields[1].field1 == (90, 108)
+    assert fields[1].field4 is None
+
+
+def test_lidar_results_use_lane_order_for_offsets_and_sparse_numbers():
+    lanes = [LaneConfig(1, 3500.0), LaneConfig(3, 3300.0), LaneConfig(4, 3200.0)]
+    lidars = [LidarConfig([4], 10300.0), LidarConfig([1], 1200.0), LidarConfig([3], 7000.0)]
+
+    summary = calculate_lidar_results(lanes, lidars)
+
+    assert [result.index for result in summary.results] == [1, 2, 0]
+    assert [result.assigned for result in summary.results] == [[1], [3], [4]]
+    assert summary.results[1].offset_value == 3500.0
+    assert summary.results[1].inner_boundary == 3500.0
+    assert summary.results[2].inner_boundary == 6800.0
+
+
+def test_calculate_for_config_validates_backup_configuration_too():
+    config = DeviceConfig(
+        site_name="驗證範圍",
+        lanes=[LaneConfig(0, 3500.0), LaneConfig(1, 3300.0)],
+        lidars=[LidarConfig([0], 1200.0)],
+        has_backup=True,
+        backup_lidars=[LidarConfig([], 3600.0)],
+    )
+
+    with pytest.raises(ValueError, match="至少要負責 1 個車道"):
+        calculate_for_config(config)
+
+
+def test_calculate_for_config_runs_backup_geometry_when_enabled(monkeypatch):
+    config = DeviceConfig(
+        site_name="備援驗證",
+        lanes=[LaneConfig(0, 3500.0), LaneConfig(1, 3300.0)],
+        lidars=[LidarConfig([0], 1200.0)],
+        has_backup=True,
+        backup_lidars=[LidarConfig([1], 3600.0)],
+    )
+    original = lidar_calculator.calculate_lidar_results
+    calls: list[list[list[int]]] = []
+
+    def wrapped(lanes, lidars):
+        calls.append([sorted(lidar.assigned_lanes) for lidar in lidars])
+        return original(lanes, lidars)
+
+    monkeypatch.setattr(lidar_calculator, "calculate_lidar_results", wrapped)
+
+    calculate_for_config(config)
+
+    assert calls == [[[0]], [[1]]]
