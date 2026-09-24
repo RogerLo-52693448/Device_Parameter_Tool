@@ -93,8 +93,9 @@ python -m device_parameter_tool.web.app
 - 支援「啟用備援 Lidar」選項
 - Lidar 負責車道使用 2 個下拉欄位，選項為 `None`、`Lane0` ~ `Lane6`
 - 使用同一套 `lidar_calculator` 邏輯即時預覽結果
+- 顯示舊版 SOPAS Tool 的 `Field1` ~ `Field6` 範圍計算結果
 - 支援 `note` 備註欄位，使用 UTF-8 儲存與顯示中文
-- `Site History` 會保存每次儲存的設定與備註，可重新載入
+- `Site History` 會以**本機時間**保存每次儲存的設定與備註，可重新載入
 
 > 依照目前需求，**不提供 Camera 與 Host 的設定操作介面**；這兩部分會保留在資料模型中作為相容性欄位，但 CLI / Web UI 不會要求使用者編輯。
 
@@ -164,6 +165,17 @@ scan_left  = outer_boundary - center_distance + (0 if is_outermost else 500)
 
 - 若 `scan_right` 或 `scan_left` 超過 `5500mm`，會顯示警告並建議拆分車道、增加 Lidar
 - 若 `scan_right` 或 `scan_left` 為負值，視為設定錯誤
+
+## SOPAS Field 範圍
+
+新版工具已補回舊版的 `Field1` ~ `Field6` 計算：
+
+- `Field1` ~ `Field3`：內側車道範圍
+- `Field4` ~ `Field6`：外側車道範圍（僅雙車道 Lidar 會有）
+- 角度基準：`90°`
+- 換算規則：`1° = 200 mm`
+
+Web UI 會直接顯示每個主 / 備援 Lidar 的 field 範圍表格。
 
 ## 測試
 

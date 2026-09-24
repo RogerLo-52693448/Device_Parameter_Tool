@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime
 from pathlib import Path
 from shutil import copy2
 from typing import Any
@@ -60,7 +60,7 @@ class ConfigService:
     def append_history(self, config: DeviceConfig, note: str = "") -> HistoryRecord:
         history = self.load_history()
         record = HistoryRecord(
-            saved_at=datetime.now(timezone.utc).isoformat(),
+            saved_at=datetime.now().astimezone().strftime("%Y-%m-%d %H:%M:%S"),
             note=note,
             config=DeviceConfig.from_dict(config.to_dict()),
         )

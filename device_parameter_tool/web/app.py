@@ -8,7 +8,7 @@ from flask import Flask, redirect, render_template, request, url_for
 
 from device_parameter_tool.models.device_config import DeviceConfig, LaneConfig, LidarConfig
 from device_parameter_tool.services.config_service import ConfigService
-from device_parameter_tool.services.lidar_calculator import calculate_lidar_results
+from device_parameter_tool.services.lidar_calculator import calculate_lidar_results, calculate_sopas_fields
 
 
 def _coerce_int(value: str | None, default: int = 0) -> int:
@@ -135,9 +135,17 @@ def create_app(data_dir: str | Path | None = None) -> Flask:
         summaries = []
         try:
             if config.lanes and config.lidars:
-                summaries.append(("主 Lidar", calculate_lidar_results(config.lanes, config.lidars)))
+                summaries.append({
+                    "label": "主 Lidar",
+                    "summary": calculate_lidar_results(config.lanes, config.lidars),
+                    "fields": calculate_sopas_fields(config.lanes, config.lidars),
+                })
             if config.has_backup and config.lanes and config.backup_lidars:
-                summaries.append(("備援 Lidar", calculate_lidar_results(config.lanes, config.backup_lidars)))
+                summaries.append({
+                    "label": "備援 Lidar",
+                    "summary": calculate_lidar_results(config.lanes, config.backup_lidars),
+                    "fields": calculate_sopas_fields(config.lanes, config.backup_lidars),
+                })
         except ValueError as exc:
             error = str(exc)
         return render_template(

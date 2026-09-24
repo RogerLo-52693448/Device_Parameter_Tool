@@ -42,6 +42,8 @@ def test_web_save_and_history_round_trip(tmp_path):
     assert history_data[0]["config"]["lanes"][0]["lane_number"] == 0
     assert history_data[0]["config"]["has_backup"] is True
     assert history_data[0]["config"]["backup_lidars"][0]["assigned_lanes"] == [0, 1]
+    assert "T" not in history_data[0]["saved_at"]
+    assert "Z" not in history_data[0]["saved_at"]
 
     history_response = client.get("/history/0")
     history_text = history_response.get_data(as_text=True)
@@ -50,6 +52,8 @@ def test_web_save_and_history_round_trip(tmp_path):
     assert "中文備註測試" in history_text
     assert "已載入歷史紀錄" in history_text
     assert "備援 Lidar" in history_text
+    assert "Field 範圍" in history_text
+    assert "Field1" in history_text
 
 
 def test_web_page_uses_dynamic_lane_and_lidar_sections(tmp_path):

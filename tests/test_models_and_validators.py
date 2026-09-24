@@ -155,6 +155,9 @@ def test_save_config_creates_backup(tmp_path):
     backup_path = tmp_path / "config.json.bak"
     assert backup_path.exists()
     assert "第一次" in backup_path.read_text(encoding="utf-8")
+    history_record = service.append_history(second, note="本機時間測試")
+    assert "T" not in history_record.saved_at
+    assert "Z" not in history_record.saved_at
 
 
 def test_save_config_override_path_creates_backup(tmp_path):

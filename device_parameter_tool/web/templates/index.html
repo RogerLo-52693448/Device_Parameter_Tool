@@ -95,9 +95,9 @@
       </div>
 
       <div>
-        {% for label, summary in summaries %}
+        {% for section in summaries %}
         <div class="card" style="margin-bottom: 24px;">
-          <h2>{{ label }} 計算結果</h2>
+          <h2>{{ section.label }} 計算結果</h2>
           <table>
             <thead>
               <tr>
@@ -111,7 +111,7 @@
               </tr>
             </thead>
             <tbody>
-              {% for result in summary.results %}
+              {% for result in section.summary.results %}
               <tr>
                 <td>LIDAR_{{ result.index }}</td>
                 <td>{{ result.assigned|join(', ') }}</td>
@@ -124,13 +124,48 @@
               {% endfor %}
             </tbody>
           </table>
-          {% if summary.warnings %}
+          {% if section.summary.warnings %}
           <h3>警告訊息</h3>
-          <ul>{% for warning in summary.warnings %}<li>{{ warning }}</li>{% endfor %}</ul>
+          <ul>{% for warning in section.summary.warnings %}<li>{{ warning }}</li>{% endfor %}</ul>
           {% endif %}
-          {% if summary.errors %}
+          {% if section.summary.errors %}
           <h3>錯誤訊息</h3>
-          <ul>{% for error in summary.errors %}<li>{{ error }}</li>{% endfor %}</ul>
+          <ul>{% for error in section.summary.errors %}<li>{{ error }}</li>{% endfor %}</ul>
+          {% endif %}
+
+          {% if section.fields %}
+          <h3>Field 範圍</h3>
+          <table>
+            <thead>
+              <tr>
+                <th>Lidar</th>
+                <th>Assigned Lanes</th>
+                <th>Offset (mm)</th>
+                <th>Field1</th>
+                <th>Field2</th>
+                <th>Field3</th>
+                <th>Field4</th>
+                <th>Field5</th>
+                <th>Field6</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for field in section.fields %}
+              <tr>
+                <td>LIDAR_{{ field.index }}</td>
+                <td>{{ field.assigned|join(', ') }}</td>
+                <td>{{ '%.0f'|format(field.offset_value) }}</td>
+                <td>{{ field.field1[0] }}° ~ {{ field.field1[1] }}°</td>
+                <td>{{ field.field2[0] }}° ~ {{ field.field2[1] }}°</td>
+                <td>{{ field.field3[0] }}° ~ {{ field.field3[1] }}°</td>
+                <td>{% if field.field4 %}{{ field.field4[0] }}° ~ {{ field.field4[1] }}°{% else %}—{% endif %}</td>
+                <td>{% if field.field5 %}{{ field.field5[0] }}° ~ {{ field.field5[1] }}°{% else %}—{% endif %}</td>
+                <td>{% if field.field6 %}{{ field.field6[0] }}° ~ {{ field.field6[1] }}°{% else %}—{% endif %}</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+          <p class="hint">Field1~Field3 為內側車道；Field4~Field6 為外側車道；角度基準為 90°，1° = 200 mm。</p>
           {% endif %}
         </div>
         {% endfor %}

@@ -1,5 +1,5 @@
 from device_parameter_tool.models.device_config import LaneConfig, LidarConfig
-from device_parameter_tool.services.lidar_calculator import SCAN_LIMIT, calculate_lidar_results
+from device_parameter_tool.services.lidar_calculator import SCAN_LIMIT, calculate_lidar_results, calculate_sopas_fields
 
 
 def test_lidar_boundary_and_compensation_scenarios():
@@ -48,3 +48,20 @@ def test_lidar_warning_and_negative_error():
     error_summary = calculate_lidar_results(lanes, [LidarConfig([1], 1000.0)])
     assert error_summary.errors
     assert error_summary.results[0].status == "error"
+
+
+def test_sopas_field_ranges_for_single_and_dual_lane_lidar():
+    lanes = [LaneConfig(0, 4300.0), LaneConfig(1, 3800.0), LaneConfig(2, 3600.0)]
+    lidars = [LidarConfig([0, 1], 4000.0), LidarConfig([2], 11700.0)]
+
+    fields = calculate_sopas_fields(lanes, lidars)
+
+    assert fields[0].field1 == (88, 110)
+    assert fields[0].field2 == (97, 110)
+    assert fields[0].field3 == (86, 101)
+    assert fields[0].field4 == (69, 88)
+    assert fields[0].field5 == (77, 90)
+    assert fields[0].field6 == (67, 81)
+    assert fields[1].field4 is None
+    assert fields[1].field5 is None
+    assert fields[1].field6 is None
