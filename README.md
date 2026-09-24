@@ -158,9 +158,11 @@ scan_left  = outer_boundary - center_distance + (0 if is_outermost else 500)
 
 ### 偏差值（offset）
 
-偏差值為 `center_distance` 與以下值的差之絕對值：
-- 此 Lidar **之前所有 Lidar 負責車道總寬**
-- 若此 Lidar 負責 2 個車道，再加上 **本 Lidar 右側車道寬**
+偏差值為 `center_distance` 與實際車道邊界基準的差之絕對值：
+- 單車道：`abs(center_distance - inner_boundary)`
+- 雙車道：`abs(center_distance - inner_boundary - 右(Lane1)寬度)`
+
+其中 `inner_boundary` 為此 Lidar 負責區域右邊界（靠護欄側）相對於內路肩護欄的累積距離；因此即使 lane number 為 sparse 編號，仍會依實際車道排列順序正確計算。
 
 ### 錯誤與警告
 

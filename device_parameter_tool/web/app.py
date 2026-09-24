@@ -122,7 +122,7 @@ def _form_defaults(config: DeviceConfig) -> dict:
             "lane_number": lane.lane_number,
             "width_mm": lane.width_mm,
         }
-        for lane in sorted(config.lanes, key=lambda item: item.lane_number)
+        for lane in config.lanes
     ]
     lidar_rows = _lidar_form_rows(config.lidars)
     backup_lidar_rows = _lidar_form_rows(config.backup_lidars)

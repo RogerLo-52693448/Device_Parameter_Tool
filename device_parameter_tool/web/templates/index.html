@@ -347,6 +347,8 @@
     }
 
     document.getElementById('lane-count').addEventListener('input', () => {
+      captureLidarState('primary', 'lidars', 'primary-lidar-count');
+      captureLidarState('backup', 'backup_lidars', 'backup-lidar-count');
       captureLaneState();
       renderLanes();
       renderLidars('primary', 'primary-lidars-container', FORM_STATE.lidars, 'primary-lidar-count');
@@ -354,6 +356,8 @@
     });
 
     document.getElementById('lanes-container').addEventListener('input', () => {
+      captureLidarState('primary', 'lidars', 'primary-lidar-count');
+      captureLidarState('backup', 'backup_lidars', 'backup-lidar-count');
       captureLaneState();
       renderLidars('primary', 'primary-lidars-container', FORM_STATE.lidars, 'primary-lidar-count');
       renderLidars('backup', 'backup-lidars-container', FORM_STATE.backup_lidars, 'backup-lidar-count');
