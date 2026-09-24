@@ -206,7 +206,19 @@ def show_report(config: DeviceConfig) -> None:
         print(render_text_report(config, primary_summary))
         if config.has_backup and config.backup_lidars:
             backup_config = DeviceConfig.from_dict(config.to_dict())
-            backup_config.lidars = [LidarConfig.from_dict(lidar.to_dict()) for lidar in config.backup_lidars]
+            backup_config.lidars = [
+                LidarConfig(
+                    assigned_lanes=list(lidar.assigned_lanes),
+                    center_distance_mm=lidar.center_distance_mm,
+                    lidar_id=lidar.lidar_id,
+                    offset_distance_mm=lidar.offset_distance_mm,
+                    effective_left_mm=lidar.effective_left_mm,
+                    effective_right_mm=lidar.effective_right_mm,
+                    auto_calculate=lidar.auto_calculate,
+                    description=lidar.description,
+                )
+                for lidar in config.backup_lidars
+            ]
             backup_config.has_backup = False
             backup_config.backup_lidars = []
             backup_summary = calculate_for_config(backup_config)
