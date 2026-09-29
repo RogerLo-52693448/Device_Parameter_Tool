@@ -32,8 +32,10 @@ def test_web_save_and_history_round_trip(tmp_path):
     response = client.post("/save", data=FORM_DATA)
 
     assert response.status_code == 200
-    assert "中文備註測試" in response.get_data(as_text=True)
-    assert "設定已儲存" in response.get_data(as_text=True)
+    response_text = response.get_data(as_text=True)
+    assert "中文備註測試" in response_text
+    assert "設定已儲存" in response_text
+    assert 'data-initial-collapsed="true"' in response_text
 
     history_path = tmp_path / "site_history.json"
     history_data = json.loads(history_path.read_text(encoding="utf-8"))
@@ -58,7 +60,6 @@ def test_web_save_and_history_round_trip(tmp_path):
     assert "右</th>" in history_text or "右" in history_text
     assert "左</th>" in history_text or "左" in history_text
     assert "路線分類" in history_text
-    assert 'data-initial-collapsed="true"' in history_text
 
 
 def test_web_page_uses_dynamic_lane_and_lidar_sections(tmp_path):
@@ -79,8 +80,8 @@ def test_web_page_uses_dynamic_lane_and_lidar_sections(tmp_path):
     assert "Primary Lidar Configuration" in text
     assert "None" in text
     assert "收起輸入" in text
-    assert ">右<" in text
-    assert ">左<" in text
+    assert "<label>右" in text
+    assert "<label>左" in text
     assert "Site History" in text
     assert "國一高架 (01H)" in text
     assert 'id="lane-diagram-container"' in text
