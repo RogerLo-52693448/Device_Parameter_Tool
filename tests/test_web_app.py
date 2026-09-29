@@ -6,6 +6,7 @@ from device_parameter_tool.web.app import create_app
 FORM_DATA = {
     "site_name": "01F-台北交流道",
     "note": "中文備註測試",
+    "traffic_mode": "inner_from_right",
     "has_backup": "on",
     "lane_count": "2",
     "primary_lidar_count": "1",
@@ -76,12 +77,13 @@ def test_web_page_uses_dynamic_lane_and_lidar_sections(tmp_path):
     assert "renderLanes()" in text
     assert "renderLidars('primary'" in text
     assert 'id="has-backup"' in text
+    assert 'id="traffic-mode"' in text
     assert "lidar-block-title" in text
     assert "Primary Lidar Configuration" in text
     assert "None" in text
     assert "收起輸入" in text
-    assert "<label>右" in text
-    assert "<label>左" in text
+    assert "內線在右側（目前版）" in text
+    assert "內線在左側" in text
     assert "Site History" in text
     assert "國一高架 (01H)" in text
     assert 'id="lane-diagram-container"' in text
@@ -269,3 +271,28 @@ def test_web_rejects_site_name_without_valid_prefix(tmp_path):
 
     assert response.status_code == 200
     assert "點位名稱開頭必須為以下搜尋索引之一" in text
+
+
+def test_web_supports_inner_from_left_mode(tmp_path):
+    app = create_app(tmp_path)
+    client = app.test_client()
+
+    right_driving_data = dict(FORM_DATA)
+    right_driving_data["traffic_mode"] = "inner_from_left"
+    right_driving_data["primary_lidar_0_lane_a"] = "0"
+    right_driving_data["primary_lidar_0_lane_b"] = "1"
+
+    response = client.post("/save", data=right_driving_data)
+    text = response.get_data(as_text=True)
+
+    assert response.status_code == 200
+    assert "內線在左側" in text
+
+    history_path = tmp_path / "site_history.json"
+    history_data = json.loads(history_path.read_text(encoding="utf-8"))
+    lidar = history_data[0]["config"]["lidars"][0]
+    assert history_data[0]["config"]["traffic_mode"] == "inner_from_left"
+    assert lidar["inner_lane"] == 0
+    assert lidar["outer_lane"] == 1
+    assert lidar["right_lane"] == 1
+    assert lidar["left_lane"] == 0

@@ -34,7 +34,7 @@ def test_lidar_boundary_and_compensation_scenarios():
     assert summary.results[1].scan_right == 4000.0
     assert summary.results[1].scan_left == 3500.0
     assert summary.results[1].offset_value == 200.0
-    assert "右=1 / 左=2" in summary.results[1].debug_lines[0]
+    assert "內=1 / 外=2" in summary.results[1].debug_lines[0]
 
     assert summary.results[2].is_outermost is True
     assert summary.results[2].left_compensation == 0.0
@@ -63,14 +63,14 @@ def test_left_only_lane_semantics_are_preserved_in_calculation_outputs():
 
     assert summary.results[0].right_lane is None
     assert summary.results[0].left_lane == 1
-    assert "右=— / 左=1" in summary.results[0].debug_lines[0]
+    assert "內=— / 外=1" in summary.results[0].debug_lines[0]
     assert fields[0].field1 is None
     assert fields[0].field2 is None
     assert fields[0].field3 is None
     assert fields[0].field4 is not None
     assert fields[0].field5 is not None
     assert fields[0].field6 is not None
-    assert "左=1 → Field4~Field6" in fields[0].debug_lines[1]
+    assert "外=1 → Field4~Field6" in fields[0].debug_lines[1]
 
 
 def test_sopas_field_ranges_for_single_and_dual_lane_lidar():
@@ -85,8 +85,8 @@ def test_sopas_field_ranges_for_single_and_dual_lane_lidar():
     assert fields[0].field4 == (69, 87)
     assert fields[0].field5 == (76, 89)
     assert fields[0].field6 == (67, 80)
-    assert "右=0 → Field1~Field3" in fields[0].debug_lines[0]
-    assert "左=1 → Field4~Field6" in fields[0].debug_lines[1]
+    assert "內=0 → Field1~Field3" in fields[0].debug_lines[0]
+    assert "外=1 → Field4~Field6" in fields[0].debug_lines[1]
     assert fields[1].field4 is None
     assert fields[1].field5 is None
     assert fields[1].field6 is None
@@ -143,12 +143,26 @@ def test_calculate_for_config_runs_backup_geometry_when_enabled(monkeypatch):
     original = lidar_calculator.calculate_lidar_results
     calls: list[list[list[int]]] = []
 
-    def wrapped(lanes, lidars):
+    def wrapped(lanes, lidars, *args, **kwargs):
         calls.append([sorted(lidar.assigned_lanes) for lidar in lidars])
-        return original(lanes, lidars)
+        return original(lanes, lidars, *args, **kwargs)
 
     monkeypatch.setattr(lidar_calculator, "calculate_lidar_results", wrapped)
 
     calculate_for_config(config)
 
     assert calls == [[[0]], [[1]]]
+
+
+def test_inner_from_left_swaps_physical_scan_and_field_mapping():
+    lanes = [LaneConfig(0, 4300.0), LaneConfig(1, 3800.0)]
+    lidars = [LidarConfig(inner_lane=0, outer_lane=1, center_distance_mm=4000.0)]
+
+    summary = calculate_lidar_results(lanes, lidars, traffic_mode="inner_from_left")
+    fields = calculate_sopas_fields(lanes, lidars, traffic_mode="inner_from_left")
+
+    assert summary.results[0].right_lane == 1
+    assert summary.results[0].left_lane == 0
+    assert summary.results[0].scan_left == summary.results[0].scan_inner
+    assert summary.results[0].scan_right == summary.results[0].scan_outer
+    assert "左半邊語意: Field2 靠左 / Field3 靠右" in fields[0].debug_lines[2]

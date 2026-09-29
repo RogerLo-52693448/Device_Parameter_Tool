@@ -6,6 +6,8 @@ from dataclasses import asdict, dataclass, field
 from typing import Any
 
 from device_parameter_tool.utils.validators import (
+    inner_outer_from_physical_slots,
+    physical_slots_from_inner_outer,
     validate_ip,
     validate_lidar_assignment,
     validate_lidar_lane_slots,
@@ -15,6 +17,7 @@ from device_parameter_tool.utils.validators import (
     validate_positive_number,
     validate_protocol,
     validate_site_name,
+    validate_traffic_mode,
 )
 
 
@@ -80,6 +83,8 @@ class LaneConfig:
 class LidarConfig:
     assigned_lanes: list[int] = field(default_factory=list)
     center_distance_mm: float = 0.0
+    inner_lane: int | None = None
+    outer_lane: int | None = None
     right_lane: int | None = None
     left_lane: int | None = None
     lidar_id: str = ""
@@ -89,19 +94,37 @@ class LidarConfig:
     auto_calculate: bool = True
     description: str = ""
 
-    def sync_lane_slots(self) -> None:
+    def sync_lane_slots(self, traffic_mode: str = "inner_from_right") -> None:
         normalized = validate_lidar_assignment(self.assigned_lanes, set(self.assigned_lanes)) if self.assigned_lanes else []
-        if self.right_lane is None and self.left_lane is None:
-            self.right_lane = normalized[0] if normalized else None
-            self.left_lane = normalized[1] if len(normalized) > 1 else None
-        self.assigned_lanes = [lane for lane in (self.right_lane, self.left_lane) if lane is not None] or normalized
+        validate_traffic_mode(traffic_mode)
+        if self.inner_lane is None and self.outer_lane is None:
+            if self.right_lane is not None or self.left_lane is not None:
+                self.inner_lane, self.outer_lane = inner_outer_from_physical_slots(
+                    self.right_lane,
+                    self.left_lane,
+                    traffic_mode,
+                )
+            else:
+                self.inner_lane = normalized[0] if normalized else None
+                self.outer_lane = normalized[1] if len(normalized) > 1 else None
+        self.assigned_lanes = [lane for lane in (self.inner_lane, self.outer_lane) if lane is not None] or normalized
+        self.right_lane, self.left_lane = physical_slots_from_inner_outer(
+            self.inner_lane,
+            self.outer_lane,
+            traffic_mode,
+        )
 
-    def validate(self, available_lane_numbers: set[int] | list[int]) -> None:
-        self.sync_lane_slots()
-        self.right_lane, self.left_lane, self.assigned_lanes = validate_lidar_lane_slots(
-            self.right_lane,
-            self.left_lane,
+    def validate(self, available_lane_numbers: set[int] | list[int], traffic_mode: str = "inner_from_right") -> None:
+        self.sync_lane_slots(traffic_mode)
+        self.inner_lane, self.outer_lane, self.assigned_lanes = validate_lidar_lane_slots(
+            self.inner_lane,
+            self.outer_lane,
             available_lane_numbers,
+        )
+        self.right_lane, self.left_lane = physical_slots_from_inner_outer(
+            self.inner_lane,
+            self.outer_lane,
+            traffic_mode,
         )
         validate_non_negative_number(self.center_distance_mm, "Lidar 中心點距離")
         validate_non_negative_number(self.offset_distance_mm, "Lidar 偏差值")
@@ -151,6 +174,7 @@ class DeviceConfig:
     site_name: str = "未命名點位"
     note: str = ""
     has_backup: bool = False
+    traffic_mode: str = "inner_from_right"
     camera: CameraConfig = field(default_factory=CameraConfig)
     lanes: list[LaneConfig] = field(default_factory=list)
     lidars: list[LidarConfig] = field(default_factory=list)
@@ -159,6 +183,7 @@ class DeviceConfig:
 
     def validate(self) -> None:
         self.site_name = validate_site_name(self.site_name)
+        self.traffic_mode = validate_traffic_mode(self.traffic_mode)
         if not self.has_backup:
             self.backup_lidars = []
         self.camera.validate()
@@ -174,9 +199,9 @@ class DeviceConfig:
         if not self.lanes:
             raise ValueError("至少需要 1 個車道")
         for lidar in self.lidars:
-            lidar.validate(sorted(ordered_lane_numbers))
+            lidar.validate(sorted(ordered_lane_numbers), self.traffic_mode)
         for lidar in self.backup_lidars:
-            lidar.validate(sorted(ordered_lane_numbers))
+            lidar.validate(sorted(ordered_lane_numbers), self.traffic_mode)
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -212,6 +237,7 @@ class DeviceConfig:
             site_name=data.get("site_name", "未命名點位"),
             note=data.get("note", ""),
             has_backup=bool(data.get("has_backup", bool(backup_lidars_payload))),
+            traffic_mode=data.get("traffic_mode", "inner_from_right"),
             camera=CameraConfig(
                 camera_id=camera_payload.get("camera_id", "CAM-01"),
                 name=camera_payload.get("name", "Camera 1"),
@@ -243,6 +269,8 @@ class DeviceConfig:
             lidars=[
                 LidarConfig(
                     assigned_lanes=[_parse_lane_reference(item) for item in lidar.get("assigned_lanes", [])],
+                    inner_lane=_parse_lane_reference(lidar["inner_lane"]) if lidar.get("inner_lane") is not None else None,
+                    outer_lane=_parse_lane_reference(lidar["outer_lane"]) if lidar.get("outer_lane") is not None else None,
                     right_lane=_parse_lane_reference(lidar["right_lane"]) if lidar.get("right_lane") is not None else None,
                     left_lane=_parse_lane_reference(lidar["left_lane"]) if lidar.get("left_lane") is not None else None,
                     center_distance_mm=lidar.get("center_distance_mm", lidar.get("center_distance", 0.0)),
@@ -258,6 +286,8 @@ class DeviceConfig:
             backup_lidars=[
                 LidarConfig(
                     assigned_lanes=[_parse_lane_reference(item) for item in lidar.get("assigned_lanes", [])],
+                    inner_lane=_parse_lane_reference(lidar["inner_lane"]) if lidar.get("inner_lane") is not None else None,
+                    outer_lane=_parse_lane_reference(lidar["outer_lane"]) if lidar.get("outer_lane") is not None else None,
                     right_lane=_parse_lane_reference(lidar["right_lane"]) if lidar.get("right_lane") is not None else None,
                     left_lane=_parse_lane_reference(lidar["left_lane"]) if lidar.get("left_lane") is not None else None,
                     center_distance_mm=lidar.get("center_distance_mm", lidar.get("center_distance", 0.0)),
@@ -287,4 +317,8 @@ class DeviceConfig:
             ),
         )
         config.validate()
+        for lidar in config.lidars:
+            lidar.sync_lane_slots(config.traffic_mode)
+        for lidar in config.backup_lidars:
+            lidar.sync_lane_slots(config.traffic_mode)
         return config

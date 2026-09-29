@@ -66,8 +66,9 @@ def sample_config(note: str = "測試備註") -> DeviceConfig:
 
 def test_device_config_round_trip_serialization():
     config = sample_config()
-    config.lidars[0].right_lane = None
-    config.lidars[0].left_lane = 1
+    config.lidars[0].inner_lane = None
+    config.lidars[0].outer_lane = 1
+    config.lidars[0].sync_lane_slots(config.traffic_mode)
     config.lidars[0].assigned_lanes = [1]
 
     restored = DeviceConfig.from_dict(config.to_dict())
@@ -78,6 +79,8 @@ def test_device_config_round_trip_serialization():
     assert restored.host.mqtt_ip == "192.168.0.21"
     assert restored.has_backup is True
     assert restored.backup_lidars[0].center_distance_mm == 3650.0
+    assert restored.lidars[0].inner_lane is None
+    assert restored.lidars[0].outer_lane == 1
     assert restored.lidars[0].right_lane is None
     assert restored.lidars[0].left_lane == 1
 
@@ -221,3 +224,30 @@ def test_left_only_lidar_semantics_are_preserved():
     assert config.lidars[0].right_lane is None
     assert config.lidars[0].left_lane == 1
     assert config.lidars[0].assigned_lanes == [1]
+
+
+def test_inner_from_left_maps_inner_outer_to_physical_slots():
+    config = DeviceConfig.from_dict(
+        {
+            "site_name": "03F-right-driving",
+            "traffic_mode": "inner_from_left",
+            "lanes": [
+                {"lane_number": 0, "width_mm": 3500.0},
+                {"lane_number": 1, "width_mm": 3300.0},
+            ],
+            "lidars": [
+                {
+                    "inner_lane": 0,
+                    "outer_lane": 1,
+                    "center_distance_mm": 3600.0,
+                }
+            ],
+        }
+    )
+
+    config.validate()
+
+    assert config.lidars[0].inner_lane == 0
+    assert config.lidars[0].outer_lane == 1
+    assert config.lidars[0].right_lane == 1
+    assert config.lidars[0].left_lane == 0

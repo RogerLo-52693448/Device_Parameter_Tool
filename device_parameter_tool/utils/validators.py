@@ -6,6 +6,7 @@ from ipaddress import ip_address
 
 VALID_PROTOCOLS = {"rtsp", "http", "https", "udp", "tcp"}
 VALID_LOG_LEVELS = {"DEBUG", "INFO", "WARNING", "ERROR"}
+TRAFFIC_MODES = {"inner_from_right", "inner_from_left"}
 SITE_ROUTE_OPTIONS = [
     ("國一", "01F"),
     ("國三", "03F"),
@@ -64,6 +65,40 @@ def validate_log_level(value: str) -> str:
     return level
 
 
+def validate_traffic_mode(value: str) -> str:
+    mode = value.strip().lower()
+    if mode not in TRAFFIC_MODES:
+        raise ValueError(f"traffic mode 必須為 {', '.join(sorted(TRAFFIC_MODES))}")
+    return mode
+
+
+def lane_slot_labels(traffic_mode: str) -> tuple[str, str]:
+    mode = validate_traffic_mode(traffic_mode)
+    return ("右", "左") if mode == "inner_from_right" else ("左", "右")
+
+
+def physical_slots_from_inner_outer(
+    inner_lane: int | None,
+    outer_lane: int | None,
+    traffic_mode: str,
+) -> tuple[int | None, int | None]:
+    mode = validate_traffic_mode(traffic_mode)
+    if mode == "inner_from_right":
+        return inner_lane, outer_lane
+    return outer_lane, inner_lane
+
+
+def inner_outer_from_physical_slots(
+    right_lane: int | None,
+    left_lane: int | None,
+    traffic_mode: str,
+) -> tuple[int | None, int | None]:
+    mode = validate_traffic_mode(traffic_mode)
+    if mode == "inner_from_right":
+        return right_lane, left_lane
+    return left_lane, right_lane
+
+
 def validate_site_name(value: str) -> str:
     site_name = value.strip()
     if not site_name:
@@ -98,20 +133,20 @@ def validate_lidar_assignment(assigned_lanes: list[int], available_lane_numbers:
 
 
 def validate_lidar_lane_slots(
-    right_lane: int | None,
-    left_lane: int | None,
+    inner_lane: int | None,
+    outer_lane: int | None,
     available_lane_numbers: set[int] | list[int],
 ) -> tuple[int | None, int | None, list[int]]:
     ordered_lane_numbers = sorted(available_lane_numbers)
-    active_lanes = [lane for lane in (right_lane, left_lane) if lane is not None]
+    active_lanes = [lane for lane in (inner_lane, outer_lane) if lane is not None]
     if not active_lanes:
         raise ValueError("Lidar 至少要負責 1 個車道")
     if any(lane not in ordered_lane_numbers for lane in active_lanes):
         raise ValueError("Lidar 指派了不存在的車道")
-    if right_lane is not None and left_lane is not None:
-        if right_lane == left_lane:
-            raise ValueError("Lidar 左右車道不可重複")
+    if inner_lane is not None and outer_lane is not None:
+        if inner_lane == outer_lane:
+            raise ValueError("Lidar 內外車道不可重複")
         lane_positions = {lane: index for index, lane in enumerate(ordered_lane_numbers)}
-        if lane_positions[left_lane] - lane_positions[right_lane] != 1:
-            raise ValueError("Lidar 左右車道必須相鄰，且左車道需在右車道外側")
-    return right_lane, left_lane, active_lanes
+        if lane_positions[outer_lane] - lane_positions[inner_lane] != 1:
+            raise ValueError("Lidar 內外車道必須相鄰，且外車道需在內車道外側")
+    return inner_lane, outer_lane, active_lanes

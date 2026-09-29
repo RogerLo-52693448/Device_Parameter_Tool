@@ -9,7 +9,7 @@ from flask import Flask, redirect, render_template, request, url_for
 from device_parameter_tool.models.device_config import DeviceConfig, LaneConfig, LidarConfig
 from device_parameter_tool.services.config_service import ConfigService
 from device_parameter_tool.services.lidar_calculator import calculate_lidar_results, calculate_sopas_fields
-from device_parameter_tool.utils.validators import SITE_ROUTE_OPTIONS, site_route_label
+from device_parameter_tool.utils.validators import SITE_ROUTE_OPTIONS, lane_slot_labels, physical_slots_from_inner_outer, site_route_label
 
 
 def _coerce_int(value: str | None, default: int = 0) -> int:
@@ -38,6 +38,10 @@ def _parse_lane_pair(first_value: str | None, second_value: str | None) -> list[
     return lanes
 
 
+def _traffic_mode_labels(traffic_mode: str) -> tuple[str, str]:
+    return lane_slot_labels(traffic_mode)
+
+
 def _require_fields(form, field_names: list[str]) -> None:
     missing = [field_name for field_name in field_names if field_name not in form]
     if missing:
@@ -58,6 +62,7 @@ def _build_lane_rows(form, lane_count: int) -> list[LaneConfig]:
 
 
 def _build_lidar_rows(form, lidar_count: int, prefix: str = "primary") -> list[LidarConfig]:
+    traffic_mode = form.get("traffic_mode", "inner_from_right")
     lidars: list[LidarConfig] = []
     for index in range(lidar_count):
         _require_fields(
@@ -68,10 +73,15 @@ def _build_lidar_rows(form, lidar_count: int, prefix: str = "primary") -> list[L
                 f"{prefix}_lidar_{index}_center_distance_mm",
             ],
         )
+        inner_lane = None if form.get(f"{prefix}_lidar_{index}_lane_a") in {None, "", "none"} else int(form.get(f"{prefix}_lidar_{index}_lane_a"))
+        outer_lane = None if form.get(f"{prefix}_lidar_{index}_lane_b") in {None, "", "none"} else int(form.get(f"{prefix}_lidar_{index}_lane_b"))
+        right_lane, left_lane = physical_slots_from_inner_outer(inner_lane, outer_lane, traffic_mode)
         lidars.append(
             LidarConfig(
-                right_lane=None if form.get(f"{prefix}_lidar_{index}_lane_a") in {None, "", "none"} else int(form.get(f"{prefix}_lidar_{index}_lane_a")),
-                left_lane=None if form.get(f"{prefix}_lidar_{index}_lane_b") in {None, "", "none"} else int(form.get(f"{prefix}_lidar_{index}_lane_b")),
+                inner_lane=inner_lane,
+                outer_lane=outer_lane,
+                right_lane=right_lane,
+                left_lane=left_lane,
                 assigned_lanes=_parse_lane_pair(
                     form.get(f"{prefix}_lidar_{index}_lane_a"),
                     form.get(f"{prefix}_lidar_{index}_lane_b"),
@@ -92,6 +102,7 @@ def _config_from_form(form) -> DeviceConfig:
         site_name=form.get("site_name", "").strip(),
         note=form.get("note", ""),
         has_backup=has_backup,
+        traffic_mode=form.get("traffic_mode", "inner_from_right"),
         lanes=_build_lane_rows(form, lane_count),
         lidars=_build_lidar_rows(form, lidar_count, prefix="primary"),
         backup_lidars=_build_lidar_rows(form, backup_lidar_count, prefix="backup") if has_backup else [],
@@ -101,8 +112,8 @@ def _config_from_form(form) -> DeviceConfig:
 def _lidar_form_rows(lidars: list[LidarConfig]) -> list[dict]:
     return [
         {
-            "lane_a": lidar.right_lane if lidar.right_lane is not None else "none",
-            "lane_b": lidar.left_lane if lidar.left_lane is not None else "none",
+            "lane_a": lidar.inner_lane if lidar.inner_lane is not None else "none",
+            "lane_b": lidar.outer_lane if lidar.outer_lane is not None else "none",
             "center_distance_mm": lidar.center_distance_mm,
             "auto_calculate": lidar.auto_calculate,
         }
@@ -119,6 +130,7 @@ def _lane_options(config: DeviceConfig) -> list[dict]:
 
 
 def _form_defaults(config: DeviceConfig) -> dict:
+    inner_label, outer_label = _traffic_mode_labels(config.traffic_mode)
     lane_rows = [
         {
             "lane_number": lane.lane_number,
@@ -132,6 +144,9 @@ def _form_defaults(config: DeviceConfig) -> dict:
         "site_name": config.site_name,
         "note": config.note,
         "has_backup": config.has_backup,
+        "traffic_mode": config.traffic_mode,
+        "inner_label": inner_label,
+        "outer_label": outer_label,
         "lane_count": max(1, len(lane_rows)),
         "primary_lidar_count": len(lidar_rows),
         "backup_lidar_count": len(backup_lidar_rows),
@@ -147,6 +162,8 @@ def _posted_form_state(form) -> dict:
     primary_lidar_count = max(0, _coerce_int(form.get("primary_lidar_count"), 1))
     backup_lidar_count = max(0, _coerce_int(form.get("backup_lidar_count"), primary_lidar_count))
     has_backup = _coerce_bool(form.get("has_backup"))
+    traffic_mode = form.get("traffic_mode", "inner_from_right")
+    inner_label, outer_label = _traffic_mode_labels(traffic_mode)
     lanes = [
         {
             "lane_number": form.get(f"lane_{index}_number", index),
@@ -177,6 +194,9 @@ def _posted_form_state(form) -> dict:
         "site_name": form.get("site_name", "").strip(),
         "note": form.get("note", ""),
         "has_backup": has_backup,
+        "traffic_mode": traffic_mode,
+        "inner_label": inner_label,
+        "outer_label": outer_label,
         "lane_count": lane_count,
         "primary_lidar_count": primary_lidar_count,
         "backup_lidar_count": backup_lidar_count,
@@ -249,14 +269,14 @@ def create_app(data_dir: str | Path | None = None) -> Flask:
             if config and config.lanes and config.lidars:
                 summaries.append({
                     "label": "主 Lidar",
-                    "summary": calculate_lidar_results(config.lanes, config.lidars),
-                    "fields": calculate_sopas_fields(config.lanes, config.lidars),
+                    "summary": calculate_lidar_results(config.lanes, config.lidars, config.traffic_mode),
+                    "fields": calculate_sopas_fields(config.lanes, config.lidars, config.traffic_mode),
                 })
             if config and config.has_backup and config.lanes and config.backup_lidars:
                 summaries.append({
                     "label": "備援 Lidar",
-                    "summary": calculate_lidar_results(config.lanes, config.backup_lidars),
-                    "fields": calculate_sopas_fields(config.lanes, config.backup_lidars),
+                    "summary": calculate_lidar_results(config.lanes, config.backup_lidars, config.traffic_mode),
+                    "fields": calculate_sopas_fields(config.lanes, config.backup_lidars, config.traffic_mode),
                 })
         except ValueError as exc:
             error = str(exc)

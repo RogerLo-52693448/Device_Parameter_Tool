@@ -91,6 +91,9 @@ python -m device_parameter_tool.web.app
 - 表單輸入/編輯點位、Lane、Lidar
 - 車道數量 / 主 Lidar 數量切換時，前端會即時動態增減表單列
 - 支援「啟用備援 Lidar」選項
+- 支援交通模式切換：
+  - `inner_from_right`：內線在右側（目前版）
+  - `inner_from_left`：內線在左側
 - Lidar 負責車道使用 2 個下拉欄位：右 / 左，選項依目前 lane number 動態更新
 - 使用同一套 `lidar_calculator` 邏輯即時預覽結果
 - 顯示舊版 SOPAS Tool 的 `Field1` ~ `Field6` 範圍計算結果
@@ -122,6 +125,7 @@ python -m device_parameter_tool.web.app
   "site_name": "03F-040.7N",
   "note": "夜間測試點位",
   "has_backup": true,
+  "traffic_mode": "inner_from_right",
   "camera": {
     "latitude": 25.1,
     "longitude": 121.6,
@@ -192,8 +196,10 @@ scan_left  = outer_boundary - center_distance + (0 if is_outermost else 500)
 
 ## Lidar 左右車道語意
 
-新版資料模型會**分開保存**：
+新版資料模型會以 **inner / outer** 為核心保存，並保留左右相容欄位：
 
+- `inner_lane`
+- `outer_lane`
 - `right_lane`
 - `left_lane`
 
@@ -203,7 +209,7 @@ scan_left  = outer_boundary - center_distance + (0 if is_outermost else 500)
 - 右 + 左
 - **右空、左單獨存在**
 
-`assigned_lanes` 仍會保留作為相容欄位，但左右語意以 `right_lane` / `left_lane` 為準。
+`assigned_lanes` 仍會保留作為相容欄位；真正的車道順序語意以 `inner_lane` / `outer_lane` 為準，`right_lane` / `left_lane` 會依 `traffic_mode` 自動映射。
 
 ### 錯誤與警告
 
@@ -218,6 +224,11 @@ scan_left  = outer_boundary - center_distance + (0 if is_outermost else 500)
 - `左` 對應 `Field4` ~ `Field6`
 - 角度基準：`90°`
 - 換算規則：`1° = 200 mm`
+
+當 `traffic_mode=inner_from_left` 時：
+- `Field1~Field3` 仍代表 **內側車道**
+- `Field4~Field6` 仍代表 **外側車道**
+- 只是畫面上的左/右欄位與 SVG 方向會跟著切換
 
 Web UI / CLI 都會顯示每個主 / 備援 Lidar 的 field 範圍與偵錯資訊。
 
