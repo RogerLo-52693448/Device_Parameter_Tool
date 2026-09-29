@@ -56,9 +56,9 @@ def print_lanes(config: DeviceConfig) -> None:
 def print_lidars(config: DeviceConfig, label: str, lidars: list[LidarConfig]) -> None:
     print(f"\n【{label} 列表】")
     for index, lidar in enumerate(lidars):
-        lanes = ", ".join(f"Lane{lane}" for lane in lidar.assigned_lanes)
         print(
-            f"- LIDAR_{index} / lanes={lanes or 'None'} / "
+            f"- LIDAR_{index} / 右={f'Lane{lidar.right_lane}' if lidar.right_lane is not None else 'None'} / "
+            f"左={f'Lane{lidar.left_lane}' if lidar.left_lane is not None else 'None'} / "
             f"center={lidar.center_distance_mm:.0f} mm / auto={'Y' if lidar.auto_calculate else 'N'}"
         )
 
@@ -90,14 +90,15 @@ def prompt_lane_option(message: str, available_lane_numbers: list[int], default:
 
 
 def build_lidar(available_lane_numbers: list[int], existing: LidarConfig | None = None) -> LidarConfig:
-    existing = existing or LidarConfig(assigned_lanes=[0], center_distance_mm=0.0)
-    default_first = existing.assigned_lanes[0] if existing.assigned_lanes else None
-    default_second = existing.assigned_lanes[1] if len(existing.assigned_lanes) > 1 else None
+    existing = existing or LidarConfig(right_lane=0, center_distance_mm=0.0)
+    default_first = existing.right_lane
+    default_second = existing.left_lane
     lane_a = prompt_lane_option("右(Lane1)", available_lane_numbers, default_first)
     lane_b = prompt_lane_option("左(Lane2)", available_lane_numbers, default_second)
-    assigned = [lane for lane in [lane_a, lane_b] if lane is not None]
     return LidarConfig(
-        assigned_lanes=assigned,
+        right_lane=lane_a,
+        left_lane=lane_b,
+        assigned_lanes=[lane for lane in [lane_a, lane_b] if lane is not None],
         center_distance_mm=prompt_float("中心點距離(mm)", existing.center_distance_mm),
         auto_calculate=prompt_bool("自動計算有效偵測範圍", existing.auto_calculate),
     )
@@ -250,7 +251,7 @@ def main() -> None:
                     if not config.backup_lidars:
                         default_lane = config.lanes[0].lane_number if config.lanes else 0
                         config.backup_lidars = [
-                            LidarConfig(assigned_lanes=[default_lane], center_distance_mm=0.0)
+                            LidarConfig(right_lane=default_lane, assigned_lanes=[default_lane], center_distance_mm=0.0)
                             for _ in range(max(1, len(config.lidars)))
                         ]
                     lidar_menu(config, "備援 Lidar", "backup_lidars")

@@ -122,10 +122,10 @@ python -m device_parameter_tool.web.app
     {"lane_number": 1, "width_mm": 3300.0}
   ],
   "lidars": [
-    {"assigned_lanes": [0, 1], "center_distance_mm": 3600.0}
+    {"right_lane": 0, "left_lane": 1, "assigned_lanes": [0, 1], "center_distance_mm": 3600.0}
   ],
   "backup_lidars": [
-    {"assigned_lanes": [0, 1], "center_distance_mm": 3650.0}
+    {"right_lane": 0, "left_lane": 1, "assigned_lanes": [0, 1], "center_distance_mm": 3650.0}
   ],
   "host": {
     "ip": "192.168.0.20",
@@ -164,6 +164,21 @@ scan_left  = outer_boundary - center_distance + (0 if is_outermost else 500)
 
 其中 `inner_boundary` 為此 Lidar 負責區域右邊界（靠護欄側）相對於內路肩護欄的累積距離；因此即使 lane number 為 sparse 編號，仍會依實際車道排列順序正確計算。
 
+## Lidar 左右車道語意
+
+新版資料模型會**分開保存**：
+
+- `right_lane`
+- `left_lane`
+
+因此可正確保留：
+
+- 只有右(Lane1)
+- 右(Lane1) + 左(Lane2)
+- **右空、左(Lane2)單獨存在**
+
+`assigned_lanes` 仍會保留作為相容欄位，但左右語意以 `right_lane` / `left_lane` 為準。
+
 ### 錯誤與警告
 
 - 若 `scan_right` 或 `scan_left` 超過 `5500mm`，會顯示警告並建議拆分車道、增加 Lidar
@@ -174,7 +189,7 @@ scan_left  = outer_boundary - center_distance + (0 if is_outermost else 500)
 新版工具已補回舊版的 `Field1` ~ `Field6` 計算：
 
 - `右(Lane1)` 對應 `Field1` ~ `Field3`
-- `左(Lane2)` 對應 `Field4` ~ `Field6`（僅雙車道 Lidar 會有）
+- `左(Lane2)` 對應 `Field4` ~ `Field6`
 - 角度基準：`90°`
 - 換算規則：`1° = 200 mm`
 

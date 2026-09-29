@@ -67,3 +67,23 @@ def validate_lidar_assignment(assigned_lanes: list[int], available_lane_numbers:
         if lane_positions[normalized[1]] - lane_positions[normalized[0]] != 1:
             raise ValueError("Lidar 若負責 2 個車道，車道必須相鄰")
     return normalized
+
+
+def validate_lidar_lane_slots(
+    right_lane: int | None,
+    left_lane: int | None,
+    available_lane_numbers: set[int] | list[int],
+) -> tuple[int | None, int | None, list[int]]:
+    ordered_lane_numbers = sorted(available_lane_numbers)
+    active_lanes = [lane for lane in (right_lane, left_lane) if lane is not None]
+    if not active_lanes:
+        raise ValueError("Lidar 至少要負責 1 個車道")
+    if any(lane not in ordered_lane_numbers for lane in active_lanes):
+        raise ValueError("Lidar 指派了不存在的車道")
+    if right_lane is not None and left_lane is not None:
+        if right_lane == left_lane:
+            raise ValueError("Lidar 左右車道不可重複")
+        lane_positions = {lane: index for index, lane in enumerate(ordered_lane_numbers)}
+        if lane_positions[left_lane] - lane_positions[right_lane] != 1:
+            raise ValueError("Lidar 左右車道必須相鄰，且左車道需在右車道外側")
+    return right_lane, left_lane, active_lanes

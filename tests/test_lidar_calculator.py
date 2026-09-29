@@ -54,6 +54,25 @@ def test_lidar_warning_and_negative_error():
     assert error_summary.results[0].status == "error"
 
 
+def test_left_only_lane_semantics_are_preserved_in_calculation_outputs():
+    lanes = [LaneConfig(0, 3500.0), LaneConfig(1, 3500.0)]
+    lidars = [LidarConfig(assigned_lanes=[1], right_lane=None, left_lane=1, center_distance_mm=4200.0)]
+
+    summary = calculate_lidar_results(lanes, lidars)
+    fields = calculate_sopas_fields(lanes, lidars)
+
+    assert summary.results[0].right_lane is None
+    assert summary.results[0].left_lane == 1
+    assert "右(Lane1)=— / 左(Lane2)=1" in summary.results[0].debug_lines[0]
+    assert fields[0].field1 is None
+    assert fields[0].field2 is None
+    assert fields[0].field3 is None
+    assert fields[0].field4 is not None
+    assert fields[0].field5 is not None
+    assert fields[0].field6 is not None
+    assert "左(Lane2)=1 → Field4~Field6" in fields[0].debug_lines[1]
+
+
 def test_sopas_field_ranges_for_single_and_dual_lane_lidar():
     lanes = [LaneConfig(0, 4300.0), LaneConfig(1, 3800.0), LaneConfig(2, 3600.0)]
     lidars = [LidarConfig([0, 1], 4000.0), LidarConfig([2], 11700.0)]

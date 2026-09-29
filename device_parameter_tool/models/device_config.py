@@ -8,6 +8,7 @@ from typing import Any
 from device_parameter_tool.utils.validators import (
     validate_ip,
     validate_lidar_assignment,
+    validate_lidar_lane_slots,
     validate_log_level,
     validate_non_negative_number,
     validate_port,
@@ -78,6 +79,8 @@ class LaneConfig:
 class LidarConfig:
     assigned_lanes: list[int] = field(default_factory=list)
     center_distance_mm: float = 0.0
+    right_lane: int | None = None
+    left_lane: int | None = None
     lidar_id: str = ""
     offset_distance_mm: float = 0.0
     effective_left_mm: float = 0.0
@@ -85,8 +88,20 @@ class LidarConfig:
     auto_calculate: bool = True
     description: str = ""
 
-    def validate(self, available_lane_numbers: set[int]) -> None:
-        self.assigned_lanes = validate_lidar_assignment(self.assigned_lanes, available_lane_numbers)
+    def sync_lane_slots(self) -> None:
+        normalized = validate_lidar_assignment(self.assigned_lanes, set(self.assigned_lanes)) if self.assigned_lanes else []
+        if self.right_lane is None and self.left_lane is None:
+            self.right_lane = normalized[0] if normalized else None
+            self.left_lane = normalized[1] if len(normalized) > 1 else None
+        self.assigned_lanes = [lane for lane in (self.right_lane, self.left_lane) if lane is not None] or normalized
+
+    def validate(self, available_lane_numbers: set[int] | list[int]) -> None:
+        self.sync_lane_slots()
+        self.right_lane, self.left_lane, self.assigned_lanes = validate_lidar_lane_slots(
+            self.right_lane,
+            self.left_lane,
+            available_lane_numbers,
+        )
         validate_non_negative_number(self.center_distance_mm, "Lidar 中心點距離")
         validate_non_negative_number(self.offset_distance_mm, "Lidar 偏差值")
         validate_non_negative_number(self.effective_left_mm, "Lidar 有效左側範圍")
@@ -147,17 +162,19 @@ class DeviceConfig:
         self.camera.validate()
         self.host.validate()
         seen_lane_numbers: set[int] = set()
+        ordered_lane_numbers: list[int] = []
         for lane in self.lanes:
             lane.validate()
             if lane.lane_number in seen_lane_numbers:
                 raise ValueError(f"車道編號重複: Lane{lane.lane_number}")
             seen_lane_numbers.add(lane.lane_number)
+            ordered_lane_numbers.append(lane.lane_number)
         if not self.lanes:
             raise ValueError("至少需要 1 個車道")
         for lidar in self.lidars:
-            lidar.validate(seen_lane_numbers)
+            lidar.validate(sorted(ordered_lane_numbers))
         for lidar in self.backup_lidars:
-            lidar.validate(seen_lane_numbers)
+            lidar.validate(sorted(ordered_lane_numbers))
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -224,6 +241,8 @@ class DeviceConfig:
             lidars=[
                 LidarConfig(
                     assigned_lanes=[_parse_lane_reference(item) for item in lidar.get("assigned_lanes", [])],
+                    right_lane=_parse_lane_reference(lidar["right_lane"]) if lidar.get("right_lane") is not None else None,
+                    left_lane=_parse_lane_reference(lidar["left_lane"]) if lidar.get("left_lane") is not None else None,
                     center_distance_mm=lidar.get("center_distance_mm", lidar.get("center_distance", 0.0)),
                     lidar_id=lidar.get("lidar_id", ""),
                     offset_distance_mm=lidar.get("offset_distance_mm", lidar.get("offset_distance", 0.0)),
@@ -237,6 +256,8 @@ class DeviceConfig:
             backup_lidars=[
                 LidarConfig(
                     assigned_lanes=[_parse_lane_reference(item) for item in lidar.get("assigned_lanes", [])],
+                    right_lane=_parse_lane_reference(lidar["right_lane"]) if lidar.get("right_lane") is not None else None,
+                    left_lane=_parse_lane_reference(lidar["left_lane"]) if lidar.get("left_lane") is not None else None,
                     center_distance_mm=lidar.get("center_distance_mm", lidar.get("center_distance", 0.0)),
                     lidar_id=lidar.get("lidar_id", ""),
                     offset_distance_mm=lidar.get("offset_distance_mm", lidar.get("offset_distance", 0.0)),

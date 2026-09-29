@@ -29,12 +29,11 @@ def _coerce_bool(value: str | None) -> bool:
 
 def _parse_lane_pair(first_value: str | None, second_value: str | None) -> list[int]:
     lanes: list[int] = []
-    for value in (first_value, second_value):
-        if value is None or str(value).strip() == "" or str(value).strip().lower() == "none":
-            continue
-        lane_number = int(value)
-        if lane_number not in lanes:
-            lanes.append(lane_number)
+    right_lane = None if first_value is None or str(first_value).strip() == "" or str(first_value).strip().lower() == "none" else int(first_value)
+    left_lane = None if second_value is None or str(second_value).strip() == "" or str(second_value).strip().lower() == "none" else int(second_value)
+    for value in (right_lane, left_lane):
+        if value is not None and value not in lanes:
+            lanes.append(value)
     return lanes
 
 
@@ -70,6 +69,8 @@ def _build_lidar_rows(form, lidar_count: int, prefix: str = "primary") -> list[L
         )
         lidars.append(
             LidarConfig(
+                right_lane=None if form.get(f"{prefix}_lidar_{index}_lane_a") in {None, "", "none"} else int(form.get(f"{prefix}_lidar_{index}_lane_a")),
+                left_lane=None if form.get(f"{prefix}_lidar_{index}_lane_b") in {None, "", "none"} else int(form.get(f"{prefix}_lidar_{index}_lane_b")),
                 assigned_lanes=_parse_lane_pair(
                     form.get(f"{prefix}_lidar_{index}_lane_a"),
                     form.get(f"{prefix}_lidar_{index}_lane_b"),
@@ -99,8 +100,8 @@ def _config_from_form(form) -> DeviceConfig:
 def _lidar_form_rows(lidars: list[LidarConfig]) -> list[dict]:
     return [
         {
-            "lane_a": lidar.assigned_lanes[0] if lidar.assigned_lanes else "none",
-            "lane_b": lidar.assigned_lanes[1] if len(lidar.assigned_lanes) > 1 else "none",
+            "lane_a": lidar.right_lane if lidar.right_lane is not None else "none",
+            "lane_b": lidar.left_lane if lidar.left_lane is not None else "none",
             "center_distance_mm": lidar.center_distance_mm,
             "auto_calculate": lidar.auto_calculate,
         }

@@ -200,3 +200,24 @@ def test_web_save_invalid_backup_input_shows_error(tmp_path):
 
     assert response.status_code == 200
     assert "至少要負責 1 個車道" in text
+
+
+def test_web_save_preserves_left_only_lane_semantics(tmp_path):
+    app = create_app(tmp_path)
+    client = app.test_client()
+
+    left_only_data = dict(FORM_DATA)
+    left_only_data["primary_lidar_0_lane_a"] = "none"
+    left_only_data["primary_lidar_0_lane_b"] = "1"
+    left_only_data["backup_lidar_count"] = "0"
+    left_only_data.pop("has_backup", None)
+
+    response = client.post("/save", data=left_only_data)
+
+    assert response.status_code == 200
+    history_path = tmp_path / "site_history.json"
+    history_data = json.loads(history_path.read_text(encoding="utf-8"))
+    lidar = history_data[0]["config"]["lidars"][0]
+    assert lidar["right_lane"] is None
+    assert lidar["left_lane"] == 1
+    assert lidar["assigned_lanes"] == [1]
