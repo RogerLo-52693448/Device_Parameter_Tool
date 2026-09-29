@@ -121,7 +121,7 @@ def test_lidar_results_use_lane_order_for_offsets_and_sparse_numbers():
 
 def test_calculate_for_config_validates_backup_configuration_too():
     config = DeviceConfig(
-        site_name="驗證範圍",
+        site_name="01F-驗證範圍",
         lanes=[LaneConfig(0, 3500.0), LaneConfig(1, 3300.0)],
         lidars=[LidarConfig([0], 1200.0)],
         has_backup=True,
@@ -134,7 +134,7 @@ def test_calculate_for_config_validates_backup_configuration_too():
 
 def test_calculate_for_config_runs_backup_geometry_when_enabled(monkeypatch):
     config = DeviceConfig(
-        site_name="備援驗證",
+        site_name="03F-備援驗證",
         lanes=[LaneConfig(0, 3500.0), LaneConfig(1, 3300.0)],
         lidars=[LidarConfig([0], 1200.0)],
         has_backup=True,

@@ -4,7 +4,7 @@ import pytest
 
 from device_parameter_tool.models.device_config import DeviceConfig
 from device_parameter_tool.services.config_service import ConfigService
-from device_parameter_tool.utils.validators import validate_lidar_assignment, validate_port
+from device_parameter_tool.utils.validators import validate_lidar_assignment, validate_port, validate_site_name
 
 
 def sample_config(note: str = "測試備註") -> DeviceConfig:
@@ -85,7 +85,7 @@ def test_device_config_round_trip_serialization():
 def test_legacy_model_shape_is_supported():
     config = DeviceConfig.from_dict(
         {
-            "site_name": "legacy-site",
+            "site_name": "03F-legacy-site",
             "cameras": [
                 {
                     "camera_id": "OLD-CAM",
@@ -192,10 +192,17 @@ def test_validate_port_and_lidar_assignment_errors():
     assert validate_lidar_assignment([2, 3], [2, 3, 6]) == [2, 3]
 
 
+def test_validate_site_name_requires_registered_prefix():
+    assert validate_site_name("01F-040.7N") == "01F-040.7N"
+
+    with pytest.raises(ValueError, match="點位名稱開頭必須為以下搜尋索引之一"):
+        validate_site_name("國一-040.7N")
+
+
 def test_left_only_lidar_semantics_are_preserved():
     config = DeviceConfig.from_dict(
         {
-            "site_name": "left-only",
+            "site_name": "01H-left-only",
             "lanes": [
                 {"lane_number": 0, "width_mm": 3500.0},
                 {"lane_number": 1, "width_mm": 3300.0},

@@ -14,6 +14,7 @@ from device_parameter_tool.utils.validators import (
     validate_port,
     validate_positive_number,
     validate_protocol,
+    validate_site_name,
 )
 
 
@@ -157,6 +158,7 @@ class DeviceConfig:
     host: HostConfig = field(default_factory=HostConfig)
 
     def validate(self) -> None:
+        self.site_name = validate_site_name(self.site_name)
         if not self.has_backup:
             self.backup_lidars = []
         self.camera.validate()

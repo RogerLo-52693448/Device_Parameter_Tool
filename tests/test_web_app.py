@@ -4,7 +4,7 @@ from device_parameter_tool.web.app import create_app
 
 
 FORM_DATA = {
-    "site_name": "國一-台北交流道",
+    "site_name": "01F-台北交流道",
     "note": "中文備註測試",
     "has_backup": "on",
     "lane_count": "2",
@@ -38,17 +38,17 @@ def test_web_save_and_history_round_trip(tmp_path):
     history_path = tmp_path / "site_history.json"
     history_data = json.loads(history_path.read_text(encoding="utf-8"))
     assert history_data[0]["note"] == "中文備註測試"
-    assert history_data[0]["config"]["site_name"] == "國一-台北交流道"
+    assert history_data[0]["config"]["site_name"] == "01F-台北交流道"
     assert history_data[0]["config"]["lanes"][0]["lane_number"] == 0
     assert history_data[0]["config"]["has_backup"] is True
     assert history_data[0]["config"]["backup_lidars"][0]["assigned_lanes"] == [0, 1]
     assert "T" not in history_data[0]["saved_at"]
     assert "Z" not in history_data[0]["saved_at"]
 
-    history_response = client.get("/history/0?history_category=%E5%9C%8B%E4%B8%80&history_site=%E5%9C%8B%E4%B8%80-%E5%8F%B0%E5%8C%97%E4%BA%A4%E6%B5%81%E9%81%93")
+    history_response = client.get("/history/0?history_category=%E5%9C%8B%E4%B8%80&history_site=01F-%E5%8F%B0%E5%8C%97%E4%BA%A4%E6%B5%81%E9%81%93")
     history_text = history_response.get_data(as_text=True)
     assert history_response.status_code == 200
-    assert "國一-台北交流道" in history_text
+    assert "01F-台北交流道" in history_text
     assert "中文備註測試" in history_text
     assert "已載入歷史紀錄" in history_text
     assert "備援 Lidar" in history_text
@@ -80,7 +80,7 @@ def test_web_page_uses_dynamic_lane_and_lidar_sections(tmp_path):
     assert "右(Lane1)" in text
     assert "左(Lane2)" in text
     assert "Site History" in text
-    assert "國一高架" in text
+    assert "國一高架 (01H)" in text
     assert "Camera" not in text
     assert "Host" not in text
     assert "Lane ID" not in text
@@ -100,7 +100,7 @@ def test_web_save_invalid_input_shows_error(tmp_path):
 
     assert response.status_code == 200
     assert "至少要負責 1 個車道" in text
-    assert "國一-台北交流道" in text
+    assert "01F-台北交流道" in text
     assert "中文備註測試" in text
 
 
@@ -117,7 +117,7 @@ def test_web_preview_invalid_input_shows_error(tmp_path):
 
     assert response.status_code == 200
     assert "至少要負責 1 個車道" in text
-    assert "國一-台北交流道" in text
+    assert "01F-台北交流道" in text
 
 
 def test_web_rejects_missing_rows_when_count_is_tampered(tmp_path):
@@ -139,7 +139,7 @@ def test_web_save_supports_dynamic_lane_numbers_and_multiple_lidars(tmp_path):
     client = app.test_client()
 
     dynamic_data = {
-        "site_name": "國三-動態車道點位",
+        "site_name": "03F-動態車道點位",
         "note": "多組態測試",
         "has_backup": "on",
         "lane_count": "3",
@@ -235,7 +235,7 @@ def test_web_history_browser_shows_recent_three_records_for_selected_site(tmp_pa
         data["note"] = note
         client.post("/save", data=data)
 
-    response = client.get("/?history_category=%E5%9C%8B%E4%B8%80&history_site=%E5%9C%8B%E4%B8%80-%E5%8F%B0%E5%8C%97%E4%BA%A4%E6%B5%81%E9%81%93")
+    response = client.get("/?history_category=%E5%9C%8B%E4%B8%80&history_site=01F-%E5%8F%B0%E5%8C%97%E4%BA%A4%E6%B5%81%E9%81%93")
     text = response.get_data(as_text=True)
 
     assert response.status_code == 200
@@ -244,3 +244,17 @@ def test_web_history_browser_shows_recent_three_records_for_selected_site(tmp_pa
     assert "第二筆" in text
     assert "第一筆" not in text
     assert text.count("載入設定") == 3
+
+
+def test_web_rejects_site_name_without_valid_prefix(tmp_path):
+    app = create_app(tmp_path)
+    client = app.test_client()
+
+    bad_data = dict(FORM_DATA)
+    bad_data["site_name"] = "國一-錯誤格式"
+
+    response = client.post("/save", data=bad_data)
+    text = response.get_data(as_text=True)
+
+    assert response.status_code == 200
+    assert "點位名稱開頭必須為以下搜尋索引之一" in text

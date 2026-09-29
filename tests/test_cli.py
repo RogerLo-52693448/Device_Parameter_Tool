@@ -4,7 +4,7 @@ from device_parameter_tool.models.device_config import DeviceConfig, LaneConfig,
 
 def test_show_report_renders_primary_and_backup_sections(capsys):
     config = DeviceConfig(
-        site_name="CLI 測試",
+        site_name="01F-CLI 測試",
         lanes=[LaneConfig(0, 3500.0), LaneConfig(1, 3300.0)],
         lidars=[LidarConfig([0], 1200.0)],
         has_backup=True,

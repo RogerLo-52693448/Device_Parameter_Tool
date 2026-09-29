@@ -6,6 +6,17 @@ from ipaddress import ip_address
 
 VALID_PROTOCOLS = {"rtsp", "http", "https", "udp", "tcp"}
 VALID_LOG_LEVELS = {"DEBUG", "INFO", "WARNING", "ERROR"}
+SITE_ROUTE_OPTIONS = [
+    ("國一", "01F"),
+    ("國三", "03F"),
+    ("國三甲", "03A"),
+    ("國一高架", "01H"),
+    ("國二", "02F"),
+    ("國四", "04F"),
+    ("國六", "06F"),
+    ("國十", "10F"),
+]
+SITE_ROUTE_INDEX_MAP = dict(SITE_ROUTE_OPTIONS)
 
 
 def validate_ip(value: str, field_name: str = "IP") -> str:
@@ -51,6 +62,23 @@ def validate_log_level(value: str) -> str:
     if level not in VALID_LOG_LEVELS:
         raise ValueError(f"log level 必須為 {', '.join(sorted(VALID_LOG_LEVELS))}")
     return level
+
+
+def validate_site_name(value: str) -> str:
+    site_name = value.strip()
+    if not site_name:
+        raise ValueError("點位名稱不可為空")
+    allowed_prefixes = ", ".join(prefix for _, prefix in SITE_ROUTE_OPTIONS)
+    if not any(site_name.startswith(prefix) for _, prefix in SITE_ROUTE_OPTIONS):
+        raise ValueError(f"點位名稱開頭必須為以下搜尋索引之一: {allowed_prefixes}")
+    return site_name
+
+
+def site_route_label(site_name: str) -> str | None:
+    for label, prefix in SITE_ROUTE_OPTIONS:
+        if site_name.startswith(prefix):
+            return label
+    return None
 
 
 def validate_lidar_assignment(assigned_lanes: list[int], available_lane_numbers: set[int] | list[int]) -> list[int]:

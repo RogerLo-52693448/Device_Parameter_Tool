@@ -48,7 +48,7 @@
 <body>
   <div class="page">
     <h1>Device Parameter Tool</h1>
-    <p class="hint">支援主 Lidar 與備援 Lidar；負責車道使用右(Lane1) / 左(Lane2) 兩個欄位，並依目前 lane number 動態提供選項。</p>
+    <p class="hint">支援主 Lidar 與備援 Lidar；點位名稱開頭需使用搜尋索引（例如 01F、03F、03A、01H）；負責車道使用右(Lane1) / 左(Lane2) 兩個欄位，並依目前 lane number 動態提供選項。</p>
     {% if message %}<p class="message" role="status" aria-live="polite">{{ message }}</p>{% endif %}
     {% if error %}<p class="error" role="alert" aria-live="assertive">{{ error }}</p>{% endif %}
     <div class="card history-top">
@@ -57,7 +57,7 @@
         <label>路線分類
           <select name="history_category" onchange="this.form.submit()">
             {% for category in history_browser.categories %}
-            <option value="{{ category }}" {% if category == history_browser.selected_category %}selected{% endif %}>{{ category }}</option>
+            <option value="{{ category }}" {% if category == history_browser.selected_category %}selected{% endif %}>{{ category }} ({{ history_browser.route_prefixes[category] }})</option>
             {% endfor %}
           </select>
         </label>
@@ -113,7 +113,7 @@
         <h2>設定表單</h2>
         <form method="post" id="config-form">
           <div class="grid-2">
-            <label>點位名稱<input name="site_name" value="{{ form.site_name }}"></label>
+            <label>點位名稱<input name="site_name" value="{{ form.site_name }}" placeholder="例如 01F-040.7N"></label>
             <label>備註（note）<input name="note" value="{{ form.note }}"></label>
           </div>
 

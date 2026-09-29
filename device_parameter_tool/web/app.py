@@ -9,8 +9,7 @@ from flask import Flask, redirect, render_template, request, url_for
 from device_parameter_tool.models.device_config import DeviceConfig, LaneConfig, LidarConfig
 from device_parameter_tool.services.config_service import ConfigService
 from device_parameter_tool.services.lidar_calculator import calculate_lidar_results, calculate_sopas_fields
-
-HISTORY_CATEGORIES = ["國一", "國三", "國三甲", "國一高架"]
+from device_parameter_tool.utils.validators import SITE_ROUTE_OPTIONS, site_route_label
 
 
 def _coerce_int(value: str | None, default: int = 0) -> int:
@@ -90,7 +89,7 @@ def _config_from_form(form) -> DeviceConfig:
     backup_lidar_count = max(0, _coerce_int(form.get("backup_lidar_count"), lidar_count))
     has_backup = _coerce_bool(form.get("has_backup"))
     return DeviceConfig(
-        site_name=form.get("site_name", "未命名點位").strip() or "未命名點位",
+        site_name=form.get("site_name", "").strip(),
         note=form.get("note", ""),
         has_backup=has_backup,
         lanes=_build_lane_rows(form, lane_count),
@@ -175,7 +174,7 @@ def _posted_form_state(form) -> dict:
     ]
     lane_numbers = {str(lane["lane_number"]).strip() for lane in lanes if str(lane["lane_number"]).strip() != ""}
     return {
-        "site_name": form.get("site_name", "未命名點位").strip() or "未命名點位",
+        "site_name": form.get("site_name", "").strip(),
         "note": form.get("note", ""),
         "has_backup": has_backup,
         "lane_count": lane_count,
@@ -194,21 +193,12 @@ def _posted_form_state(form) -> dict:
     }
 
 
-def _history_category(site_name: str) -> str | None:
-    if site_name.startswith("國一高架"):
-        return "國一高架"
-    for category in ("國三甲", "國三", "國一"):
-        if site_name.startswith(category):
-            return category
-    return None
-
-
 def _build_history_browser(history_records):
     indexed_records = [
         {
             "index": index,
             "record": record,
-            "category": _history_category(record.config.site_name),
+            "category": site_route_label(record.config.site_name),
             "site_name": record.config.site_name,
         }
         for index, record in enumerate(history_records)
@@ -217,11 +207,12 @@ def _build_history_browser(history_records):
         category: sorted(
             {item["site_name"] for item in indexed_records if item["category"] == category}
         )
-        for category in HISTORY_CATEGORIES
+        for category, _ in SITE_ROUTE_OPTIONS
     }
     selected_category = request.args.get("history_category", "")
-    if selected_category not in HISTORY_CATEGORIES:
-        selected_category = HISTORY_CATEGORIES[0] if any(sites_by_category.values()) else ""
+    categories = [category for category, _ in SITE_ROUTE_OPTIONS]
+    if selected_category not in categories:
+        selected_category = categories[0] if any(sites_by_category.values()) else ""
     site_options = sites_by_category.get(selected_category, []) if selected_category else []
     selected_site = request.args.get("history_site", "")
     if selected_site not in site_options:
@@ -231,11 +222,12 @@ def _build_history_browser(history_records):
         if item["category"] == selected_category and item["site_name"] == selected_site
     ][:3]
     return {
-        "categories": HISTORY_CATEGORIES,
+        "categories": categories,
         "selected_category": selected_category,
         "site_options": site_options,
         "selected_site": selected_site,
         "recent_records": recent_records,
+        "route_prefixes": {category: prefix for category, prefix in SITE_ROUTE_OPTIONS},
     }
 
 
@@ -264,7 +256,7 @@ def create_app(data_dir: str | Path | None = None) -> Flask:
             error = str(exc)
         return render_template(
             "index.html",
-            form=form_state or _form_defaults(config or DeviceConfig(lanes=[LaneConfig(lane_number=0, width_mm=3500.0)])),
+            form=form_state or _form_defaults(config or DeviceConfig(site_name="", lanes=[LaneConfig(lane_number=0, width_mm=3500.0)])),
             summaries=summaries,
             message=message,
             error=error,
