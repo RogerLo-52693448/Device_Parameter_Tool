@@ -38,6 +38,10 @@
     .checkbox-line { display: flex; align-items: center; gap: 8px; margin: 6px 0 12px; font-weight: 700; }
     .checkbox-line input { width: auto; }
     .hidden { display: none; }
+    .history-top { margin: 16px 0 24px; }
+    .history-browser { display: grid; grid-template-columns: 220px 1fr auto; gap: 12px; align-items: end; }
+    .debug-details { margin-top: 12px; }
+    .debug-details summary { cursor: pointer; font-weight: 800; }
     @media (max-width: 1100px) { .layout { grid-template-columns: 1fr; } }
   </style>
 </head>
@@ -47,6 +51,63 @@
     <p class="hint">支援主 Lidar 與備援 Lidar；負責車道使用右(Lane1) / 左(Lane2) 兩個欄位，並依目前 lane number 動態提供選項。</p>
     {% if message %}<p class="message" role="status" aria-live="polite">{{ message }}</p>{% endif %}
     {% if error %}<p class="error" role="alert" aria-live="assertive">{{ error }}</p>{% endif %}
+    <div class="card history-top">
+      <h2>Site History</h2>
+      <form method="get" class="history-browser">
+        <label>路線分類
+          <select name="history_category" onchange="this.form.submit()">
+            {% for category in history_browser.categories %}
+            <option value="{{ category }}" {% if category == history_browser.selected_category %}selected{% endif %}>{{ category }}</option>
+            {% endfor %}
+          </select>
+        </label>
+        <label>點位
+          <select name="history_site" onchange="this.form.submit()">
+            {% if history_browser.site_options %}
+              {% for site_name in history_browser.site_options %}
+              <option value="{{ site_name }}" {% if site_name == history_browser.selected_site %}selected{% endif %}>{{ site_name }}</option>
+              {% endfor %}
+            {% else %}
+              <option value="">目前沒有可用點位</option>
+            {% endif %}
+          </select>
+        </label>
+        <button type="submit">查詢</button>
+      </form>
+      {% if history_browser.selected_site %}
+      <table>
+        <thead>
+          <tr>
+            <th>時間</th>
+            <th>點位</th>
+            <th>備註</th>
+            <th>車道數</th>
+            <th>主 Lidar</th>
+            <th>備援</th>
+            <th>動作</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for item in history_browser.recent_records %}
+          <tr>
+            <td>{{ item.record.saved_at }}</td>
+            <td>{{ item.record.config.site_name }}</td>
+            <td>{{ item.record.note }}</td>
+            <td>{{ item.record.config.lanes|length }}</td>
+            <td>{{ item.record.config.lidars|length }}</td>
+            <td>{{ '是' if item.record.config.has_backup else '否' }}</td>
+            <td><a href="{{ url_for('load_history', index=item.index, history_category=history_browser.selected_category, history_site=history_browser.selected_site) }}">載入設定</a></td>
+          </tr>
+          {% else %}
+          <tr><td colspan="7">此點位目前沒有近期紀錄</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      <p class="hint">只顯示所選點位最近 3 筆儲存結果。</p>
+      {% else %}
+      <p class="hint">請先選擇分類與點位，才會顯示近期 3 筆可匯入紀錄。</p>
+      {% endif %}
+    </div>
     <div class="layout">
       <div class="card">
         <h2>設定表單</h2>
@@ -176,51 +237,21 @@
             </tbody>
           </table>
           <p class="hint">右(Lane1) 對應 Field1~Field3；左(Lane2) 對應 Field4~Field6；角度基準為 90°，1° = 200 mm。</p>
-          <h3>偵錯資訊</h3>
-          {% for result in section.summary.results %}
-          <div class="item-box">
-            <strong>LIDAR_{{ result.index }}</strong>
-            <ul>{% for line in result.debug_lines %}<li>{{ line }}</li>{% endfor %}</ul>
-            {% for field in section.fields if field.index == result.index %}
-            <ul>{% for line in field.debug_lines %}<li>{{ line }}</li>{% endfor %}</ul>
+          <details class="debug-details">
+            <summary>偵錯資訊（點擊展開）</summary>
+            {% for result in section.summary.results %}
+            <div class="item-box">
+              <strong>LIDAR_{{ result.index }}</strong>
+              <ul>{% for line in result.debug_lines %}<li>{{ line }}</li>{% endfor %}</ul>
+              {% for field in section.fields if field.index == result.index %}
+              <ul>{% for line in field.debug_lines %}<li>{{ line }}</li>{% endfor %}</ul>
+              {% endfor %}
+            </div>
             {% endfor %}
-          </div>
-          {% endfor %}
+          </details>
           {% endif %}
         </div>
         {% endfor %}
-
-        <div class="card">
-          <h2>Site History</h2>
-          <table>
-            <thead>
-              <tr>
-                <th>時間</th>
-                <th>點位</th>
-                <th>備註</th>
-                <th>車道數</th>
-                <th>主 Lidar</th>
-                <th>備援</th>
-                <th>動作</th>
-              </tr>
-            </thead>
-            <tbody>
-              {% for record in history %}
-              <tr>
-                <td>{{ record.saved_at }}</td>
-                <td>{{ record.config.site_name }}</td>
-                <td>{{ record.note }}</td>
-                <td>{{ record.config.lanes|length }}</td>
-                <td>{{ record.config.lidars|length }}</td>
-                <td>{{ '是' if record.config.has_backup else '否' }}</td>
-                <td><a href="{{ url_for('load_history', index=loop.index0) }}">載入設定</a></td>
-              </tr>
-              {% else %}
-              <tr><td colspan="7">目前沒有歷史紀錄</td></tr>
-              {% endfor %}
-            </tbody>
-          </table>
-        </div>
       </div>
     </div>
   </div>

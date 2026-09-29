@@ -2,7 +2,7 @@
 
 一個從 `main` 重新設計與實作的設備參數工具，提供：
 - **繁體中文 CLI**：管理 Lane / Lidar / 備援 Lidar 設定、快速設定、預覽計算、JSON 匯入匯出
-- **簡易 Web UI**：表單編輯、即時預覽、UTF-8 備註欄位、Site History 載入歷史設定
+- **簡易 Web UI**：表單編輯、即時預覽、UTF-8 備註欄位、分類式 Site History 載入歷史設定
 - **可測試核心模組**：Lidar 有效偵測範圍計算邏輯、資料模型、驗證器、設定檔存讀
 
 > `examples/verify_lidar_calculation.py` 會保留作為已驗證的獨立參考腳本；正式程式邏輯已抽出至 `device_parameter_tool/services/lidar_calculator.py`。
@@ -94,9 +94,11 @@ python -m device_parameter_tool.web.app
 - Lidar 負責車道使用 2 個下拉欄位：右(Lane1) / 左(Lane2)，選項依目前 lane number 動態更新
 - 使用同一套 `lidar_calculator` 邏輯即時預覽結果
 - 顯示舊版 SOPAS Tool 的 `Field1` ~ `Field6` 範圍計算結果
-- 顯示舊版風格的偵錯資訊 / 詳細計算過程
+- 顯示舊版風格的偵錯資訊 / 詳細計算過程（預設收合，可自行展開）
 - 支援 `note` 備註欄位，使用 UTF-8 儲存與顯示中文
-- `Site History` 會以**本機時間**保存每次儲存的設定與備註，可重新載入
+- `Site History` 會以**本機時間**保存每次儲存的設定與備註
+- `Site History` 位於頁面最上方，依 `國一` / `國三` / `國三甲` / `國一高架` 分類
+- 選擇點位後會顯示該點位最近 3 筆可匯入紀錄
 
 > 依照目前需求，**不提供 Camera 與 Host 的設定操作介面**；這兩部分會保留在資料模型中作為相容性欄位，但 CLI / Web UI 不會要求使用者編輯。
 

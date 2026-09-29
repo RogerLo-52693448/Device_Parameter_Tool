@@ -10,6 +10,8 @@ from device_parameter_tool.models.device_config import DeviceConfig, LaneConfig,
 from device_parameter_tool.services.config_service import ConfigService
 from device_parameter_tool.services.lidar_calculator import calculate_lidar_results, calculate_sopas_fields
 
+HISTORY_CATEGORIES = ["國一", "國三", "國三甲", "國一高架"]
+
 
 def _coerce_int(value: str | None, default: int = 0) -> int:
     if value is None or str(value).strip() == "":
@@ -192,6 +194,51 @@ def _posted_form_state(form) -> dict:
     }
 
 
+def _history_category(site_name: str) -> str | None:
+    if site_name.startswith("國一高架"):
+        return "國一高架"
+    for category in ("國三甲", "國三", "國一"):
+        if site_name.startswith(category):
+            return category
+    return None
+
+
+def _build_history_browser(history_records):
+    indexed_records = [
+        {
+            "index": index,
+            "record": record,
+            "category": _history_category(record.config.site_name),
+            "site_name": record.config.site_name,
+        }
+        for index, record in enumerate(history_records)
+    ]
+    sites_by_category = {
+        category: sorted(
+            {item["site_name"] for item in indexed_records if item["category"] == category}
+        )
+        for category in HISTORY_CATEGORIES
+    }
+    selected_category = request.args.get("history_category", "")
+    if selected_category not in HISTORY_CATEGORIES:
+        selected_category = HISTORY_CATEGORIES[0] if any(sites_by_category.values()) else ""
+    site_options = sites_by_category.get(selected_category, []) if selected_category else []
+    selected_site = request.args.get("history_site", "")
+    if selected_site not in site_options:
+        selected_site = site_options[0] if site_options else ""
+    recent_records = [
+        item for item in indexed_records
+        if item["category"] == selected_category and item["site_name"] == selected_site
+    ][:3]
+    return {
+        "categories": HISTORY_CATEGORIES,
+        "selected_category": selected_category,
+        "site_options": site_options,
+        "selected_site": selected_site,
+        "recent_records": recent_records,
+    }
+
+
 def create_app(data_dir: str | Path | None = None) -> Flask:
     app = Flask(__name__, template_folder="templates")
     base_dir = Path(data_dir or "data")
@@ -199,6 +246,7 @@ def create_app(data_dir: str | Path | None = None) -> Flask:
 
     def render_page(config: DeviceConfig | None = None, message: str = "", error: str = "", form_state: dict | None = None):
         summaries = []
+        history_records = service.load_history()
         try:
             if config and config.lanes and config.lidars:
                 summaries.append({
@@ -220,7 +268,7 @@ def create_app(data_dir: str | Path | None = None) -> Flask:
             summaries=summaries,
             message=message,
             error=error,
-            history=service.load_history(),
+            history_browser=_build_history_browser(history_records),
         )
 
     @app.get("/")
