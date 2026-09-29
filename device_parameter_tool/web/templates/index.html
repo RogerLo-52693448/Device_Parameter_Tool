@@ -48,7 +48,6 @@
     .diagram-meta { margin: 0 0 12px; color: #475569; font-size: .92rem; }
     .diagram-board { overflow-x: auto; }
     .diagram-stack { display: grid; gap: 16px; }
-    .diagram-stack.split-columns { grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; }
     .diagram-panel { border: 1px solid #dbe3ef; border-radius: 12px; background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%); padding: 12px; }
     .diagram-panel h3 { margin: 0 0 8px; font-size: 1rem; }
     .diagram-empty { margin: 0; color: #64748b; }
@@ -67,10 +66,7 @@
     .layout.form-collapsed .form-card h2 { writing-mode: vertical-rl; margin: 0 auto; }
     .layout.form-collapsed .form-card-header { flex-direction: column; margin-bottom: 0; }
     .layout.form-collapsed .toggle-button { padding: 10px 8px; font-size: .85rem; }
-    @media (max-width: 1100px) {
-      .layout { grid-template-columns: 1fr; }
-      .diagram-stack.split-columns { grid-template-columns: 1fr; }
-    }
+    @media (max-width: 1100px) { .layout { grid-template-columns: 1fr; } }
   </style>
 </head>
 <body>
@@ -595,12 +591,10 @@
 
     function renderLaneDiagram() {
       const container = document.getElementById('lane-diagram-container');
-      const hasBackup = document.getElementById('has-backup').checked;
       const panels = [renderDiagramPanel('主 Lidar 示意圖', FORM_STATE.lidars, '#2563eb', '#bfdbfe', '#1d4ed8')];
-      if (hasBackup) {
+      if (document.getElementById('has-backup').checked) {
         panels.push(renderDiagramPanel('備援 Lidar 示意圖', FORM_STATE.backup_lidars, '#db2777', '#fce7f3', '#be185d'));
       }
-      container.classList.toggle('split-columns', hasBackup);
       container.innerHTML = panels.join('');
     }
 

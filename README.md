@@ -99,7 +99,6 @@ python -m device_parameter_tool.web.app
 - SVG 示意圖會以接近現場配置圖的樣式呈現 Lidar 與車道覆蓋關係
 - SVG 會以台灣左駕情境顯示內線由右往左排列，並移除額外的 field 詳細文字避免畫面擁擠
 - Field 角度資訊改為顯示在 SVG 下方摘要列，避免被覆蓋範圍遮住
-- 啟用備援 Lidar 時，主 / 備援 SVG 與各自的 Field 摘要會採左右分欄顯示
 - Web UI 可手動收起輸入區，且儲存完成後會自動收合，讓 SVG 顯示區域更大
 - 支援 `note` 備註欄位，使用 UTF-8 儲存與顯示中文
 - `Site History` 會以**本機時間**保存每次儲存的設定與備註

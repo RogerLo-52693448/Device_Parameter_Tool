@@ -89,7 +89,6 @@ def test_web_page_uses_dynamic_lane_and_lidar_sections(tmp_path):
     assert "車道 / Lidar SVG 示意圖" in text
     assert "Field 改為下方摘要列" in text
     assert "field-summary-grid" in text
-    assert "diagram-stack.split-columns" in text
     assert "現場配置圖" in text
     assert "視角參考" not in text
     assert "Field1~Field6 區段標示" not in text
