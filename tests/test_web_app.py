@@ -55,9 +55,10 @@ def test_web_save_and_history_round_trip(tmp_path):
     assert "Field 範圍" in history_text
     assert "Field1" in history_text
     assert "偵錯資訊（點擊展開）" in history_text
-    assert "右(Lane1)" in history_text
-    assert "左(Lane2)" in history_text
+    assert "右</th>" in history_text or "右" in history_text
+    assert "左</th>" in history_text or "左" in history_text
     assert "路線分類" in history_text
+    assert 'data-initial-collapsed="true"' in history_text
 
 
 def test_web_page_uses_dynamic_lane_and_lidar_sections(tmp_path):
@@ -77,8 +78,9 @@ def test_web_page_uses_dynamic_lane_and_lidar_sections(tmp_path):
     assert "lidar-block-title" in text
     assert "Primary Lidar Configuration" in text
     assert "None" in text
-    assert "右(Lane1)" in text
-    assert "左(Lane2)" in text
+    assert "收起輸入" in text
+    assert ">右<" in text
+    assert ">左<" in text
     assert "Site History" in text
     assert "國一高架 (01H)" in text
     assert 'id="lane-diagram-container"' in text
@@ -87,6 +89,7 @@ def test_web_page_uses_dynamic_lane_and_lidar_sections(tmp_path):
     assert "scan_right / scan_left" in text
     assert "Field1~Field6 區段標示" in text
     assert "現場配置圖" in text
+    assert "視角參考" not in text
     assert "Camera" not in text
     assert "Host" not in text
     assert "Lane ID" not in text

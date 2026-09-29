@@ -63,7 +63,7 @@ python -m device_parameter_tool.core.cli
 CLI 提供：
 - 車道 CRUD
 - 主 Lidar / 備援 Lidar CRUD
-- Lidar 負責車道使用 2 個欄位：右(Lane1) / 左(Lane2)
+- Lidar 負責車道使用 2 個欄位：右 / 左
 - 設定檔讀取與儲存
 - 快速設定流程（含備援開關）
 
@@ -91,12 +91,14 @@ python -m device_parameter_tool.web.app
 - 表單輸入/編輯點位、Lane、Lidar
 - 車道數量 / 主 Lidar 數量切換時，前端會即時動態增減表單列
 - 支援「啟用備援 Lidar」選項
-- Lidar 負責車道使用 2 個下拉欄位：右(Lane1) / 左(Lane2)，選項依目前 lane number 動態更新
+- Lidar 負責車道使用 2 個下拉欄位：右 / 左，選項依目前 lane number 動態更新
 - 使用同一套 `lidar_calculator` 邏輯即時預覽結果
 - 顯示舊版 SOPAS Tool 的 `Field1` ~ `Field6` 範圍計算結果
 - 顯示舊版風格的偵錯資訊 / 詳細計算過程（預設收合，可自行展開）
 - 內建純前端 SVG 車道 / Lidar 示意圖，會依目前輸入即時標示車道寬度、內路肩護欄基準點、Lidar 中心點與負責範圍
 - SVG 示意圖會進一步顯示 `scan_right / scan_left` 視覺化範圍線、`Field1~Field6` 對應區段，並以接近現場配置圖的樣式呈現
+- SVG 會以台灣左駕情境顯示內線由右往左排列，並移除額外的 field 詳細文字避免畫面擁擠
+- Web UI 可手動收起輸入區，且儲存完成後會自動收合，讓 SVG 顯示區域更大
 - 支援 `note` 備註欄位，使用 UTF-8 儲存與顯示中文
 - `Site History` 會以**本機時間**保存每次儲存的設定與備註
 - `Site History` 位於頁面最上方，以下列搜尋索引分類並篩選已儲存檔案：
@@ -183,7 +185,7 @@ scan_left  = outer_boundary - center_distance + (0 if is_outermost else 500)
 
 偏差值為 `center_distance` 與實際車道邊界基準的差之絕對值：
 - 單車道：`abs(center_distance - inner_boundary)`
-- 雙車道：`abs(center_distance - inner_boundary - 右(Lane1)寬度)`
+- 雙車道：`abs(center_distance - inner_boundary - 右車道寬度)`
 
 其中 `inner_boundary` 為此 Lidar 負責區域右邊界（靠護欄側）相對於內路肩護欄的累積距離；因此即使 lane number 為 sparse 編號，仍會依實際車道排列順序正確計算。
 
@@ -196,9 +198,9 @@ scan_left  = outer_boundary - center_distance + (0 if is_outermost else 500)
 
 因此可正確保留：
 
-- 只有右(Lane1)
-- 右(Lane1) + 左(Lane2)
-- **右空、左(Lane2)單獨存在**
+- 只有右
+- 右 + 左
+- **右空、左單獨存在**
 
 `assigned_lanes` 仍會保留作為相容欄位，但左右語意以 `right_lane` / `left_lane` 為準。
 
@@ -211,8 +213,8 @@ scan_left  = outer_boundary - center_distance + (0 if is_outermost else 500)
 
 新版工具已補回舊版的 `Field1` ~ `Field6` 計算：
 
-- `右(Lane1)` 對應 `Field1` ~ `Field3`
-- `左(Lane2)` 對應 `Field4` ~ `Field6`
+- `右` 對應 `Field1` ~ `Field3`
+- `左` 對應 `Field4` ~ `Field6`
 - 角度基準：`90°`
 - 換算規則：`1° = 200 mm`
 

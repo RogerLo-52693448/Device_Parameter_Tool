@@ -7,6 +7,7 @@
     body { font-family: Arial, sans-serif; margin: 0; background: #f3f6fb; color: #1e293b; }
     .page { max-width: 1320px; margin: 0 auto; padding: 24px; }
     .layout { display: grid; grid-template-columns: 560px 1fr; gap: 24px; align-items: start; }
+    .layout.form-collapsed { grid-template-columns: 88px 1fr; }
     .card { background: #fff; border: 1px solid #dbe3ef; border-radius: 14px; padding: 20px; box-shadow: 0 8px 24px rgba(15, 23, 42, 0.06); }
     h1, h2, h3 { margin-top: 0; }
     .message { color: #0f766e; font-weight: 700; }
@@ -54,13 +55,20 @@
     .legend { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 12px; color: #475569; font-size: .88rem; }
     .legend span { display: inline-flex; align-items: center; gap: 6px; }
     .legend i { display: inline-block; width: 18px; height: 10px; border-radius: 999px; }
+    .form-card-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
+    .toggle-button { background: #0f172a; }
+    .form-card-body.hidden { display: none; }
+    .layout.form-collapsed .form-card { padding: 14px 10px; }
+    .layout.form-collapsed .form-card h2 { writing-mode: vertical-rl; margin: 0 auto; }
+    .layout.form-collapsed .form-card-header { flex-direction: column; margin-bottom: 0; }
+    .layout.form-collapsed .toggle-button { padding: 10px 8px; font-size: .85rem; }
     @media (max-width: 1100px) { .layout { grid-template-columns: 1fr; } }
   </style>
 </head>
 <body>
   <div class="page">
     <h1>Device Parameter Tool</h1>
-    <p class="hint">支援主 Lidar 與備援 Lidar；點位名稱開頭需使用搜尋索引（例如 01F、03F、03A、01H）；負責車道使用右(Lane1) / 左(Lane2) 兩個欄位，並依目前 lane number 動態提供選項。</p>
+    <p class="hint">支援主 Lidar 與備援 Lidar；點位名稱開頭需使用搜尋索引（例如 01F、03F、03A、01H）；負責車道使用右 / 左 兩個欄位，並依目前 lane number 動態提供選項。</p>
     {% if message %}<p class="message" role="status" aria-live="polite">{{ message }}</p>{% endif %}
     {% if error %}<p class="error" role="alert" aria-live="assertive">{{ error }}</p>{% endif %}
     <div class="card history-top">
@@ -120,9 +128,13 @@
       <p class="hint">請先選擇分類與點位，才會顯示近期 3 筆可匯入紀錄。</p>
       {% endif %}
     </div>
-    <div class="layout">
-      <div class="card">
-        <h2>設定表單</h2>
+    <div class="layout{% if form_collapsed %} form-collapsed{% endif %}" id="main-layout" data-initial-collapsed="{{ 'true' if form_collapsed else 'false' }}">
+      <div class="card form-card">
+        <div class="form-card-header">
+          <h2>設定表單</h2>
+          <button class="toggle-button" id="toggle-form-button" type="button">{{ '顯示輸入' if form_collapsed else '收起輸入' }}</button>
+        </div>
+        <div class="form-card-body{% if form_collapsed %} hidden{% endif %}" id="form-card-body">
         <form method="post" id="config-form">
           <div class="grid-2">
             <label>點位名稱<input name="site_name" value="{{ form.site_name }}" placeholder="例如 01F-040.7N"></label>
@@ -171,13 +183,14 @@
             <button class="secondary" formaction="{{ url_for('save') }}" type="submit">儲存設定</button>
           </div>
         </form>
+        </div>
       </div>
 
       <div>
         <div class="card diagram-card">
           <h2>車道 / Lidar SVG 示意圖</h2>
           <div class="diagram-shell">
-            <p class="diagram-meta">此示意圖由前端依目前輸入內容即時繪製，會標示內路肩護欄、車道寬度、Lidar 中心點與負責車道範圍。</p>
+            <p class="diagram-meta">此示意圖由前端依目前輸入內容即時繪製，會以台灣左駕情境顯示內線由右往左的配置方向，並標示車道寬度、Lidar 中心點與負責車道範圍。</p>
             <div class="diagram-board">
               <div id="lane-diagram-container" class="diagram-stack" aria-live="polite"></div>
             </div>
@@ -197,8 +210,8 @@
             <thead>
               <tr>
                 <th>Lidar</th>
-                <th>右(Lane1)</th>
-                <th>左(Lane2)</th>
+                <th>右</th>
+                <th>左</th>
                 <th>Center</th>
                 <th>scan_right</th>
                 <th>scan_left</th>
@@ -236,8 +249,8 @@
             <thead>
               <tr>
                 <th>Lidar</th>
-                <th>右(Lane1)</th>
-                <th>左(Lane2)</th>
+                <th>右</th>
+                <th>左</th>
                 <th>Offset (mm)</th>
                 <th>Field1</th>
                 <th>Field2</th>
@@ -264,7 +277,7 @@
               {% endfor %}
             </tbody>
           </table>
-          <p class="hint">右(Lane1) 對應 Field1~Field3；左(Lane2) 對應 Field4~Field6；角度基準為 90°，1° = 200 mm。</p>
+          <p class="hint">右 對應 Field1~Field3；左 對應 Field4~Field6；角度基準為 90°，1° = 200 mm。</p>
           <details class="debug-details">
             <summary>偵錯資訊（點擊展開）</summary>
             {% for result in section.summary.results %}
@@ -350,12 +363,12 @@
       }).filter((lidar) => Number.isFinite(lidar.center_distance_mm) && lidar.center_distance_mm >= 0);
     }
 
-    function mmToAngle(centerDistance, positionMm) {
-      return 90 + Math.round((centerDistance - positionMm) / 200);
-    }
-
     function angleToPosition(centerDistance, angle) {
       return centerDistance - ((angle - 90) * 200);
+    }
+
+    function mmToSvgX(positionMm, scale, panelWidth, baseX) {
+      return baseX + panelWidth - (positionMm * scale);
     }
 
     function calculateLaneGeometry() {
@@ -493,20 +506,21 @@
       const titleKey = title.replaceAll(/[^a-zA-Z0-9]/g, '-');
       const results = calculateVisualResults(lidars, laneGeometry);
       const totalWidth = laneGeometry[laneGeometry.length - 1].outer_boundary;
-      const panelWidth = 840;
+      const panelWidth = 940;
       const scale = totalWidth > 0 ? panelWidth / totalWidth : 1;
-      const laneY = 146;
+      const baseX = 56;
+      const laneY = 132;
       const laneHeight = 92;
       const fieldBaseY = 42;
       const fieldHeight = 16;
-      const svgHeight = laneY + laneHeight + 122;
+      const svgHeight = laneY + laneHeight + 156;
 
       const fieldMarkup = results.map((result) => {
         const bands = calculateFieldBands(result);
         return bands.map((band, bandIndex) => {
           const startMm = angleToPosition(result.center_distance_mm, band.range[1]);
           const endMm = angleToPosition(result.center_distance_mm, band.range[0]);
-          const x = 56 + (Math.min(startMm, endMm) * scale);
+          const x = Math.min(mmToSvgX(startMm, scale, panelWidth, baseX), mmToSvgX(endMm, scale, panelWidth, baseX));
           const width = Math.max(Math.abs(endMm - startMm) * scale, 3);
           const y = fieldBaseY + (bandIndex * (fieldHeight + 6));
           return `
@@ -517,56 +531,55 @@
       }).join('');
 
       const lidarsMarkup = results.map((lidar) => {
-        const centerX = 56 + (lidar.center_distance_mm * scale);
+        const centerX = mmToSvgX(lidar.center_distance_mm, scale, panelWidth, baseX);
         const span = lidarAssignedSpan(lidar, laneGeometry);
         const strokeColor = lidar.status === 'error' ? '#dc2626' : lidar.status === 'warning' ? '#d97706' : accentColor;
-        const spanMarkup = span ? `<rect x="${56 + (span.inner_boundary * scale)}" y="${laneY}" width="${Math.max((span.outer_boundary - span.inner_boundary) * scale, 2)}" height="${laneHeight}" fill="${fillColor}" opacity="0.45" rx="12" />` : '';
-        const scanRightEndX = 56 + ((lidar.center_distance_mm - lidar.scan_right) * scale);
-        const scanLeftEndX = 56 + ((lidar.center_distance_mm + lidar.scan_left) * scale);
-        const fieldRangeText = calculateFieldBands(lidar).map((band) => `${band.label} ${band.range[0]}°~${band.range[1]}°`).join(' / ');
+        const spanMarkup = span
+          ? `<rect x="${Math.min(mmToSvgX(span.inner_boundary, scale, panelWidth, baseX), mmToSvgX(span.outer_boundary, scale, panelWidth, baseX))}" y="${laneY}" width="${Math.max((span.outer_boundary - span.inner_boundary) * scale, 2)}" height="${laneHeight}" fill="${fillColor}" opacity="0.45" rx="12" />`
+          : '';
+        const scanRightEndX = mmToSvgX(lidar.center_distance_mm - lidar.scan_right, scale, panelWidth, baseX);
+        const scanLeftEndX = mmToSvgX(lidar.center_distance_mm + lidar.scan_left, scale, panelWidth, baseX);
         return `
           ${spanMarkup}
           <line x1="${centerX}" y1="${laneY - 34}" x2="${centerX}" y2="${laneY + laneHeight + 18}" stroke="${strokeColor}" stroke-width="3" stroke-dasharray="7 5" />
           <circle cx="${centerX}" cy="${laneY - 18}" r="9" fill="${strokeColor}" />
           <text x="${centerX}" y="${laneY - 42}" text-anchor="middle" font-size="12" font-weight="700" fill="${strokeColor}">LIDAR_${lidar.index}</text>
-          <text x="${centerX}" y="${laneY + laneHeight + 34}" text-anchor="middle" font-size="12" fill="#334155">Center ${Math.round(lidar.center_distance_mm)} mm</text>
+          <text x="${centerX}" y="${laneY + laneHeight + 122}" text-anchor="middle" font-size="12" fill="#334155">Center ${Math.round(lidar.center_distance_mm)} mm</text>
           ${lidar.status !== 'empty' && lidar.status !== 'invalid' ? `
-            <line x1="${scanRightEndX}" y1="${laneY + laneHeight + 52}" x2="${centerX}" y2="${laneY + laneHeight + 52}" stroke="${strokeColor}" stroke-width="3" marker-start="url(#arrow-start-${titleKey})" marker-end="url(#arrow-end-${titleKey})" />
-            <text x="${(scanRightEndX + centerX) / 2}" y="${laneY + laneHeight + 46}" text-anchor="middle" font-size="11" font-weight="700" fill="${strokeColor}">scan_right ${Math.round(lidar.scan_right)} mm</text>
-            <line x1="${centerX}" y1="${laneY + laneHeight + 74}" x2="${scanLeftEndX}" y2="${laneY + laneHeight + 74}" stroke="${strokeColor}" stroke-width="3" marker-start="url(#arrow-start-${titleKey})" marker-end="url(#arrow-end-${titleKey})" />
-            <text x="${(centerX + scanLeftEndX) / 2}" y="${laneY + laneHeight + 68}" text-anchor="middle" font-size="11" font-weight="700" fill="${strokeColor}">scan_left ${Math.round(lidar.scan_left)} mm</text>
-            <text x="${centerX}" y="${laneY - 56}" text-anchor="middle" font-size="10" fill="#475569">${fieldRangeText}</text>
+            <line x1="${scanRightEndX}" y1="${laneY + laneHeight + 50}" x2="${centerX}" y2="${laneY + laneHeight + 50}" stroke="${strokeColor}" stroke-width="3" marker-start="url(#arrow-start-${titleKey})" marker-end="url(#arrow-end-${titleKey})" />
+            <text x="${(scanRightEndX + centerX) / 2}" y="${laneY + laneHeight + 44}" text-anchor="middle" font-size="11" font-weight="700" fill="${strokeColor}">scan_right ${Math.round(lidar.scan_right)} mm</text>
+            <line x1="${centerX}" y1="${laneY + laneHeight + 78}" x2="${scanLeftEndX}" y2="${laneY + laneHeight + 78}" stroke="${strokeColor}" stroke-width="3" marker-start="url(#arrow-start-${titleKey})" marker-end="url(#arrow-end-${titleKey})" />
+            <text x="${(centerX + scanLeftEndX) / 2}" y="${laneY + laneHeight + 72}" text-anchor="middle" font-size="11" font-weight="700" fill="${strokeColor}">scan_left ${Math.round(lidar.scan_left)} mm</text>
           ` : ''}
         `;
       }).join('');
 
       const laneMarkup = laneGeometry.map((lane, index) => {
-        const x = 56 + (lane.inner_boundary * scale);
+        const x = mmToSvgX(lane.outer_boundary, scale, panelWidth, baseX);
         const width = Math.max((lane.outer_boundary - lane.inner_boundary) * scale, 2);
         return `
           <rect x="${x}" y="${laneY}" width="${width}" height="${laneHeight}" rx="10" fill="${index % 2 === 0 ? '#dbeafe' : '#eff6ff'}" stroke="#93c5fd" stroke-width="1.5" />
           <line x1="${x}" y1="${laneY + (laneHeight / 2)}" x2="${x + width}" y2="${laneY + (laneHeight / 2)}" stroke="${roadColor}" stroke-width="3" stroke-dasharray="12 10" />
           <text x="${x + (width / 2)}" y="${laneY + 30}" text-anchor="middle" font-size="14" font-weight="700" fill="#1e3a8a">Lane ${lane.lane_number}</text>
           <text x="${x + (width / 2)}" y="${laneY + 52}" text-anchor="middle" font-size="12" fill="#334155">${Math.round(lane.width_mm)} mm</text>
-          <text x="${x + (width / 2)}" y="${laneY + 75}" text-anchor="middle" font-size="11" fill="#64748b">${mmToAngle((lane.inner_boundary + lane.outer_boundary) / 2, lane.inner_boundary)}° 視角參考</text>
         `;
       }).join('');
 
       const ticksMarkup = laneGeometry.map((lane) => {
-        const x = 56 + (lane.inner_boundary * scale);
+        const x = mmToSvgX(lane.inner_boundary, scale, panelWidth, baseX);
         return `
           <line x1="${x}" y1="${laneY + laneHeight + 2}" x2="${x}" y2="${laneY + laneHeight + 12}" stroke="#64748b" stroke-width="1" />
-          <text x="${x}" y="${laneY + laneHeight + 26}" text-anchor="middle" font-size="11" fill="#64748b">${Math.round(lane.inner_boundary)}</text>
+          <text x="${x}" y="${laneY + laneHeight + 30}" text-anchor="middle" font-size="11" fill="#64748b">${Math.round(lane.inner_boundary)}</text>
         `;
       }).join('') + `
-        <line x1="${56 + (totalWidth * scale)}" y1="${laneY + laneHeight + 2}" x2="${56 + (totalWidth * scale)}" y2="${laneY + laneHeight + 12}" stroke="#64748b" stroke-width="1" />
-        <text x="${56 + (totalWidth * scale)}" y="${laneY + laneHeight + 26}" text-anchor="middle" font-size="11" fill="#64748b">${Math.round(totalWidth)}</text>
+        <line x1="${mmToSvgX(totalWidth, scale, panelWidth, baseX)}" y1="${laneY + laneHeight + 2}" x2="${mmToSvgX(totalWidth, scale, panelWidth, baseX)}" y2="${laneY + laneHeight + 12}" stroke="#64748b" stroke-width="1" />
+        <text x="${mmToSvgX(totalWidth, scale, panelWidth, baseX)}" y="${laneY + laneHeight + 30}" text-anchor="middle" font-size="11" fill="#64748b">${Math.round(totalWidth)}</text>
       `;
 
       return `
         <div class="diagram-panel">
           <h3>${escapeHtml(title)}</h3>
-          <p class="diagram-caption">現場配置圖風格顯示 scan_right / scan_left 與 Field1~Field6 區段；右(Lane1) 對應 Field1~Field3，左(Lane2) 對應 Field4~Field6。</p>
+          <p class="diagram-caption">現場配置圖風格顯示 scan_right / scan_left 與 Field1~Field6 區段；內線由右往左排列。</p>
           <svg width="${panelWidth + 112}" height="${svgHeight}" viewBox="0 0 ${panelWidth + 112} ${svgHeight}" role="img" aria-label="${escapeHtml(title)} 車道配置示意圖">
             <defs>
               <marker id="arrow-start-${titleKey}" markerWidth="8" markerHeight="8" refX="2" refY="4" orient="auto">
@@ -576,10 +589,10 @@
                 <path d="M0,0 L8,4 L0,8" fill="${accentColor}" />
               </marker>
             </defs>
-            <rect x="56" y="${laneY - 18}" width="${panelWidth}" height="${laneHeight + 34}" rx="18" fill="${roadColor}" opacity="0.08" />
-            <text x="56" y="22" font-size="14" font-weight="800" fill="#0f172a">內路肩護欄基準點</text>
-            <line x1="56" y1="${laneY - 20}" x2="56" y2="${laneY + laneHeight + 18}" stroke="#0f172a" stroke-width="5" />
-            <text x="${panelWidth + 56}" y="22" text-anchor="end" font-size="12" fill="#475569">單位：mm / 現場配置圖</text>
+            <rect x="${baseX}" y="${laneY - 18}" width="${panelWidth}" height="${laneHeight + 34}" rx="18" fill="${roadColor}" opacity="0.08" />
+            <text x="${baseX + panelWidth}" y="22" text-anchor="end" font-size="14" font-weight="800" fill="#0f172a">內路肩護欄基準點</text>
+            <line x1="${baseX + panelWidth}" y1="${laneY - 20}" x2="${baseX + panelWidth}" y2="${laneY + laneHeight + 18}" stroke="#0f172a" stroke-width="5" />
+            <text x="${baseX}" y="22" font-size="12" fill="#475569">單位：mm / 現場配置圖</text>
             <text x="56" y="${fieldBaseY - 12}" font-size="12" font-weight="700" fill="#92400e">Field1~Field6 區段標示</text>
             ${fieldMarkup}
             ${laneMarkup}
@@ -597,6 +610,12 @@
         panels.push(renderDiagramPanel('備援 Lidar 示意圖', FORM_STATE.backup_lidars, '#db2777', '#fce7f3', '#be185d'));
       }
       container.innerHTML = panels.join('');
+    }
+
+    function syncFormCollapse(collapsed) {
+      document.getElementById('main-layout').classList.toggle('form-collapsed', collapsed);
+      document.getElementById('form-card-body').classList.toggle('hidden', collapsed);
+      document.getElementById('toggle-form-button').textContent = collapsed ? '顯示輸入' : '收起輸入';
     }
 
     function captureLaneState() {
@@ -654,10 +673,10 @@
         box.innerHTML = `
           <div class="lidar-group-title">${prefix === 'primary' ? 'Primary' : 'Backup'} — LIDAR_${index}</div>
           <div class="grid-3">
-            <label>右(Lane1)
+            <label>右
               <select name="${prefix}_lidar_${index}_lane_a">${laneOptions(lidar.lane_a)}</select>
             </label>
-            <label>左(Lane2)
+            <label>左
               <select name="${prefix}_lidar_${index}_lane_b">${laneOptions(lidar.lane_b)}</select>
             </label>
             <label>Center Distance (mm)
@@ -735,10 +754,16 @@
       renderLaneDiagram();
     });
 
+    document.getElementById('toggle-form-button').addEventListener('click', () => {
+      const collapsed = !document.getElementById('main-layout').classList.contains('form-collapsed');
+      syncFormCollapse(collapsed);
+    });
+
     renderLanes();
     renderLidars('primary', 'primary-lidars-container', FORM_STATE.lidars, 'primary-lidar-count');
     renderLidars('backup', 'backup-lidars-container', FORM_STATE.backup_lidars, 'backup-lidar-count');
     syncBackupVisibility();
+    syncFormCollapse(document.getElementById('main-layout').dataset.initialCollapsed === 'true');
     renderLaneDiagram();
   </script>
 </body>

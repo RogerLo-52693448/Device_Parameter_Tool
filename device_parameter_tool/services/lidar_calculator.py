@@ -177,7 +177,7 @@ def calculate_lidar_results(lanes: list[LaneConfig], lidars: list[LidarConfig]) 
                 status=status,
                 messages=messages,
                 debug_lines=[
-                    f"右(Lane1)={lidar.right_lane if lidar.right_lane is not None else '—'} / 左(Lane2)={lidar.left_lane if lidar.left_lane is not None else '—'}",
+                    f"右={lidar.right_lane if lidar.right_lane is not None else '—'} / 左={lidar.left_lane if lidar.left_lane is not None else '—'}",
                     f"負責車道邊界: {inner_boundary:.0f}mm ~ {outer_boundary:.0f}mm",
                     f"最內側: {'是' if is_innermost else '否'} (右補償 +{right_compensation:.0f}mm)",
                     f"最外側: {'是' if is_outermost else '否'} (左補償 +{left_compensation:.0f}mm)",
@@ -272,8 +272,8 @@ def calculate_sopas_fields(lanes: list[LaneConfig], lidars: list[LidarConfig]) -
                 center_inner=center_inner,
                 center_outer=center_outer,
                 debug_lines=[
-                    f"右(Lane1)={lidar.right_lane if lidar.right_lane is not None else '—'} → {'Field1~Field3' if lidar.right_lane is not None else '未配置'}",
-                    f"左(Lane2)={lidar.left_lane if lidar.left_lane is not None else '—'} → {'Field4~Field6' if lidar.left_lane is not None else '未配置'}",
+                    f"右={lidar.right_lane if lidar.right_lane is not None else '—'} → {'Field1~Field3' if lidar.right_lane is not None else '未配置'}",
+                    f"左={lidar.left_lane if lidar.left_lane is not None else '—'} → {'Field4~Field6' if lidar.left_lane is not None else '未配置'}",
                     f"主 offset = {center:.0f} - {inner_boundary:.0f} - {primary_lane_width:.0f} = {offset_primary:.0f}mm",
                     (
                         f"Field1 = {field1[0]}° ~ {field1[1]}° / Field2 = {field2[0]}° ~ {field2[1]}° / Field3 = {field3[0]}° ~ {field3[1]}°"
@@ -308,13 +308,13 @@ def render_text_report(config: DeviceConfig, summary: LidarCalculationSummary) -
     lines.append("  └────────┴──────────┘")
     lines.append("")
     lines.append("  [護欄]" + "".join(f" |← Lane{lane.lane_number}:{lane.width_mm:.0f} →|" for lane in sorted(config.lanes, key=lambda item: item.lane_number)) + " [外側]")
-    lines.extend(["", "  【Lidar 輸入資訊】", "", "  ┌─────────┬────────────┬────────────┬──────────────┐", "  │ Lidar   │ 右(Lane1)  │ 左(Lane2)  │ 中心距離(mm) │", "  ├─────────┼────────────┼────────────┼──────────────┤"])
+    lines.extend(["", "  【Lidar 輸入資訊】", "", "  ┌─────────┬────────────┬────────────┬──────────────┐", "  │ Lidar   │ 右         │ 左         │ 中心距離(mm) │", "  ├─────────┼────────────┼────────────┼──────────────┤"])
     for index, lidar in enumerate(config.lidars):
         right_lane = f"Lane{lidar.right_lane}" if lidar.right_lane is not None else "—"
         left_lane = f"Lane{lidar.left_lane}" if lidar.left_lane is not None else "—"
         lines.append(f"  │ LIDAR_{index} │ {right_lane:<10} │ {left_lane:<10} │ {lidar.center_distance_mm:>12.0f} │")
     lines.append("  └─────────┴────────────┴────────────┴──────────────┘")
-    lines.extend(["", "  【計算結果】", "", "  ┌─────────┬────────────┬────────────┬──────────────┬──────────────┬──────────────┬──────────────┬────────┐", "  │ Lidar   │ 右(Lane1)  │ 左(Lane2)  │ 中心距離(mm) │ scan_right   │ scan_left    │ 偏差值(mm)   │ 狀態   │", "  ├─────────┼────────────┼────────────┼──────────────┼──────────────┼──────────────┼──────────────┼────────┤"])
+    lines.extend(["", "  【計算結果】", "", "  ┌─────────┬────────────┬────────────┬──────────────┬──────────────┬──────────────┬──────────────┬────────┐", "  │ Lidar   │ 右         │ 左         │ 中心距離(mm) │ scan_right   │ scan_left    │ 偏差值(mm)   │ 狀態   │", "  ├─────────┼────────────┼────────────┼──────────────┼──────────────┼──────────────┼──────────────┼────────┤"])
     for result in summary.results:
         status_map = {"normal": "✓ 正常", "warning": "⚠ 警告", "error": "✗ 錯誤"}
         right_lane = f"Lane{result.right_lane}" if result.right_lane is not None else "—"

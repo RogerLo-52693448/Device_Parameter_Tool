@@ -16,5 +16,5 @@ def test_show_report_renders_primary_and_backup_sections(capsys):
     output = capsys.readouterr().out
     assert "【主 Lidar】" in output
     assert "【備援 Lidar】" in output
-    assert "右(Lane1)=0" in output
+    assert "右=0" in output
     assert "Field1" in output

@@ -93,8 +93,8 @@ def build_lidar(available_lane_numbers: list[int], existing: LidarConfig | None 
     existing = existing or LidarConfig(right_lane=0, center_distance_mm=0.0)
     default_first = existing.right_lane
     default_second = existing.left_lane
-    lane_a = prompt_lane_option("右(Lane1)", available_lane_numbers, default_first)
-    lane_b = prompt_lane_option("左(Lane2)", available_lane_numbers, default_second)
+    lane_a = prompt_lane_option("右", available_lane_numbers, default_first)
+    lane_b = prompt_lane_option("左", available_lane_numbers, default_second)
     return LidarConfig(
         right_lane=lane_a,
         left_lane=lane_b,

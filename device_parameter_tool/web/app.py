@@ -236,7 +236,13 @@ def create_app(data_dir: str | Path | None = None) -> Flask:
     base_dir = Path(data_dir or "data")
     service = ConfigService(config_path=base_dir / "current_config.json", history_path=base_dir / "site_history.json")
 
-    def render_page(config: DeviceConfig | None = None, message: str = "", error: str = "", form_state: dict | None = None):
+    def render_page(
+        config: DeviceConfig | None = None,
+        message: str = "",
+        error: str = "",
+        form_state: dict | None = None,
+        form_collapsed: bool = False,
+    ):
         summaries = []
         history_records = service.load_history()
         try:
@@ -261,6 +267,7 @@ def create_app(data_dir: str | Path | None = None) -> Flask:
             message=message,
             error=error,
             history_browser=_build_history_browser(history_records),
+            form_collapsed=form_collapsed,
         )
 
     @app.get("/")
@@ -289,7 +296,7 @@ def create_app(data_dir: str | Path | None = None) -> Flask:
             return render_page(error=str(exc), form_state=_posted_form_state(request.form))
         service.save_config(config)
         service.append_history(config, note=config.note)
-        return render_page(config, message="設定已儲存，並寫入 Site History")
+        return render_page(config, message="設定已儲存，並寫入 Site History", form_collapsed=True)
 
     @app.get("/history/<int:index>")
     def load_history(index: int):
