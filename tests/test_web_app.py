@@ -84,6 +84,9 @@ def test_web_page_uses_dynamic_lane_and_lidar_sections(tmp_path):
     assert 'id="lane-diagram-container"' in text
     assert "renderLaneDiagram()" in text
     assert "車道 / Lidar SVG 示意圖" in text
+    assert "scan_right / scan_left" in text
+    assert "Field1~Field6 區段標示" in text
+    assert "現場配置圖" in text
     assert "Camera" not in text
     assert "Host" not in text
     assert "Lane ID" not in text

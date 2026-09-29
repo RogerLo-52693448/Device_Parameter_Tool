@@ -96,6 +96,7 @@ python -m device_parameter_tool.web.app
 - 顯示舊版 SOPAS Tool 的 `Field1` ~ `Field6` 範圍計算結果
 - 顯示舊版風格的偵錯資訊 / 詳細計算過程（預設收合，可自行展開）
 - 內建純前端 SVG 車道 / Lidar 示意圖，會依目前輸入即時標示車道寬度、內路肩護欄基準點、Lidar 中心點與負責範圍
+- SVG 示意圖會進一步顯示 `scan_right / scan_left` 視覺化範圍線、`Field1~Field6` 對應區段，並以接近現場配置圖的樣式呈現
 - 支援 `note` 備註欄位，使用 UTF-8 儲存與顯示中文
 - `Site History` 會以**本機時間**保存每次儲存的設定與備註
 - `Site History` 位於頁面最上方，以下列搜尋索引分類並篩選已儲存檔案：

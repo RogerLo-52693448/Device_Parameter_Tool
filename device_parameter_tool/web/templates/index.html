@@ -47,9 +47,10 @@
     .diagram-meta { margin: 0 0 12px; color: #475569; font-size: .92rem; }
     .diagram-board { overflow-x: auto; }
     .diagram-stack { display: grid; gap: 16px; }
-    .diagram-panel { border: 1px solid #dbe3ef; border-radius: 12px; background: #fff; padding: 12px; }
+    .diagram-panel { border: 1px solid #dbe3ef; border-radius: 12px; background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%); padding: 12px; }
     .diagram-panel h3 { margin: 0 0 8px; font-size: 1rem; }
     .diagram-empty { margin: 0; color: #64748b; }
+    .diagram-caption { margin: 0 0 8px; color: #475569; font-size: .85rem; }
     .legend { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 12px; color: #475569; font-size: .88rem; }
     .legend span { display: inline-flex; align-items: center; gap: 6px; }
     .legend i { display: inline-block; width: 18px; height: 10px; border-radius: 999px; }
@@ -184,6 +185,8 @@
               <span><i style="background:#dbeafe;"></i> 車道</span>
               <span><i style="background:#bfdbfe;"></i> Lidar 負責範圍</span>
               <span><i style="background:#fce7f3;"></i> 備援 Lidar 負責範圍</span>
+              <span><i style="background:#2563eb;"></i> scan_right / scan_left</span>
+              <span><i style="background:#fde68a;"></i> Field1~Field6</span>
             </div>
           </div>
         </div>
@@ -347,6 +350,14 @@
       }).filter((lidar) => Number.isFinite(lidar.center_distance_mm) && lidar.center_distance_mm >= 0);
     }
 
+    function mmToAngle(centerDistance, positionMm) {
+      return 90 + Math.round((centerDistance - positionMm) / 200);
+    }
+
+    function angleToPosition(centerDistance, angle) {
+      return centerDistance - ((angle - 90) * 200);
+    }
+
     function calculateLaneGeometry() {
       let cursor = 0;
       return normalizeLaneRows().map((lane) => {
@@ -375,59 +386,202 @@
       };
     }
 
-    function renderDiagramPanel(title, lidars, accentColor, fillColor) {
+    function calculateVisualResults(lidars, laneGeometry) {
+      if (!laneGeometry.length) {
+        return [];
+      }
+      const firstLane = laneGeometry[0].lane_number;
+      const lastLane = laneGeometry[laneGeometry.length - 1].lane_number;
+      const laneMap = new Map(laneGeometry.map((lane) => [lane.lane_number, lane]));
+
+      return normalizeLidarRows(lidars).map((lidar) => {
+        const assigned = [lidar.right_lane, lidar.left_lane].filter((value) => value !== null);
+        if (!assigned.length) {
+          return { ...lidar, assigned: [], status: 'empty' };
+        }
+        const matched = assigned.map((laneNumber) => laneMap.get(laneNumber)).filter(Boolean);
+        if (!matched.length) {
+          return { ...lidar, assigned, status: 'invalid' };
+        }
+
+        const inner_boundary = Math.min(...matched.map((lane) => lane.inner_boundary));
+        const outer_boundary = Math.max(...matched.map((lane) => lane.outer_boundary));
+        const assigned_width = outer_boundary - inner_boundary;
+        const minAssigned = Math.min(...assigned);
+        const maxAssigned = Math.max(...assigned);
+        const is_innermost = minAssigned === firstLane;
+        const is_outermost = maxAssigned === lastLane;
+        const right_compensation = is_innermost ? 0 : 500;
+        const left_compensation = is_outermost ? 0 : 500;
+        const scan_right = lidar.center_distance_mm - inner_boundary + right_compensation;
+        const scan_left = outer_boundary - lidar.center_distance_mm + left_compensation;
+        const primary_lane = lidar.right_lane ?? lidar.left_lane;
+        const primary_lane_width = primary_lane !== null ? (laneMap.get(primary_lane)?.width_mm ?? 0) : 0;
+        const offset_value = assigned.length === 2
+          ? Math.abs(lidar.center_distance_mm - inner_boundary - (laneMap.get(assigned[0])?.width_mm ?? 0))
+          : Math.abs(lidar.center_distance_mm - inner_boundary);
+
+        let status = 'normal';
+        if (scan_right > 5500 || scan_left > 5500) {
+          status = 'warning';
+        }
+        if (scan_right < 0 || scan_left < 0) {
+          status = 'error';
+        }
+
+        return {
+          ...lidar,
+          assigned,
+          inner_boundary,
+          outer_boundary,
+          assigned_width,
+          is_innermost,
+          is_outermost,
+          right_compensation,
+          left_compensation,
+          scan_right,
+          scan_left,
+          offset_value,
+          primary_lane,
+          primary_lane_width,
+          status,
+        };
+      });
+    }
+
+    function calculateFieldBands(result) {
+      if (!result.primary_lane_width) {
+        return [];
+      }
+
+      const offsetPrimary = result.center_distance_mm - result.inner_boundary - result.primary_lane_width;
+      const offsetLeft = result.center_distance_mm - result.outer_boundary;
+      const primaryUpper = 90 + Math.ceil((result.primary_lane_width + offsetPrimary) / 200);
+      const primaryLower = 90 + Math.floor(offsetPrimary / 200);
+      const primaryCenter = Math.ceil((primaryUpper + primaryLower) / 2);
+      const primaryField2 = [primaryCenter - 2, result.primary_lane === result.assigned[0] && result.is_innermost ? primaryUpper : primaryUpper + 2];
+      const primaryField3 = [primaryLower - 2, primaryCenter + 2];
+
+      const bands = [];
+      if (result.right_lane !== null) {
+        bands.push({ label: 'Field1', range: [primaryLower, primaryUpper], color: '#f59e0b' });
+        bands.push({ label: 'Field2', range: primaryField2, color: '#fbbf24' });
+        bands.push({ label: 'Field3', range: primaryField3, color: '#fcd34d' });
+      }
+
+      if (result.left_lane !== null && result.right_lane === null) {
+        bands.push({ label: 'Field4', range: [primaryLower, primaryUpper], color: '#f97316' });
+        bands.push({ label: 'Field5', range: primaryField2, color: '#fb923c' });
+        bands.push({ label: 'Field6', range: primaryField3, color: '#fdba74' });
+      } else if (result.left_lane !== null && result.right_lane !== null) {
+        const field4Upper = primaryLower - 1;
+        const field4Lower = 90 + Math.floor(offsetLeft / 200);
+        const centerOuter = Math.ceil((field4Upper + field4Lower) / 2);
+        bands.push({ label: 'Field4', range: [field4Lower, field4Upper], color: '#f97316' });
+        bands.push({ label: 'Field5', range: [centerOuter - 2, field4Upper + 2], color: '#fb923c' });
+        bands.push({ label: 'Field6', range: [field4Lower - 2, centerOuter + 2], color: '#fdba74' });
+      }
+      return bands;
+    }
+
+    function renderDiagramPanel(title, lidars, accentColor, fillColor, roadColor) {
       const laneGeometry = calculateLaneGeometry();
       if (!laneGeometry.length) {
         return `<div class="diagram-panel"><h3>${escapeHtml(title)}</h3><p class="diagram-empty">請先輸入有效的車道寬度，才能顯示示意圖。</p></div>`;
       }
 
+      const titleKey = title.replaceAll(/[^a-zA-Z0-9]/g, '-');
+      const results = calculateVisualResults(lidars, laneGeometry);
       const totalWidth = laneGeometry[laneGeometry.length - 1].outer_boundary;
-      const panelWidth = 760;
+      const panelWidth = 840;
       const scale = totalWidth > 0 ? panelWidth / totalWidth : 1;
-      const laneY = 70;
-      const laneHeight = 76;
-      const svgHeight = laneY + laneHeight + 88;
-      const lidarsMarkup = normalizeLidarRows(lidars).map((lidar) => {
-        const centerX = 40 + (lidar.center_distance_mm * scale);
+      const laneY = 146;
+      const laneHeight = 92;
+      const fieldBaseY = 42;
+      const fieldHeight = 16;
+      const svgHeight = laneY + laneHeight + 122;
+
+      const fieldMarkup = results.map((result) => {
+        const bands = calculateFieldBands(result);
+        return bands.map((band, bandIndex) => {
+          const startMm = angleToPosition(result.center_distance_mm, band.range[1]);
+          const endMm = angleToPosition(result.center_distance_mm, band.range[0]);
+          const x = 56 + (Math.min(startMm, endMm) * scale);
+          const width = Math.max(Math.abs(endMm - startMm) * scale, 3);
+          const y = fieldBaseY + (bandIndex * (fieldHeight + 6));
+          return `
+            <rect x="${x}" y="${y}" width="${width}" height="${fieldHeight}" rx="7" fill="${band.color}" opacity="0.88" />
+            <text x="${x + (width / 2)}" y="${y + 11}" text-anchor="middle" font-size="10" font-weight="700" fill="#431407">${band.label}</text>
+          `;
+        }).join('');
+      }).join('');
+
+      const lidarsMarkup = results.map((lidar) => {
+        const centerX = 56 + (lidar.center_distance_mm * scale);
         const span = lidarAssignedSpan(lidar, laneGeometry);
-        const spanMarkup = span ? `<rect x="${40 + (span.inner_boundary * scale)}" y="${laneY}" width="${Math.max((span.outer_boundary - span.inner_boundary) * scale, 2)}" height="${laneHeight}" fill="${fillColor}" opacity="0.55" rx="10" />` : '';
+        const strokeColor = lidar.status === 'error' ? '#dc2626' : lidar.status === 'warning' ? '#d97706' : accentColor;
+        const spanMarkup = span ? `<rect x="${56 + (span.inner_boundary * scale)}" y="${laneY}" width="${Math.max((span.outer_boundary - span.inner_boundary) * scale, 2)}" height="${laneHeight}" fill="${fillColor}" opacity="0.45" rx="12" />` : '';
+        const scanRightEndX = 56 + ((lidar.center_distance_mm - lidar.scan_right) * scale);
+        const scanLeftEndX = 56 + ((lidar.center_distance_mm + lidar.scan_left) * scale);
+        const fieldRangeText = calculateFieldBands(lidar).map((band) => `${band.label} ${band.range[0]}°~${band.range[1]}°`).join(' / ');
         return `
           ${spanMarkup}
-          <line x1="${centerX}" y1="${laneY - 28}" x2="${centerX}" y2="${laneY + laneHeight + 12}" stroke="${accentColor}" stroke-width="3" stroke-dasharray="7 5" />
-          <circle cx="${centerX}" cy="${laneY - 16}" r="8" fill="${accentColor}" />
-          <text x="${centerX}" y="${laneY - 36}" text-anchor="middle" font-size="12" font-weight="700" fill="${accentColor}">LIDAR_${lidar.index}</text>
-          <text x="${centerX}" y="${laneY + laneHeight + 32}" text-anchor="middle" font-size="12" fill="#334155">${Math.round(lidar.center_distance_mm)} mm</text>
+          <line x1="${centerX}" y1="${laneY - 34}" x2="${centerX}" y2="${laneY + laneHeight + 18}" stroke="${strokeColor}" stroke-width="3" stroke-dasharray="7 5" />
+          <circle cx="${centerX}" cy="${laneY - 18}" r="9" fill="${strokeColor}" />
+          <text x="${centerX}" y="${laneY - 42}" text-anchor="middle" font-size="12" font-weight="700" fill="${strokeColor}">LIDAR_${lidar.index}</text>
+          <text x="${centerX}" y="${laneY + laneHeight + 34}" text-anchor="middle" font-size="12" fill="#334155">Center ${Math.round(lidar.center_distance_mm)} mm</text>
+          ${lidar.status !== 'empty' && lidar.status !== 'invalid' ? `
+            <line x1="${scanRightEndX}" y1="${laneY + laneHeight + 52}" x2="${centerX}" y2="${laneY + laneHeight + 52}" stroke="${strokeColor}" stroke-width="3" marker-start="url(#arrow-start-${titleKey})" marker-end="url(#arrow-end-${titleKey})" />
+            <text x="${(scanRightEndX + centerX) / 2}" y="${laneY + laneHeight + 46}" text-anchor="middle" font-size="11" font-weight="700" fill="${strokeColor}">scan_right ${Math.round(lidar.scan_right)} mm</text>
+            <line x1="${centerX}" y1="${laneY + laneHeight + 74}" x2="${scanLeftEndX}" y2="${laneY + laneHeight + 74}" stroke="${strokeColor}" stroke-width="3" marker-start="url(#arrow-start-${titleKey})" marker-end="url(#arrow-end-${titleKey})" />
+            <text x="${(centerX + scanLeftEndX) / 2}" y="${laneY + laneHeight + 68}" text-anchor="middle" font-size="11" font-weight="700" fill="${strokeColor}">scan_left ${Math.round(lidar.scan_left)} mm</text>
+            <text x="${centerX}" y="${laneY - 56}" text-anchor="middle" font-size="10" fill="#475569">${fieldRangeText}</text>
+          ` : ''}
         `;
       }).join('');
 
       const laneMarkup = laneGeometry.map((lane, index) => {
-        const x = 40 + (lane.inner_boundary * scale);
+        const x = 56 + (lane.inner_boundary * scale);
         const width = Math.max((lane.outer_boundary - lane.inner_boundary) * scale, 2);
         return `
           <rect x="${x}" y="${laneY}" width="${width}" height="${laneHeight}" rx="10" fill="${index % 2 === 0 ? '#dbeafe' : '#eff6ff'}" stroke="#93c5fd" stroke-width="1.5" />
-          <text x="${x + (width / 2)}" y="${laneY + 32}" text-anchor="middle" font-size="14" font-weight="700" fill="#1e3a8a">Lane ${lane.lane_number}</text>
-          <text x="${x + (width / 2)}" y="${laneY + 54}" text-anchor="middle" font-size="12" fill="#334155">${Math.round(lane.width_mm)} mm</text>
+          <line x1="${x}" y1="${laneY + (laneHeight / 2)}" x2="${x + width}" y2="${laneY + (laneHeight / 2)}" stroke="${roadColor}" stroke-width="3" stroke-dasharray="12 10" />
+          <text x="${x + (width / 2)}" y="${laneY + 30}" text-anchor="middle" font-size="14" font-weight="700" fill="#1e3a8a">Lane ${lane.lane_number}</text>
+          <text x="${x + (width / 2)}" y="${laneY + 52}" text-anchor="middle" font-size="12" fill="#334155">${Math.round(lane.width_mm)} mm</text>
+          <text x="${x + (width / 2)}" y="${laneY + 75}" text-anchor="middle" font-size="11" fill="#64748b">${mmToAngle((lane.inner_boundary + lane.outer_boundary) / 2, lane.inner_boundary)}° 視角參考</text>
         `;
       }).join('');
 
       const ticksMarkup = laneGeometry.map((lane) => {
-        const x = 40 + (lane.inner_boundary * scale);
+        const x = 56 + (lane.inner_boundary * scale);
         return `
           <line x1="${x}" y1="${laneY + laneHeight + 2}" x2="${x}" y2="${laneY + laneHeight + 12}" stroke="#64748b" stroke-width="1" />
           <text x="${x}" y="${laneY + laneHeight + 26}" text-anchor="middle" font-size="11" fill="#64748b">${Math.round(lane.inner_boundary)}</text>
         `;
       }).join('') + `
-        <line x1="${40 + (totalWidth * scale)}" y1="${laneY + laneHeight + 2}" x2="${40 + (totalWidth * scale)}" y2="${laneY + laneHeight + 12}" stroke="#64748b" stroke-width="1" />
-        <text x="${40 + (totalWidth * scale)}" y="${laneY + laneHeight + 26}" text-anchor="middle" font-size="11" fill="#64748b">${Math.round(totalWidth)}</text>
+        <line x1="${56 + (totalWidth * scale)}" y1="${laneY + laneHeight + 2}" x2="${56 + (totalWidth * scale)}" y2="${laneY + laneHeight + 12}" stroke="#64748b" stroke-width="1" />
+        <text x="${56 + (totalWidth * scale)}" y="${laneY + laneHeight + 26}" text-anchor="middle" font-size="11" fill="#64748b">${Math.round(totalWidth)}</text>
       `;
 
       return `
         <div class="diagram-panel">
           <h3>${escapeHtml(title)}</h3>
-          <svg width="${panelWidth + 80}" height="${svgHeight}" viewBox="0 0 ${panelWidth + 80} ${svgHeight}" role="img" aria-label="${escapeHtml(title)} 車道配置示意圖">
-            <text x="40" y="22" font-size="14" font-weight="800" fill="#0f172a">內路肩護欄基準點</text>
-            <line x1="40" y1="${laneY - 8}" x2="40" y2="${laneY + laneHeight + 12}" stroke="#0f172a" stroke-width="4" />
-            <text x="${panelWidth + 40}" y="22" text-anchor="end" font-size="12" fill="#475569">單位：mm</text>
+          <p class="diagram-caption">現場配置圖風格顯示 scan_right / scan_left 與 Field1~Field6 區段；右(Lane1) 對應 Field1~Field3，左(Lane2) 對應 Field4~Field6。</p>
+          <svg width="${panelWidth + 112}" height="${svgHeight}" viewBox="0 0 ${panelWidth + 112} ${svgHeight}" role="img" aria-label="${escapeHtml(title)} 車道配置示意圖">
+            <defs>
+              <marker id="arrow-start-${titleKey}" markerWidth="8" markerHeight="8" refX="2" refY="4" orient="auto">
+                <path d="M8,0 L0,4 L8,8" fill="${accentColor}" />
+              </marker>
+              <marker id="arrow-end-${titleKey}" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto">
+                <path d="M0,0 L8,4 L0,8" fill="${accentColor}" />
+              </marker>
+            </defs>
+            <rect x="56" y="${laneY - 18}" width="${panelWidth}" height="${laneHeight + 34}" rx="18" fill="${roadColor}" opacity="0.08" />
+            <text x="56" y="22" font-size="14" font-weight="800" fill="#0f172a">內路肩護欄基準點</text>
+            <line x1="56" y1="${laneY - 20}" x2="56" y2="${laneY + laneHeight + 18}" stroke="#0f172a" stroke-width="5" />
+            <text x="${panelWidth + 56}" y="22" text-anchor="end" font-size="12" fill="#475569">單位：mm / 現場配置圖</text>
+            <text x="56" y="${fieldBaseY - 12}" font-size="12" font-weight="700" fill="#92400e">Field1~Field6 區段標示</text>
+            ${fieldMarkup}
             ${laneMarkup}
             ${lidarsMarkup}
             ${ticksMarkup}
@@ -438,9 +592,9 @@
 
     function renderLaneDiagram() {
       const container = document.getElementById('lane-diagram-container');
-      const panels = [renderDiagramPanel('主 Lidar 示意圖', FORM_STATE.lidars, '#2563eb', '#bfdbfe')];
+      const panels = [renderDiagramPanel('主 Lidar 示意圖', FORM_STATE.lidars, '#2563eb', '#bfdbfe', '#1d4ed8')];
       if (document.getElementById('has-backup').checked) {
-        panels.push(renderDiagramPanel('備援 Lidar 示意圖', FORM_STATE.backup_lidars, '#db2777', '#fce7f3'));
+        panels.push(renderDiagramPanel('備援 Lidar 示意圖', FORM_STATE.backup_lidars, '#db2777', '#fce7f3', '#be185d'));
       }
       container.innerHTML = panels.join('');
     }
