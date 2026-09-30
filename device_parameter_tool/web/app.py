@@ -103,6 +103,7 @@ def _config_from_form(form) -> DeviceConfig:
         note=form.get("note", ""),
         has_backup=has_backup,
         traffic_mode=form.get("traffic_mode", "inner_from_right"),
+        lidar_label_start=_coerce_int(form.get("lidar_label_start"), 0),
         lanes=_build_lane_rows(form, lane_count),
         lidars=_build_lidar_rows(form, lidar_count, prefix="primary"),
         backup_lidars=_build_lidar_rows(form, backup_lidar_count, prefix="backup") if has_backup else [],
@@ -145,6 +146,7 @@ def _form_defaults(config: DeviceConfig) -> dict:
         "note": config.note,
         "has_backup": config.has_backup,
         "traffic_mode": config.traffic_mode,
+        "lidar_label_start": config.lidar_label_start,
         "inner_label": inner_label,
         "outer_label": outer_label,
         "lane_count": max(1, len(lane_rows)),
@@ -195,6 +197,7 @@ def _posted_form_state(form) -> dict:
         "note": form.get("note", ""),
         "has_backup": has_backup,
         "traffic_mode": traffic_mode,
+        "lidar_label_start": _coerce_int(form.get("lidar_label_start"), 0),
         "inner_label": inner_label,
         "outer_label": outer_label,
         "lane_count": lane_count,
@@ -268,13 +271,13 @@ def create_app(data_dir: str | Path | None = None) -> Flask:
         try:
             if config and config.lanes and config.lidars:
                 summaries.append({
-                    "label": "主 Lidar",
+                    "label": "Primary Lidar Dtmod",
                     "summary": calculate_lidar_results(config.lanes, config.lidars, config.traffic_mode),
                     "fields": calculate_sopas_fields(config.lanes, config.lidars, config.traffic_mode),
                 })
             if config and config.has_backup and config.lanes and config.backup_lidars:
                 summaries.append({
-                    "label": "備援 Lidar",
+                    "label": "Backup Lidar Dtmod",
                     "summary": calculate_lidar_results(config.lanes, config.backup_lidars, config.traffic_mode),
                     "fields": calculate_sopas_fields(config.lanes, config.backup_lidars, config.traffic_mode),
                 })

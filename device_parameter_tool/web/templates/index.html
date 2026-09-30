@@ -152,6 +152,15 @@
                 <option value="inner_from_left" {% if form.traffic_mode == 'inner_from_left' %}selected{% endif %}>內線在左側</option>
               </select>
             </label>
+            <label>Lidar 起始編號
+              <select id="lidar-label-start" name="lidar_label_start">
+                <option value="0" {% if form.lidar_label_start == 0 %}selected{% endif %}>LIDAR_0 開始</option>
+                <option value="1" {% if form.lidar_label_start == 1 %}selected{% endif %}>LIDAR_1 開始</option>
+              </select>
+            </label>
+          </div>
+
+          <div class="grid-2">
             <label for="lane-count">車道數量
               <input id="lane-count" aria-label="車道數量" name="lane_count" type="number" min="1" value="{{ form.lane_count }}">
             </label>
@@ -217,7 +226,7 @@
         </div>
         {% for section in summaries %}
         <div class="card" style="margin-bottom: 24px;">
-          <h2>{{ section.label }} 計算結果</h2>
+          <h2>{{ section.label }}</h2>
           <table>
             <thead>
               <tr>
@@ -234,7 +243,7 @@
             <tbody>
               {% for result in section.summary.results %}
               <tr>
-                <td>LIDAR_{{ result.index }}</td>
+                <td>LIDAR_{{ result.index + form.lidar_label_start }}</td>
                 <td>{{ result.inner_lane if result.inner_lane is not none else '—' }}</td>
                 <td>{{ result.outer_lane if result.outer_lane is not none else '—' }}</td>
                 <td>{{ '%.0f'|format(result.center) }}</td>
@@ -256,45 +265,47 @@
           {% endif %}
 
           {% if section.fields %}
-          <h3>Field 範圍</h3>
-          <table>
-            <thead>
-              <tr>
-                <th>Lidar</th>
-                <th>{{ form.inner_label }}</th>
-                <th>{{ form.outer_label }}</th>
-                <th>Offset (mm)</th>
-                <th>Field1</th>
-                <th>Field2</th>
-                <th>Field3</th>
-                <th>Field4</th>
-                <th>Field5</th>
-                <th>Field6</th>
-              </tr>
-            </thead>
-            <tbody>
-              {% for field in section.fields %}
-              <tr>
-                <td>LIDAR_{{ field.index }}</td>
-                <td>{{ field.inner_lane if field.inner_lane is not none else '—' }}</td>
-                <td>{{ field.outer_lane if field.outer_lane is not none else '—' }}</td>
-                <td>{{ '%.0f'|format(field.offset_value) }}</td>
-                <td>{% if field.field1 %}Field1: {{ field.field1[0] }}° ~ {{ field.field1[1] }}°{% else %}Field1: 未配置{% endif %}</td>
-                <td>{% if field.field2 %}Field2: {{ field.field2[0] }}° ~ {{ field.field2[1] }}°{% else %}Field2: 未配置{% endif %}</td>
-                <td>{% if field.field3 %}Field3: {{ field.field3[0] }}° ~ {{ field.field3[1] }}°{% else %}Field3: 未配置{% endif %}</td>
-                <td>{% if field.field4 %}Field4: {{ field.field4[0] }}° ~ {{ field.field4[1] }}°{% else %}Field4: 未配置{% endif %}</td>
-                <td>{% if field.field5 %}Field5: {{ field.field5[0] }}° ~ {{ field.field5[1] }}°{% else %}Field5: 未配置{% endif %}</td>
-                <td>{% if field.field6 %}Field6: {{ field.field6[0] }}° ~ {{ field.field6[1] }}°{% else %}Field6: 未配置{% endif %}</td>
-              </tr>
-              {% endfor %}
-            </tbody>
-          </table>
-          <p class="hint">{{ form.inner_label }} 對應 Field1~Field3；{{ form.outer_label }} 對應 Field4~Field6；角度基準為 90°，1° = 200 mm。</p>
+          <details class="debug-details">
+            <summary>Field 範圍（點擊展開）</summary>
+            <table>
+              <thead>
+                <tr>
+                  <th>Lidar</th>
+                  <th>{{ form.inner_label }}</th>
+                  <th>{{ form.outer_label }}</th>
+                  <th>Offset (mm)</th>
+                  <th>Field1</th>
+                  <th>Field2</th>
+                  <th>Field3</th>
+                  <th>Field4</th>
+                  <th>Field5</th>
+                  <th>Field6</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for field in section.fields %}
+                <tr>
+                  <td>LIDAR_{{ field.index + form.lidar_label_start }}</td>
+                  <td>{{ field.inner_lane if field.inner_lane is not none else '—' }}</td>
+                  <td>{{ field.outer_lane if field.outer_lane is not none else '—' }}</td>
+                  <td>{{ '%.0f'|format(field.offset_value) }}</td>
+                  <td>{% if field.field1 %}Field1: {{ field.field1[0] }}° ~ {{ field.field1[1] }}°{% else %}Field1: 未配置{% endif %}</td>
+                  <td>{% if field.field2 %}Field2: {{ field.field2[0] }}° ~ {{ field.field2[1] }}°{% else %}Field2: 未配置{% endif %}</td>
+                  <td>{% if field.field3 %}Field3: {{ field.field3[0] }}° ~ {{ field.field3[1] }}°{% else %}Field3: 未配置{% endif %}</td>
+                  <td>{% if field.field4 %}Field4: {{ field.field4[0] }}° ~ {{ field.field4[1] }}°{% else %}Field4: 未配置{% endif %}</td>
+                  <td>{% if field.field5 %}Field5: {{ field.field5[0] }}° ~ {{ field.field5[1] }}°{% else %}Field5: 未配置{% endif %}</td>
+                  <td>{% if field.field6 %}Field6: {{ field.field6[0] }}° ~ {{ field.field6[1] }}°{% else %}Field6: 未配置{% endif %}</td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+            <p class="hint">{{ form.inner_label }} 對應 Field1~Field3；{{ form.outer_label }} 對應 Field4~Field6；角度基準為 90°，1° = 200 mm。</p>
+          </details>
           <details class="debug-details">
             <summary>偵錯資訊（點擊展開）</summary>
             {% for result in section.summary.results %}
             <div class="item-box">
-              <strong>LIDAR_{{ result.index }}</strong>
+              <strong>LIDAR_{{ result.index + form.lidar_label_start }}</strong>
               <ul>{% for line in result.debug_lines %}<li>{{ line }}</li>{% endfor %}</ul>
               {% for field in section.fields if field.index == result.index %}
               <ul>{% for line in field.debug_lines %}<li>{{ line }}</li>{% endfor %}</ul>
@@ -336,6 +347,14 @@
 
     function currentTrafficMode() {
       return document.getElementById('traffic-mode')?.value || FORM_STATE.traffic_mode || 'inner_from_right';
+    }
+
+    function currentLidarLabelStart() {
+      return Number(document.getElementById('lidar-label-start')?.value ?? FORM_STATE.lidar_label_start ?? 0);
+    }
+
+    function displayLidarLabel(index) {
+      return `LIDAR_${Number(index) + currentLidarLabelStart()}`;
     }
 
     function currentSlotLabels() {
@@ -549,14 +568,14 @@
         if (!bands.length) {
           return `
             <div class="field-summary-card">
-              <div class="field-summary-title">LIDAR_${result.index}</div>
+              <div class="field-summary-title">${displayLidarLabel(result.index)}</div>
               <div class="field-summary-text">Field：未配置</div>
             </div>
           `;
         }
         return `
           <div class="field-summary-card">
-            <div class="field-summary-title">LIDAR_${result.index}</div>
+            <div class="field-summary-title">${displayLidarLabel(result.index)}</div>
             <div class="field-summary-text">${bands.map((band) => `${band.label} ${band.range[0]}°~${band.range[1]}°`).join(' ｜ ')}</div>
           </div>
         `;
@@ -573,7 +592,7 @@
           ${spanMarkup}
           <line x1="${centerX}" y1="${laneY - 34}" x2="${centerX}" y2="${laneY + laneHeight + 18}" stroke="${strokeColor}" stroke-width="3" stroke-dasharray="7 5" />
           <circle cx="${centerX}" cy="${laneY - 18}" r="9" fill="${strokeColor}" />
-          <text x="${centerX}" y="${laneY - 42}" text-anchor="middle" font-size="12" font-weight="700" fill="${strokeColor}">LIDAR_${lidar.index}</text>
+          <text x="${centerX}" y="${laneY - 42}" text-anchor="middle" font-size="12" font-weight="700" fill="${strokeColor}">${displayLidarLabel(lidar.index)}</text>
           <text x="${centerX}" y="${laneY + laneHeight + 122}" text-anchor="middle" font-size="12" fill="#334155">Center ${Math.round(lidar.center_distance_mm)} mm</text>
         `;
       }).join('');
@@ -694,7 +713,7 @@
         const box = document.createElement('div');
         box.className = 'lidar-group';
         box.innerHTML = `
-          <div class="lidar-group-title">${prefix === 'primary' ? 'Primary' : 'Backup'} — LIDAR_${index}</div>
+          <div class="lidar-group-title">${prefix === 'primary' ? 'Primary' : 'Backup'} — ${displayLidarLabel(index)}</div>
           <div class="grid-3">
             <label>${labels.inner}
               <select name="${prefix}_lidar_${index}_lane_a">${laneOptions(lidar.lane_a)}</select>
@@ -752,6 +771,13 @@
 
     document.getElementById('traffic-mode').addEventListener('change', () => {
       FORM_STATE.traffic_mode = currentTrafficMode();
+      renderLidars('primary', 'primary-lidars-container', FORM_STATE.lidars, 'primary-lidar-count');
+      renderLidars('backup', 'backup-lidars-container', FORM_STATE.backup_lidars, 'backup-lidar-count');
+      renderLaneDiagram();
+    });
+
+    document.getElementById('lidar-label-start').addEventListener('change', () => {
+      FORM_STATE.lidar_label_start = currentLidarLabelStart();
       renderLidars('primary', 'primary-lidars-container', FORM_STATE.lidars, 'primary-lidar-count');
       renderLidars('backup', 'backup-lidars-container', FORM_STATE.backup_lidars, 'backup-lidar-count');
       renderLaneDiagram();

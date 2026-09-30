@@ -94,9 +94,10 @@ python -m device_parameter_tool.web.app
 - 支援交通模式切換：
   - `inner_from_right`：內線在右側（目前版）
   - `inner_from_left`：內線在左側
+- 支援使用者自行選擇 Lidar 顯示起始編號（`LIDAR_0` 或 `LIDAR_1`）
 - Lidar 負責車道使用 2 個下拉欄位：右 / 左，選項依目前 lane number 動態更新
 - 使用同一套 `lidar_calculator` 邏輯即時預覽結果
-- 顯示舊版 SOPAS Tool 的 `Field1` ~ `Field6` 範圍計算結果
+- 顯示舊版 SOPAS Tool 的 `Field1` ~ `Field6` 範圍計算結果，並以點擊展開方式顯示完整表格
 - 顯示舊版風格的偵錯資訊 / 詳細計算過程（預設收合，可自行展開）
 - 內建純前端 SVG 車道 / Lidar 示意圖，會依目前輸入即時標示車道寬度、內路肩護欄基準點、Lidar 中心點與負責範圍
 - SVG 示意圖會以接近現場配置圖的樣式呈現 Lidar 與車道覆蓋關係
@@ -126,6 +127,7 @@ python -m device_parameter_tool.web.app
   "note": "夜間測試點位",
   "has_backup": true,
   "traffic_mode": "inner_from_right",
+  "lidar_label_start": 1,
   "camera": {
     "latitude": 25.1,
     "longitude": 121.6,
@@ -231,6 +233,13 @@ scan_left  = outer_boundary - center_distance + (0 if is_outermost else 500)
 - 只是畫面上的左/右欄位與 SVG 方向會跟著切換
 
 Web UI / CLI 都會顯示每個主 / 備援 Lidar 的 field 範圍與偵錯資訊。
+
+## Lidar 顯示編號
+
+- `lidar_label_start = 0`：畫面顯示為 `LIDAR_0`、`LIDAR_1`、`LIDAR_2`
+- `lidar_label_start = 1`：畫面顯示為 `LIDAR_1`、`LIDAR_2`、`LIDAR_3`
+
+此設定由使用者在 Web UI 選擇，並會隨設定檔與 Site History 一起保存。
 
 ## 測試
 

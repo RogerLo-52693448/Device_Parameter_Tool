@@ -7,6 +7,7 @@ FORM_DATA = {
     "site_name": "01F-台北交流道",
     "note": "中文備註測試",
     "traffic_mode": "inner_from_right",
+    "lidar_label_start": "1",
     "has_backup": "on",
     "lane_count": "2",
     "primary_lidar_count": "1",
@@ -42,6 +43,7 @@ def test_web_save_and_history_round_trip(tmp_path):
     history_data = json.loads(history_path.read_text(encoding="utf-8"))
     assert history_data[0]["note"] == "中文備註測試"
     assert history_data[0]["config"]["site_name"] == "01F-台北交流道"
+    assert history_data[0]["config"]["lidar_label_start"] == 1
     assert history_data[0]["config"]["lanes"][0]["lane_number"] == 0
     assert history_data[0]["config"]["has_backup"] is True
     assert history_data[0]["config"]["backup_lidars"][0]["assigned_lanes"] == [0, 1]
@@ -55,9 +57,12 @@ def test_web_save_and_history_round_trip(tmp_path):
     assert "中文備註測試" in history_text
     assert "已載入歷史紀錄" in history_text
     assert "備援 Lidar" in history_text
-    assert "Field 範圍" in history_text
+    assert "Field 範圍（點擊展開）" in history_text
     assert "Field1" in history_text
     assert "偵錯資訊（點擊展開）" in history_text
+    assert "Primary Lidar Dtmod" in history_text
+    assert "Backup Lidar Dtmod" in history_text
+    assert "LIDAR_1" in history_text
     assert "右</th>" in history_text or "右" in history_text
     assert "左</th>" in history_text or "左" in history_text
     assert "路線分類" in history_text
@@ -78,6 +83,7 @@ def test_web_page_uses_dynamic_lane_and_lidar_sections(tmp_path):
     assert "renderLidars('primary'" in text
     assert 'id="has-backup"' in text
     assert 'id="traffic-mode"' in text
+    assert 'id="lidar-label-start"' in text
     assert "lidar-block-title" in text
     assert "Primary Lidar Configuration" in text
     assert "None" in text
@@ -89,6 +95,7 @@ def test_web_page_uses_dynamic_lane_and_lidar_sections(tmp_path):
     assert 'id="lane-diagram-container"' in text
     assert "renderLaneDiagram()" in text
     assert "車道 / Lidar SVG 示意圖" in text
+    assert "displayLidarLabel" in text
     assert "Field 改為下方摘要列" in text
     assert "field-summary-grid" in text
     assert "現場配置圖" in text
@@ -292,6 +299,7 @@ def test_web_supports_inner_from_left_mode(tmp_path):
     history_data = json.loads(history_path.read_text(encoding="utf-8"))
     lidar = history_data[0]["config"]["lidars"][0]
     assert history_data[0]["config"]["traffic_mode"] == "inner_from_left"
+    assert history_data[0]["config"]["lidar_label_start"] == 1
     assert lidar["inner_lane"] == 0
     assert lidar["outer_lane"] == 1
     assert lidar["right_lane"] == 1

@@ -7,6 +7,7 @@ from ipaddress import ip_address
 VALID_PROTOCOLS = {"rtsp", "http", "https", "udp", "tcp"}
 VALID_LOG_LEVELS = {"DEBUG", "INFO", "WARNING", "ERROR"}
 TRAFFIC_MODES = {"inner_from_right", "inner_from_left"}
+LIDAR_LABEL_STARTS = {0, 1}
 SITE_ROUTE_OPTIONS = [
     ("國一", "01F"),
     ("國三", "03F"),
@@ -70,6 +71,12 @@ def validate_traffic_mode(value: str) -> str:
     if mode not in TRAFFIC_MODES:
         raise ValueError(f"traffic mode 必須為 {', '.join(sorted(TRAFFIC_MODES))}")
     return mode
+
+
+def validate_lidar_label_start(value: int) -> int:
+    if value not in LIDAR_LABEL_STARTS:
+        raise ValueError("Lidar 起始編號必須為 0 或 1")
+    return value
 
 
 def lane_slot_labels(traffic_mode: str) -> tuple[str, str]:

@@ -13,6 +13,7 @@ def sample_config(note: str = "測試備註") -> DeviceConfig:
             "site_name": "03F-040.7N",
             "note": note,
             "has_backup": True,
+            "lidar_label_start": 1,
             "camera": {
                 "camera_id": "CAM-01",
                 "name": "主攝影機",
@@ -75,6 +76,7 @@ def test_device_config_round_trip_serialization():
 
     assert restored.to_dict() == config.to_dict()
     assert restored.note == "測試備註"
+    assert restored.lidar_label_start == 1
     assert restored.camera.camera_id == "CAM-01"
     assert restored.host.mqtt_ip == "192.168.0.21"
     assert restored.has_backup is True
@@ -251,3 +253,14 @@ def test_inner_from_left_maps_inner_outer_to_physical_slots():
     assert config.lidars[0].outer_lane == 1
     assert config.lidars[0].right_lane == 1
     assert config.lidars[0].left_lane == 0
+
+
+def test_invalid_lidar_label_start_is_rejected():
+    with pytest.raises(ValueError, match="Lidar 起始編號必須為 0 或 1"):
+        DeviceConfig.from_dict(
+            {
+                "site_name": "01F-invalid-label-start",
+                "lidar_label_start": 2,
+                "lanes": [{"lane_number": 0, "width_mm": 3500.0}],
+            }
+        )

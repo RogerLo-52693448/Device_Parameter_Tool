@@ -10,6 +10,7 @@ from device_parameter_tool.utils.validators import (
     physical_slots_from_inner_outer,
     validate_ip,
     validate_lidar_assignment,
+    validate_lidar_label_start,
     validate_lidar_lane_slots,
     validate_log_level,
     validate_non_negative_number,
@@ -175,6 +176,7 @@ class DeviceConfig:
     note: str = ""
     has_backup: bool = False
     traffic_mode: str = "inner_from_right"
+    lidar_label_start: int = 0
     camera: CameraConfig = field(default_factory=CameraConfig)
     lanes: list[LaneConfig] = field(default_factory=list)
     lidars: list[LidarConfig] = field(default_factory=list)
@@ -184,6 +186,7 @@ class DeviceConfig:
     def validate(self) -> None:
         self.site_name = validate_site_name(self.site_name)
         self.traffic_mode = validate_traffic_mode(self.traffic_mode)
+        self.lidar_label_start = validate_lidar_label_start(self.lidar_label_start)
         if not self.has_backup:
             self.backup_lidars = []
         self.camera.validate()
@@ -238,6 +241,7 @@ class DeviceConfig:
             note=data.get("note", ""),
             has_backup=bool(data.get("has_backup", bool(backup_lidars_payload))),
             traffic_mode=data.get("traffic_mode", "inner_from_right"),
+            lidar_label_start=data.get("lidar_label_start", 0),
             camera=CameraConfig(
                 camera_id=camera_payload.get("camera_id", "CAM-01"),
                 name=camera_payload.get("name", "Camera 1"),
