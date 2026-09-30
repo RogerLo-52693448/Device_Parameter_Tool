@@ -8,7 +8,7 @@ from flask import Flask, redirect, render_template, request, url_for
 
 from device_parameter_tool.models.device_config import DeviceConfig, LaneConfig, LidarConfig
 from device_parameter_tool.services.config_service import ConfigService
-from device_parameter_tool.services.lidar_calculator import calculate_lidar_results, calculate_sopas_fields
+from device_parameter_tool.services.lidar_calculator import calculate_lane_info, calculate_lidar_results, calculate_sopas_fields
 from device_parameter_tool.utils.validators import SITE_ROUTE_OPTIONS, lane_slot_labels, physical_slots_from_inner_outer, site_route_label
 
 
@@ -267,8 +267,11 @@ def create_app(data_dir: str | Path | None = None) -> Flask:
         form_collapsed: bool = False,
     ):
         summaries = []
+        lane_info = []
         history_records = service.load_history()
         try:
+            if config and config.lanes:
+                lane_info = calculate_lane_info(config.lanes)
             if config and config.lanes and config.lidars:
                 summaries.append({
                     "label": "Primary Lidar Dtmod",
@@ -287,6 +290,7 @@ def create_app(data_dir: str | Path | None = None) -> Flask:
             "index.html",
             form=form_state or _form_defaults(config or DeviceConfig(site_name="", lanes=[LaneConfig(lane_number=0, width_mm=3500.0)])),
             summaries=summaries,
+            lane_info=lane_info,
             message=message,
             error=error,
             history_browser=_build_history_browser(history_records),

@@ -210,6 +210,30 @@
 
       <div>
         <div class="card diagram-card">
+          {% if lane_info %}
+          <h2>Lane_info</h2>
+          <table style="margin-bottom: 20px;">
+            <thead>
+              <tr>
+                <th>Lane</th>
+                <th>Width (mm)</th>
+                <th>Inner Boundary (mm)</th>
+                <th>Outer Boundary (mm)</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for lane in lane_info %}
+              <tr>
+                <td>Lane{{ lane.lane_number }}</td>
+                <td>{{ '%.0f'|format(lane.width_mm) }}</td>
+                <td>{{ '%.0f'|format(lane.inner_boundary) }}</td>
+                <td>{{ '%.0f'|format(lane.outer_boundary) }}</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+          <p class="hint">以內路肩護欄為 0 mm 基準，依 lane number 排序後逐一累加車道寬度。</p>
+          {% endif %}
           <h2>車道 / Lidar SVG 示意圖</h2>
           <div class="diagram-shell">
             <p class="diagram-meta">此示意圖由前端依目前輸入內容即時繪製，會依交通模式切換內線方向，並標示車道寬度、Lidar 中心點與負責車道範圍。</p>

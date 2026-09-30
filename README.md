@@ -97,6 +97,7 @@ python -m device_parameter_tool.web.app
 - 支援使用者自行選擇 Lidar 顯示起始編號（`LIDAR_0` 或 `LIDAR_1`）
 - Lidar 負責車道使用 2 個下拉欄位：右 / 左，選項依目前 lane number 動態更新
 - 使用同一套 `lidar_calculator` 邏輯即時預覽結果
+- 在 Web UI 顯示 `Lane_info`，包含每個車道的寬度、內側邊界與外側邊界
 - 顯示舊版 SOPAS Tool 的 `Field1` ~ `Field6` 範圍計算結果，並以點擊展開方式顯示完整表格
 - 顯示舊版風格的偵錯資訊 / 詳細計算過程（預設收合，可自行展開）
 - 內建純前端 SVG 車道 / Lidar 示意圖，會依目前輸入即時標示車道寬度、內路肩護欄基準點、Lidar 中心點與負責範圍

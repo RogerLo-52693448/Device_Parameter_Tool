@@ -66,6 +66,9 @@ def test_web_save_and_history_round_trip(tmp_path):
     assert "右</th>" in history_text or "右" in history_text
     assert "左</th>" in history_text or "左" in history_text
     assert "路線分類" in history_text
+    assert "Lane_info" in history_text
+    assert "Inner Boundary (mm)" in history_text
+    assert "Outer Boundary (mm)" in history_text
 
 
 def test_web_page_uses_dynamic_lane_and_lidar_sections(tmp_path):
@@ -95,6 +98,8 @@ def test_web_page_uses_dynamic_lane_and_lidar_sections(tmp_path):
     assert 'id="lane-diagram-container"' in text
     assert "renderLaneDiagram()" in text
     assert "車道 / Lidar SVG 示意圖" in text
+    assert "Lane_info" in text
+    assert "Inner Boundary (mm)" in text
     assert "displayLidarLabel" in text
     assert "Field 改為下方摘要列" in text
     assert "field-summary-grid" in text

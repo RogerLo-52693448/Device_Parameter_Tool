@@ -70,6 +70,14 @@ class SopasFieldResult:
     debug_lines: list[str] = field(default_factory=list)
 
 
+@dataclass(slots=True)
+class LaneInfo:
+    lane_number: int
+    width_mm: float
+    inner_boundary: float
+    outer_boundary: float
+
+
 def _build_lane_context(lanes: list[LaneConfig]) -> tuple[list[LaneConfig], dict[int, float], dict[int, float]]:
     all_lanes_sorted = sorted(lanes, key=lambda lane: lane.lane_number)
     lane_width_map = {lane.lane_number: lane.width_mm for lane in all_lanes_sorted}
@@ -79,6 +87,19 @@ def _build_lane_context(lanes: list[LaneConfig]) -> tuple[list[LaneConfig], dict
         lane_start_map[lane.lane_number] = current
         current += lane.width_mm
     return all_lanes_sorted, lane_width_map, lane_start_map
+
+
+def calculate_lane_info(lanes: list[LaneConfig]) -> list[LaneInfo]:
+    all_lanes_sorted, _, lane_start_map = _build_lane_context(lanes)
+    return [
+        LaneInfo(
+            lane_number=lane.lane_number,
+            width_mm=lane.width_mm,
+            inner_boundary=lane_start_map[lane.lane_number],
+            outer_boundary=lane_start_map[lane.lane_number] + lane.width_mm,
+        )
+        for lane in all_lanes_sorted
+    ]
 
 
 def _ordered_lidars(
