@@ -71,6 +71,17 @@ def test_web_save_and_history_round_trip(tmp_path):
     assert "Outer Boundary (mm)" in history_text
 
 
+def test_history_browser_form_submits_to_index_after_save(tmp_path):
+    app = create_app(tmp_path)
+    client = app.test_client()
+
+    response = client.post("/save", data=FORM_DATA)
+    text = response.get_data(as_text=True)
+
+    assert response.status_code == 200
+    assert '<form method="get" action="/" class="history-browser">' in text
+
+
 def test_web_page_uses_dynamic_lane_and_lidar_sections(tmp_path):
     app = create_app(tmp_path)
     client = app.test_client()

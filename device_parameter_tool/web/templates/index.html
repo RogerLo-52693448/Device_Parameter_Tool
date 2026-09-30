@@ -77,7 +77,7 @@
     {% if error %}<p class="error" role="alert" aria-live="assertive">{{ error }}</p>{% endif %}
     <div class="card history-top">
       <h2>Site History</h2>
-      <form method="get" class="history-browser">
+      <form method="get" action="{{ url_for('index') }}" class="history-browser">
         <label>路線分類
           <select name="history_category" onchange="this.form.submit()">
             {% for category in history_browser.categories %}
