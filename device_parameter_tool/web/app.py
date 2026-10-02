@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from flask import Flask, redirect, render_template, request, url_for
+from flask import Flask, redirect, render_template, request, session, url_for
 
 from device_parameter_tool.models.device_config import DeviceConfig, LaneConfig, LidarConfig
 from device_parameter_tool.services.config_service import ConfigService
@@ -254,8 +254,41 @@ def _build_history_browser(history_records):
     }
 
 
+def _store_page_state(
+    *,
+    config: DeviceConfig | None = None,
+    message: str = "",
+    error: str = "",
+    form_state: dict | None = None,
+    form_collapsed: bool = False,
+) -> None:
+    session["page_state"] = {
+        "config": config.to_dict() if config is not None else None,
+        "message": message,
+        "error": error,
+        "form_state": form_state,
+        "form_collapsed": form_collapsed,
+    }
+
+
+def _consume_page_state() -> tuple[DeviceConfig | None, str, str, dict | None, bool] | None:
+    page_state = session.pop("page_state", None)
+    if not page_state:
+        return None
+    config_payload = page_state.get("config")
+    config = DeviceConfig.from_dict(config_payload) if config_payload else None
+    return (
+        config,
+        page_state.get("message", ""),
+        page_state.get("error", ""),
+        page_state.get("form_state"),
+        page_state.get("form_collapsed", False),
+    )
+
+
 def create_app(data_dir: str | Path | None = None) -> Flask:
     app = Flask(__name__, template_folder="templates")
+    app.config["SECRET_KEY"] = "device-parameter-tool-dev"
     base_dir = Path(data_dir or "data")
     service = ConfigService(config_path=base_dir / "current_config.json", history_path=base_dir / "site_history.json")
 
@@ -299,6 +332,10 @@ def create_app(data_dir: str | Path | None = None) -> Flask:
 
     @app.get("/")
     def index():
+        page_state = _consume_page_state()
+        if page_state is not None:
+            config, message, error, form_state, form_collapsed = page_state
+            return render_page(config, message=message, error=error, form_state=form_state, form_collapsed=form_collapsed)
         if service.config_path.exists():
             config = service.load_config()
         else:
@@ -311,8 +348,10 @@ def create_app(data_dir: str | Path | None = None) -> Flask:
             config = _config_from_form(request.form)
             config.validate()
         except ValueError as exc:
-            return render_page(error=str(exc), form_state=_posted_form_state(request.form))
-        return render_page(config, message="已更新預覽")
+            _store_page_state(error=str(exc), form_state=_posted_form_state(request.form))
+            return redirect(url_for("index"))
+        _store_page_state(config=config, message="已更新預覽")
+        return redirect(url_for("index"))
 
     @app.post("/save")
     def save():
@@ -320,10 +359,12 @@ def create_app(data_dir: str | Path | None = None) -> Flask:
             config = _config_from_form(request.form)
             config.validate()
         except ValueError as exc:
-            return render_page(error=str(exc), form_state=_posted_form_state(request.form))
+            _store_page_state(error=str(exc), form_state=_posted_form_state(request.form))
+            return redirect(url_for("index"))
         service.save_config(config)
         service.append_history(config, note=config.note)
-        return render_page(config, message="設定已儲存，並寫入 Site History", form_collapsed=True)
+        _store_page_state(config=config, message="設定已儲存，並寫入 Site History", form_collapsed=True)
+        return redirect(url_for("index"))
 
     @app.get("/history/<int:index>")
     def load_history(index: int):

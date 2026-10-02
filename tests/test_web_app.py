@@ -31,7 +31,7 @@ def test_web_save_and_history_round_trip(tmp_path):
     app = create_app(tmp_path)
     client = app.test_client()
 
-    response = client.post("/save", data=FORM_DATA)
+    response = client.post("/save", data=FORM_DATA, follow_redirects=True)
 
     assert response.status_code == 200
     response_text = response.get_data(as_text=True)
@@ -75,11 +75,31 @@ def test_history_browser_form_submits_to_index_after_save(tmp_path):
     app = create_app(tmp_path)
     client = app.test_client()
 
-    response = client.post("/save", data=FORM_DATA)
+    response = client.post("/save", data=FORM_DATA, follow_redirects=True)
     text = response.get_data(as_text=True)
 
     assert response.status_code == 200
     assert '<form method="get" action="/" class="history-browser">' in text
+
+
+def test_save_uses_prg_redirect(tmp_path):
+    app = create_app(tmp_path)
+    client = app.test_client()
+
+    response = client.post("/save", data=FORM_DATA)
+
+    assert response.status_code == 302
+    assert response.headers["Location"].endswith("/")
+
+
+def test_preview_uses_prg_redirect(tmp_path):
+    app = create_app(tmp_path)
+    client = app.test_client()
+
+    response = client.post("/preview", data=FORM_DATA)
+
+    assert response.status_code == 302
+    assert response.headers["Location"].endswith("/")
 
 
 def test_web_page_uses_dynamic_lane_and_lidar_sections(tmp_path):
@@ -131,7 +151,7 @@ def test_web_save_invalid_input_shows_error(tmp_path):
     bad_data["primary_lidar_0_lane_a"] = "none"
     bad_data["primary_lidar_0_lane_b"] = "none"
 
-    response = client.post("/save", data=bad_data)
+    response = client.post("/save", data=bad_data, follow_redirects=True)
     text = response.get_data(as_text=True)
 
     assert response.status_code == 200
@@ -148,7 +168,7 @@ def test_web_preview_invalid_input_shows_error(tmp_path):
     bad_data["primary_lidar_0_lane_a"] = "none"
     bad_data["primary_lidar_0_lane_b"] = "none"
 
-    response = client.post("/preview", data=bad_data)
+    response = client.post("/preview", data=bad_data, follow_redirects=True)
     text = response.get_data(as_text=True)
 
     assert response.status_code == 200
@@ -163,7 +183,7 @@ def test_web_rejects_missing_rows_when_count_is_tampered(tmp_path):
     bad_data = dict(FORM_DATA)
     bad_data["lane_count"] = "3"
 
-    response = client.post("/save", data=bad_data)
+    response = client.post("/save", data=bad_data, follow_redirects=True)
     text = response.get_data(as_text=True)
 
     assert response.status_code == 200
@@ -198,7 +218,7 @@ def test_web_save_supports_dynamic_lane_numbers_and_multiple_lidars(tmp_path):
         "backup_lidar_0_center_distance_mm": "6900",
     }
 
-    response = client.post("/save", data=dynamic_data)
+    response = client.post("/save", data=dynamic_data, follow_redirects=True)
 
     assert response.status_code == 200
     history_path = tmp_path / "site_history.json"
@@ -218,7 +238,7 @@ def test_web_save_allows_zero_primary_lidars(tmp_path):
     zero_data["primary_lidar_count"] = "0"
     zero_data["backup_lidar_count"] = "0"
 
-    response = client.post("/save", data=zero_data)
+    response = client.post("/save", data=zero_data, follow_redirects=True)
 
     assert response.status_code == 200
     history_path = tmp_path / "site_history.json"
@@ -234,7 +254,7 @@ def test_web_save_invalid_backup_input_shows_error(tmp_path):
     bad_data["backup_lidar_0_lane_a"] = "none"
     bad_data["backup_lidar_0_lane_b"] = "none"
 
-    response = client.post("/save", data=bad_data)
+    response = client.post("/save", data=bad_data, follow_redirects=True)
     text = response.get_data(as_text=True)
 
     assert response.status_code == 200
@@ -251,7 +271,7 @@ def test_web_save_preserves_left_only_lane_semantics(tmp_path):
     left_only_data["backup_lidar_count"] = "0"
     left_only_data.pop("has_backup", None)
 
-    response = client.post("/save", data=left_only_data)
+    response = client.post("/save", data=left_only_data, follow_redirects=True)
 
     assert response.status_code == 200
     history_path = tmp_path / "site_history.json"
@@ -269,7 +289,7 @@ def test_web_history_browser_shows_recent_three_records_for_selected_site(tmp_pa
     for note in ["第一筆", "第二筆", "第三筆", "第四筆"]:
         data = dict(FORM_DATA)
         data["note"] = note
-        client.post("/save", data=data)
+        client.post("/save", data=data, follow_redirects=True)
 
     response = client.get("/?history_category=%E5%9C%8B%E4%B8%80&history_site=01F-%E5%8F%B0%E5%8C%97%E4%BA%A4%E6%B5%81%E9%81%93")
     text = response.get_data(as_text=True)
@@ -289,7 +309,7 @@ def test_web_rejects_site_name_without_valid_prefix(tmp_path):
     bad_data = dict(FORM_DATA)
     bad_data["site_name"] = "國一-錯誤格式"
 
-    response = client.post("/save", data=bad_data)
+    response = client.post("/save", data=bad_data, follow_redirects=True)
     text = response.get_data(as_text=True)
 
     assert response.status_code == 200
@@ -305,7 +325,7 @@ def test_web_supports_inner_from_left_mode(tmp_path):
     right_driving_data["primary_lidar_0_lane_a"] = "0"
     right_driving_data["primary_lidar_0_lane_b"] = "1"
 
-    response = client.post("/save", data=right_driving_data)
+    response = client.post("/save", data=right_driving_data, follow_redirects=True)
     text = response.get_data(as_text=True)
 
     assert response.status_code == 200
