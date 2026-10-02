@@ -1,0 +1,850 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <title>Device Parameter Tool</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 0; background: #f3f6fb; color: #1e293b; }
+    .page { max-width: 1320px; margin: 0 auto; padding: 24px; }
+    .layout { display: grid; grid-template-columns: 560px 1fr; gap: 24px; align-items: start; }
+    .layout.form-collapsed { grid-template-columns: 88px 1fr; }
+    .card { background: #fff; border: 1px solid #dbe3ef; border-radius: 14px; padding: 20px; box-shadow: 0 8px 24px rgba(15, 23, 42, 0.06); }
+    h1, h2, h3 { margin-top: 0; }
+    .message { color: #0f766e; font-weight: 700; }
+    .error { color: #b91c1c; font-weight: 700; }
+    .hint { color: #475569; font-size: .92rem; }
+    .grid-2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+    .grid-3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+    label { display: grid; gap: 6px; margin-bottom: 12px; font-weight: 700; }
+    input, select { width: 100%; box-sizing: border-box; padding: 10px 12px; border: 1px solid #cbd5e1; border-radius: 10px; font: inherit; }
+    button { border: 0; border-radius: 10px; padding: 11px 16px; font: inherit; font-weight: 700; cursor: pointer; background: #1d4ed8; color: #fff; }
+    .secondary { background: #475569; }
+    .actions { display: flex; gap: 12px; }
+    .section { border-top: 1px solid #e2e8f0; margin-top: 16px; padding-top: 16px; }
+    .item-box { border: 1px solid #dbe3ef; background: #f8fafc; border-radius: 12px; padding: 14px; margin-bottom: 12px; }
+    .section-heading { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+    .section-tag { display: inline-block; padding: 4px 10px; border-radius: 999px; background: #dbeafe; color: #1d4ed8; font-size: .78rem; font-weight: 800; letter-spacing: .08em; }
+    .lidar-mode-note { margin: 0 0 12px; color: #475569; font-size: .9rem; }
+    .lidar-block { border: 1px solid #cbd5e1; background: linear-gradient(180deg, #f8fbff 0%, #f8fafc 100%); border-radius: 14px; padding: 14px; margin-bottom: 14px; }
+    .lidar-block-title { margin: 0 0 12px; font-size: 1rem; font-weight: 800; color: #1e3a8a; }
+    .lidar-group { border: 1px solid #dbe3ef; background: #ffffff; border-radius: 12px; padding: 12px; margin-bottom: 12px; box-shadow: inset 0 1px 0 rgba(255,255,255,.7); }
+    .lidar-group:last-child { margin-bottom: 0; }
+    .lidar-group-title { margin: 0 0 10px; font-weight: 800; color: #0f172a; }
+    .lane-selects { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+    .group-meta { margin: 4px 0 12px; color: #64748b; font-size: .88rem; }
+    table { width: 100%; border-collapse: collapse; margin-top: 12px; }
+    th, td { border: 1px solid #cbd5e1; padding: 8px 10px; text-align: left; vertical-align: top; }
+    th { background: #eff6ff; }
+    ul { padding-left: 20px; }
+    .checkbox-line { display: flex; align-items: center; gap: 8px; margin: 6px 0 12px; font-weight: 700; }
+    .checkbox-line input { width: auto; }
+    .hidden { display: none; }
+    .history-top { margin: 16px 0 24px; }
+    .history-browser { display: grid; grid-template-columns: 220px 1fr auto; gap: 12px; align-items: end; }
+    .debug-details { margin-top: 12px; }
+    .debug-details summary { cursor: pointer; font-weight: 800; }
+    .diagram-card { margin-bottom: 24px; }
+    .diagram-shell { border: 1px solid #dbe3ef; border-radius: 12px; background: linear-gradient(180deg, #f8fbff 0%, #ffffff 100%); padding: 16px; }
+    .diagram-meta { margin: 0 0 12px; color: #475569; font-size: .92rem; }
+    .diagram-board { overflow-x: auto; }
+    .diagram-stack { display: grid; gap: 16px; }
+    .diagram-panel { border: 1px solid #dbe3ef; border-radius: 12px; background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%); padding: 12px; }
+    .diagram-panel h3 { margin: 0 0 8px; font-size: 1rem; }
+    .diagram-empty { margin: 0; color: #64748b; }
+    .diagram-caption { margin: 0 0 8px; color: #475569; font-size: .85rem; }
+    .field-summary-grid { display: grid; gap: 8px; margin-top: 10px; }
+    .field-summary-card { border: 1px solid #e2e8f0; border-radius: 10px; background: #fff; padding: 10px 12px; }
+    .field-summary-title { font-weight: 800; color: #0f172a; margin-bottom: 4px; }
+    .field-summary-text { color: #475569; font-size: .88rem; }
+    .legend { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 12px; color: #475569; font-size: .88rem; }
+    .legend span { display: inline-flex; align-items: center; gap: 6px; }
+    .legend i { display: inline-block; width: 18px; height: 10px; border-radius: 999px; }
+    .form-card-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
+    .toggle-button { background: #0f172a; }
+    .form-card-body.hidden { display: none; }
+    .layout.form-collapsed .form-card { padding: 14px 10px; }
+    .layout.form-collapsed .form-card h2 { writing-mode: vertical-rl; margin: 0 auto; }
+    .layout.form-collapsed .form-card-header { flex-direction: column; margin-bottom: 0; }
+    .layout.form-collapsed .toggle-button { padding: 10px 8px; font-size: .85rem; }
+    @media (max-width: 1100px) { .layout { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <h1>Device Parameter Tool</h1>
+    <p class="hint">支援主 Lidar 與備援 Lidar；點位名稱開頭需使用搜尋索引（例如 01F、03F、03A、01H）；可切換內線由右往外或內線由左往外的交通模式。</p>
+    {% if message %}<p class="message" role="status" aria-live="polite">{{ message }}</p>{% endif %}
+    {% if error %}<p class="error" role="alert" aria-live="assertive">{{ error }}</p>{% endif %}
+    <div class="card history-top">
+      <h2>Site History</h2>
+      <form method="get" action="{{ url_for('index') }}" class="history-browser">
+        <label>路線分類
+          <select name="history_category" onchange="this.form.submit()">
+            {% for category in history_browser.categories %}
+            <option value="{{ category }}" {% if category == history_browser.selected_category %}selected{% endif %}>{{ category }} ({{ history_browser.route_prefixes[category] }})</option>
+            {% endfor %}
+          </select>
+        </label>
+        <label>點位
+          <select name="history_site" onchange="this.form.submit()">
+            {% if history_browser.site_options %}
+              {% for site_name in history_browser.site_options %}
+              <option value="{{ site_name }}" {% if site_name == history_browser.selected_site %}selected{% endif %}>{{ site_name }}</option>
+              {% endfor %}
+            {% else %}
+              <option value="">目前沒有可用點位</option>
+            {% endif %}
+          </select>
+        </label>
+        <button type="submit">查詢</button>
+      </form>
+      {% if history_browser.selected_site %}
+      <table>
+        <thead>
+          <tr>
+            <th>時間</th>
+            <th>點位</th>
+            <th>備註</th>
+            <th>車道數</th>
+            <th>主 Lidar</th>
+            <th>備援</th>
+            <th>動作</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for item in history_browser.recent_records %}
+          <tr>
+            <td>{{ item.record.saved_at }}</td>
+            <td>{{ item.record.config.site_name }}</td>
+            <td>{{ item.record.note }}</td>
+            <td>{{ item.record.config.lanes|length }}</td>
+            <td>{{ item.record.config.lidars|length }}</td>
+            <td>{{ '是' if item.record.config.has_backup else '否' }}</td>
+            <td><a href="{{ url_for('load_history', index=item.index, history_category=history_browser.selected_category, history_site=history_browser.selected_site) }}">載入設定</a></td>
+          </tr>
+          {% else %}
+          <tr><td colspan="7">此點位目前沒有近期紀錄</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      <p class="hint">只顯示所選點位最近 3 筆儲存結果。</p>
+      {% else %}
+      <p class="hint">請先選擇分類與點位，才會顯示近期 3 筆可匯入紀錄。</p>
+      {% endif %}
+    </div>
+    <div class="layout{% if form_collapsed %} form-collapsed{% endif %}" id="main-layout" data-initial-collapsed="{{ 'true' if form_collapsed else 'false' }}">
+      <div class="card form-card">
+        <div class="form-card-header">
+          <h2>設定表單</h2>
+          <button class="toggle-button" id="toggle-form-button" type="button">{{ '顯示輸入' if form_collapsed else '收起輸入' }}</button>
+        </div>
+        <div class="form-card-body{% if form_collapsed %} hidden{% endif %}" id="form-card-body">
+        <form method="post" id="config-form">
+          <div class="grid-2">
+            <label>點位名稱<input name="site_name" value="{{ form.site_name }}" placeholder="例如 01F-040.7N"></label>
+            <label>備註（note）<input name="note" value="{{ form.note }}"></label>
+          </div>
+
+          <div class="grid-2">
+            <label>交通模式
+              <select id="traffic-mode" name="traffic_mode">
+                <option value="inner_from_right" {% if form.traffic_mode == 'inner_from_right' %}selected{% endif %}>內線在右側（目前版）</option>
+                <option value="inner_from_left" {% if form.traffic_mode == 'inner_from_left' %}selected{% endif %}>內線在左側</option>
+              </select>
+            </label>
+            <label>Lidar 起始編號
+              <select id="lidar-label-start" name="lidar_label_start">
+                <option value="0" {% if form.lidar_label_start == 0 %}selected{% endif %}>LIDAR_0 開始</option>
+                <option value="1" {% if form.lidar_label_start == 1 %}selected{% endif %}>LIDAR_1 開始</option>
+              </select>
+            </label>
+          </div>
+
+          <div class="grid-2">
+            <label for="lane-count">車道數量
+              <input id="lane-count" aria-label="車道數量" name="lane_count" type="number" min="1" value="{{ form.lane_count }}">
+            </label>
+          </div>
+
+          <div class="grid-2">
+            <label for="primary-lidar-count">主 Lidar 數量
+              <input id="primary-lidar-count" aria-label="主 Lidar 數量" name="primary_lidar_count" type="number" min="0" value="{{ form.primary_lidar_count }}">
+            </label>
+          </div>
+
+          <label class="checkbox-line"><input id="has-backup" name="has_backup" type="checkbox" {% if form.has_backup %}checked{% endif %}> 啟用備援 Lidar</label>
+          <label id="backup-count-label" for="backup-lidar-count" {% if not form.has_backup %}class="hidden"{% endif %}>備援 Lidar 數量
+            <input id="backup-lidar-count" aria-label="備援 Lidar 數量" name="backup_lidar_count" type="number" min="0" value="{{ form.backup_lidar_count }}">
+          </label>
+
+          <div class="section">
+            <h3>Lanes</h3>
+            <div id="lanes-container"></div>
+          </div>
+
+          <div class="section">
+            <div class="section-heading">
+              <span class="section-tag">PRIMARY</span>
+              <h3>主 Lidar</h3>
+            </div>
+            <p class="lidar-mode-note">主系統使用的 Lidar 設定區塊，版型比照舊版群組化顯示。</p>
+            <div id="primary-lidars-container"></div>
+          </div>
+
+          <div class="section{% if not form.has_backup %} hidden{% endif %}" id="backup-section">
+            <div class="section-heading">
+              <span class="section-tag">BACKUP</span>
+              <h3>備援 Lidar</h3>
+            </div>
+            <p class="lidar-mode-note">當主系統故障或切換需求發生時使用的備援組態。</p>
+            <div id="backup-lidars-container"></div>
+          </div>
+
+          <div class="actions">
+            <button formaction="{{ url_for('preview') }}" type="submit">即時預覽</button>
+            <button class="secondary" formaction="{{ url_for('save') }}" type="submit">儲存設定</button>
+          </div>
+        </form>
+        </div>
+      </div>
+
+      <div>
+        <div class="card diagram-card">
+          {% if lane_info %}
+          <h2>Lane_info</h2>
+          <table style="margin-bottom: 20px;">
+            <thead>
+              <tr>
+                <th>Lane</th>
+                <th>Width (mm)</th>
+                <th>Inner Boundary (mm)</th>
+                <th>Outer Boundary (mm)</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for lane in lane_info %}
+              <tr>
+                <td>Lane{{ lane.lane_number }}</td>
+                <td>{{ '%.0f'|format(lane.width_mm) }}</td>
+                <td>{{ '%.0f'|format(lane.inner_boundary) }}</td>
+                <td>{{ '%.0f'|format(lane.outer_boundary) }}</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+          <p class="hint">以內路肩護欄為 0 mm 基準，依 lane number 排序後逐一累加車道寬度。</p>
+          {% endif %}
+          <h2>車道 / Lidar SVG 示意圖</h2>
+          <div class="diagram-shell">
+            <p class="diagram-meta">此示意圖由前端依目前輸入內容即時繪製，會依交通模式切換內線方向，並標示車道寬度、Lidar 中心點與負責車道範圍。</p>
+            <div class="diagram-board">
+              <div id="lane-diagram-container" class="diagram-stack" aria-live="polite"></div>
+            </div>
+            <div class="legend">
+              <span><i style="background:#dbeafe;"></i> 車道</span>
+              <span><i style="background:#bfdbfe;"></i> Lidar 負責範圍</span>
+              <span><i style="background:#fce7f3;"></i> 備援 Lidar 負責範圍</span>
+              <span><i style="background:#fde68a;"></i> Field1~Field6</span>
+            </div>
+          </div>
+        </div>
+        {% for section in summaries %}
+        <div class="card" style="margin-bottom: 24px;">
+          <h2>{{ section.label }}</h2>
+          <table>
+            <thead>
+              <tr>
+                <th>Lidar</th>
+                <th>{{ form.inner_label }}</th>
+                <th>{{ form.outer_label }}</th>
+                <th>Center</th>
+                <th>scan_right</th>
+                <th>scan_left</th>
+                <th>Offset</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for result in section.summary.results %}
+              <tr>
+                <td>LIDAR_{{ result.index + form.lidar_label_start }}</td>
+                <td>{{ result.inner_lane if result.inner_lane is not none else '—' }}</td>
+                <td>{{ result.outer_lane if result.outer_lane is not none else '—' }}</td>
+                <td>{{ '%.0f'|format(result.center) }}</td>
+                <td>{{ '%.0f'|format(result.scan_right) }}</td>
+                <td>{{ '%.0f'|format(result.scan_left) }}</td>
+                <td>{{ '%.0f'|format(result.offset_value) }}</td>
+                <td>{{ result.status }}</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+          {% if section.summary.warnings %}
+          <h3>警告訊息</h3>
+          <ul>{% for warning in section.summary.warnings %}<li>{{ warning }}</li>{% endfor %}</ul>
+          {% endif %}
+          {% if section.summary.errors %}
+          <h3>錯誤訊息</h3>
+          <ul>{% for error in section.summary.errors %}<li>{{ error }}</li>{% endfor %}</ul>
+          {% endif %}
+
+          {% if section.fields %}
+          <details class="debug-details">
+            <summary>Field 範圍（點擊展開）</summary>
+            <table>
+              <thead>
+                <tr>
+                  <th>Lidar</th>
+                  <th>{{ form.inner_label }}</th>
+                  <th>{{ form.outer_label }}</th>
+                  <th>Offset (mm)</th>
+                  <th>Field1</th>
+                  <th>Field2</th>
+                  <th>Field3</th>
+                  <th>Field4</th>
+                  <th>Field5</th>
+                  <th>Field6</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for field in section.fields %}
+                <tr>
+                  <td>LIDAR_{{ field.index + form.lidar_label_start }}</td>
+                  <td>{{ field.inner_lane if field.inner_lane is not none else '—' }}</td>
+                  <td>{{ field.outer_lane if field.outer_lane is not none else '—' }}</td>
+                  <td>{{ '%.0f'|format(field.offset_value) }}</td>
+                  <td>{% if field.field1 %}Field1: {{ field.field1[0] }}° ~ {{ field.field1[1] }}°{% else %}Field1: 未配置{% endif %}</td>
+                  <td>{% if field.field2 %}Field2: {{ field.field2[0] }}° ~ {{ field.field2[1] }}°{% else %}Field2: 未配置{% endif %}</td>
+                  <td>{% if field.field3 %}Field3: {{ field.field3[0] }}° ~ {{ field.field3[1] }}°{% else %}Field3: 未配置{% endif %}</td>
+                  <td>{% if field.field4 %}Field4: {{ field.field4[0] }}° ~ {{ field.field4[1] }}°{% else %}Field4: 未配置{% endif %}</td>
+                  <td>{% if field.field5 %}Field5: {{ field.field5[0] }}° ~ {{ field.field5[1] }}°{% else %}Field5: 未配置{% endif %}</td>
+                  <td>{% if field.field6 %}Field6: {{ field.field6[0] }}° ~ {{ field.field6[1] }}°{% else %}Field6: 未配置{% endif %}</td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+            <p class="hint">{{ form.inner_label }} 對應 Field1~Field3；{{ form.outer_label }} 對應 Field4~Field6；角度基準為 90°，1° = 200 mm。</p>
+          </details>
+          <details class="debug-details">
+            <summary>偵錯資訊（點擊展開）</summary>
+            {% for result in section.summary.results %}
+            <div class="item-box">
+              <strong>LIDAR_{{ result.index + form.lidar_label_start }}</strong>
+              <ul>{% for line in result.debug_lines %}<li>{{ line }}</li>{% endfor %}</ul>
+              {% for field in section.fields if field.index == result.index %}
+              <ul>{% for line in field.debug_lines %}<li>{{ line }}</li>{% endfor %}</ul>
+              {% endfor %}
+            </div>
+            {% endfor %}
+          </details>
+          {% endif %}
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const FORM_STATE = {{ form|tojson }};
+
+    function escapeHtml(value) {
+      return String(value ?? '')
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;')
+        .replaceAll('"', '&quot;')
+        .replaceAll("'", '&#39;');
+    }
+
+    function laneOptions(selected) {
+      const laneNumbers = [...new Set((FORM_STATE.lanes || [])
+        .map((lane) => String(lane.lane_number ?? '').trim())
+        .filter((value) => value !== ''))]
+        .sort((a, b) => Number(a) - Number(b));
+      const options = [{ value: 'none', label: 'None' }, ...laneNumbers.map((value) => ({ value, label: value }))];
+      return options.map((option) => {
+        const value = String(option.value);
+        const isSelected = String(selected) === value ? ' selected' : '';
+        return `<option value="${value}"${isSelected}>${option.label}</option>`;
+      }).join('');
+    }
+
+    function currentTrafficMode() {
+      return document.getElementById('traffic-mode')?.value || FORM_STATE.traffic_mode || 'inner_from_right';
+    }
+
+    function currentLidarLabelStart() {
+      return Number(document.getElementById('lidar-label-start')?.value ?? FORM_STATE.lidar_label_start ?? 0);
+    }
+
+    function displayLidarLabel(index) {
+      return `LIDAR_${Number(index) + currentLidarLabelStart()}`;
+    }
+
+    function currentSlotLabels() {
+      return currentTrafficMode() === 'inner_from_left'
+        ? { inner: '左', outer: '右' }
+        : { inner: '右', outer: '左' };
+    }
+
+    function cloneLane(index) {
+      const row = FORM_STATE.lanes[index] || {};
+      return {
+        lane_number: row.lane_number ?? index,
+        width_mm: row.width_mm ?? '',
+      };
+    }
+
+    function cloneLidar(rows, index) {
+      const row = rows[index] || {};
+      return {
+        lane_a: row.lane_a ?? 'none',
+        lane_b: row.lane_b ?? 'none',
+        center_distance_mm: row.center_distance_mm ?? '',
+        auto_calculate: row.auto_calculate !== false,
+      };
+    }
+
+    function normalizeLaneRows() {
+      return (FORM_STATE.lanes || [])
+        .map((lane, index) => ({
+          lane_number: Number(lane.lane_number ?? index),
+          width_mm: Number(lane.width_mm ?? 0),
+        }))
+        .filter((lane) => Number.isFinite(lane.lane_number) && lane.width_mm > 0)
+        .sort((a, b) => a.lane_number - b.lane_number);
+    }
+
+    function normalizeLidarRows(rows) {
+      const trafficMode = currentTrafficMode();
+      return (rows || []).map((lidar, index) => {
+        const laneA = String(lidar.lane_a ?? 'none');
+        const laneB = String(lidar.lane_b ?? 'none');
+        const firstLane = laneA === 'none' || laneA === '' ? null : Number(laneA);
+        const secondLane = laneB === 'none' || laneB === '' ? null : Number(laneB);
+        return {
+          index,
+          inner_lane: firstLane,
+          outer_lane: secondLane,
+          right_lane: trafficMode === 'inner_from_left' ? secondLane : firstLane,
+          left_lane: trafficMode === 'inner_from_left' ? firstLane : secondLane,
+          center_distance_mm: Number(lidar.center_distance_mm ?? 0),
+        };
+      }).filter((lidar) => Number.isFinite(lidar.center_distance_mm) && lidar.center_distance_mm >= 0);
+    }
+
+    function angleToPosition(centerDistance, angle) {
+      return centerDistance - ((angle - 90) * 200);
+    }
+
+    function mmToSvgX(positionMm, scale, panelWidth, baseX, trafficMode) {
+      if (trafficMode === 'inner_from_left') {
+        return baseX + (positionMm * scale);
+      }
+      return baseX + panelWidth - (positionMm * scale);
+    }
+
+    function calculateLaneGeometry() {
+      let cursor = 0;
+      return normalizeLaneRows().map((lane) => {
+        const inner = cursor;
+        cursor += lane.width_mm;
+        return {
+          ...lane,
+          inner_boundary: inner,
+          outer_boundary: cursor,
+        };
+      });
+    }
+
+    function lidarAssignedSpan(lidar, laneGeometry) {
+      const laneNumbers = [lidar.inner_lane, lidar.outer_lane].filter((value) => value !== null);
+      if (!laneNumbers.length) {
+        return null;
+      }
+      const matched = laneGeometry.filter((lane) => laneNumbers.includes(lane.lane_number));
+      if (!matched.length) {
+        return null;
+      }
+      return {
+        inner_boundary: Math.min(...matched.map((lane) => lane.inner_boundary)),
+        outer_boundary: Math.max(...matched.map((lane) => lane.outer_boundary)),
+      };
+    }
+
+    function calculateVisualResults(lidars, laneGeometry) {
+      if (!laneGeometry.length) {
+        return [];
+      }
+      const firstLane = laneGeometry[0].lane_number;
+      const lastLane = laneGeometry[laneGeometry.length - 1].lane_number;
+      const laneMap = new Map(laneGeometry.map((lane) => [lane.lane_number, lane]));
+
+      return normalizeLidarRows(lidars).map((lidar) => {
+        const assigned = [lidar.inner_lane, lidar.outer_lane].filter((value) => value !== null);
+        if (!assigned.length) {
+          return { ...lidar, assigned: [], status: 'empty' };
+        }
+        const matched = assigned.map((laneNumber) => laneMap.get(laneNumber)).filter(Boolean);
+        if (!matched.length) {
+          return { ...lidar, assigned, status: 'invalid' };
+        }
+
+        const inner_boundary = Math.min(...matched.map((lane) => lane.inner_boundary));
+        const outer_boundary = Math.max(...matched.map((lane) => lane.outer_boundary));
+        const assigned_width = outer_boundary - inner_boundary;
+        const minAssigned = Math.min(...assigned);
+        const maxAssigned = Math.max(...assigned);
+        const is_innermost = minAssigned === firstLane;
+        const is_outermost = maxAssigned === lastLane;
+        const right_compensation = is_innermost ? 0 : 500;
+        const left_compensation = is_outermost ? 0 : 500;
+        const scan_right = lidar.center_distance_mm - inner_boundary + right_compensation;
+        const scan_left = outer_boundary - lidar.center_distance_mm + left_compensation;
+        const primary_lane = lidar.inner_lane ?? lidar.outer_lane;
+        const primary_lane_width = primary_lane !== null ? (laneMap.get(primary_lane)?.width_mm ?? 0) : 0;
+        const offset_value = assigned.length === 2
+          ? Math.abs(lidar.center_distance_mm - inner_boundary - (laneMap.get(assigned[0])?.width_mm ?? 0))
+          : Math.abs(lidar.center_distance_mm - inner_boundary);
+
+        let status = 'normal';
+        if (scan_right > 5500 || scan_left > 5500) {
+          status = 'warning';
+        }
+        if (scan_right < 0 || scan_left < 0) {
+          status = 'error';
+        }
+
+        return {
+          ...lidar,
+          assigned,
+          inner_boundary,
+          outer_boundary,
+          assigned_width,
+          is_innermost,
+          is_outermost,
+          right_compensation,
+          left_compensation,
+          scan_right,
+          scan_left,
+          offset_value,
+          primary_lane,
+          primary_lane_width,
+          status,
+        };
+      });
+    }
+
+    function calculateFieldBands(result) {
+      if (!result.primary_lane_width) {
+        return [];
+      }
+
+      const offsetPrimary = result.center_distance_mm - result.inner_boundary - result.primary_lane_width;
+      const offsetLeft = result.center_distance_mm - result.outer_boundary;
+      const primaryUpper = 90 + Math.ceil((result.primary_lane_width + offsetPrimary) / 200);
+      const primaryLower = 90 + Math.floor(offsetPrimary / 200);
+      const primaryCenter = Math.ceil((primaryUpper + primaryLower) / 2);
+      const primaryField2 = [primaryCenter - 2, result.primary_lane === result.assigned[0] && result.is_innermost ? primaryUpper : primaryUpper + 2];
+      const primaryField3 = [primaryLower - 2, primaryCenter + 2];
+
+      const bands = [];
+      if (result.inner_lane !== null) {
+        bands.push({ label: 'Field1', range: [primaryLower, primaryUpper], color: '#f59e0b' });
+        bands.push({ label: 'Field2', range: primaryField2, color: '#fbbf24' });
+        bands.push({ label: 'Field3', range: primaryField3, color: '#fcd34d' });
+      }
+
+      if (result.outer_lane !== null && result.inner_lane === null) {
+        bands.push({ label: 'Field4', range: [primaryLower, primaryUpper], color: '#f97316' });
+        bands.push({ label: 'Field5', range: primaryField2, color: '#fb923c' });
+        bands.push({ label: 'Field6', range: primaryField3, color: '#fdba74' });
+      } else if (result.outer_lane !== null && result.inner_lane !== null) {
+        const field4Upper = primaryLower - 1;
+        const field4Lower = 90 + Math.floor(offsetLeft / 200);
+        const centerOuter = Math.ceil((field4Upper + field4Lower) / 2);
+        bands.push({ label: 'Field4', range: [field4Lower, field4Upper], color: '#f97316' });
+        bands.push({ label: 'Field5', range: [centerOuter - 2, field4Upper + 2], color: '#fb923c' });
+        bands.push({ label: 'Field6', range: [field4Lower - 2, centerOuter + 2], color: '#fdba74' });
+      }
+      return bands;
+    }
+
+    function renderDiagramPanel(title, lidars, accentColor, fillColor, roadColor) {
+      const laneGeometry = calculateLaneGeometry();
+      if (!laneGeometry.length) {
+        return `<div class="diagram-panel"><h3>${escapeHtml(title)}</h3><p class="diagram-empty">請先輸入有效的車道寬度，才能顯示示意圖。</p></div>`;
+      }
+
+      const results = calculateVisualResults(lidars, laneGeometry);
+      const totalWidth = laneGeometry[laneGeometry.length - 1].outer_boundary;
+      const panelWidth = 940;
+      const scale = totalWidth > 0 ? panelWidth / totalWidth : 1;
+      const baseX = 56;
+      const laneY = 132;
+      const laneHeight = 92;
+      const svgHeight = laneY + laneHeight + 156;
+      const trafficMode = currentTrafficMode();
+      const labels = currentSlotLabels();
+
+      const fieldSummaryMarkup = results.map((result) => {
+        const bands = calculateFieldBands(result);
+        if (!bands.length) {
+          return `
+            <div class="field-summary-card">
+              <div class="field-summary-title">${displayLidarLabel(result.index)}</div>
+              <div class="field-summary-text">Field：未配置</div>
+            </div>
+          `;
+        }
+        return `
+          <div class="field-summary-card">
+            <div class="field-summary-title">${displayLidarLabel(result.index)}</div>
+            <div class="field-summary-text">${bands.map((band) => `${band.label} ${band.range[0]}°~${band.range[1]}°`).join(' ｜ ')}</div>
+          </div>
+        `;
+      }).join('');
+
+      const lidarsMarkup = results.map((lidar) => {
+        const centerX = mmToSvgX(lidar.center_distance_mm, scale, panelWidth, baseX, trafficMode);
+        const span = lidarAssignedSpan(lidar, laneGeometry);
+        const strokeColor = lidar.status === 'error' ? '#dc2626' : lidar.status === 'warning' ? '#d97706' : accentColor;
+        const spanMarkup = span
+          ? `<rect x="${Math.min(mmToSvgX(span.inner_boundary, scale, panelWidth, baseX, trafficMode), mmToSvgX(span.outer_boundary, scale, panelWidth, baseX, trafficMode))}" y="${laneY}" width="${Math.max((span.outer_boundary - span.inner_boundary) * scale, 2)}" height="${laneHeight}" fill="${fillColor}" opacity="0.45" rx="12" />`
+          : '';
+        return `
+          ${spanMarkup}
+          <line x1="${centerX}" y1="${laneY - 34}" x2="${centerX}" y2="${laneY + laneHeight + 18}" stroke="${strokeColor}" stroke-width="3" stroke-dasharray="7 5" />
+          <circle cx="${centerX}" cy="${laneY - 18}" r="9" fill="${strokeColor}" />
+          <text x="${centerX}" y="${laneY - 42}" text-anchor="middle" font-size="12" font-weight="700" fill="${strokeColor}">${displayLidarLabel(lidar.index)}</text>
+          <text x="${centerX}" y="${laneY + laneHeight + 122}" text-anchor="middle" font-size="12" fill="#334155">Center ${Math.round(lidar.center_distance_mm)} mm</text>
+        `;
+      }).join('');
+
+      const laneMarkup = laneGeometry.map((lane, index) => {
+        const x = Math.min(
+          mmToSvgX(lane.inner_boundary, scale, panelWidth, baseX, trafficMode),
+          mmToSvgX(lane.outer_boundary, scale, panelWidth, baseX, trafficMode),
+        );
+        const width = Math.max((lane.outer_boundary - lane.inner_boundary) * scale, 2);
+        return `
+          <rect x="${x}" y="${laneY}" width="${width}" height="${laneHeight}" rx="10" fill="${index % 2 === 0 ? '#dbeafe' : '#eff6ff'}" stroke="#93c5fd" stroke-width="1.5" />
+          <line x1="${x}" y1="${laneY + (laneHeight / 2)}" x2="${x + width}" y2="${laneY + (laneHeight / 2)}" stroke="${roadColor}" stroke-width="3" stroke-dasharray="12 10" />
+          <text x="${x + (width / 2)}" y="${laneY + 30}" text-anchor="middle" font-size="14" font-weight="700" fill="#1e3a8a">Lane ${lane.lane_number}</text>
+          <text x="${x + (width / 2)}" y="${laneY + 52}" text-anchor="middle" font-size="12" fill="#334155">${Math.round(lane.width_mm)} mm</text>
+        `;
+      }).join('');
+
+      const ticksMarkup = laneGeometry.map((lane) => {
+        const x = mmToSvgX(lane.inner_boundary, scale, panelWidth, baseX, trafficMode);
+        return `
+          <line x1="${x}" y1="${laneY + laneHeight + 2}" x2="${x}" y2="${laneY + laneHeight + 12}" stroke="#64748b" stroke-width="1" />
+          <text x="${x}" y="${laneY + laneHeight + 30}" text-anchor="middle" font-size="11" fill="#64748b">${Math.round(lane.inner_boundary)}</text>
+        `;
+      }).join('') + `
+        <line x1="${mmToSvgX(totalWidth, scale, panelWidth, baseX, trafficMode)}" y1="${laneY + laneHeight + 2}" x2="${mmToSvgX(totalWidth, scale, panelWidth, baseX, trafficMode)}" y2="${laneY + laneHeight + 12}" stroke="#64748b" stroke-width="1" />
+        <text x="${mmToSvgX(totalWidth, scale, panelWidth, baseX, trafficMode)}" y="${laneY + laneHeight + 30}" text-anchor="middle" font-size="11" fill="#64748b">${Math.round(totalWidth)}</text>
+      `;
+
+      return `
+        <div class="diagram-panel">
+          <h3>${escapeHtml(title)}</h3>
+          <p class="diagram-caption">現場配置圖風格顯示 Lidar 與車道覆蓋關係；目前模式為 ${labels.inner}=內側、${labels.outer}=外側，Field 改為下方摘要列避免被遮住。</p>
+          <svg width="${panelWidth + 112}" height="${svgHeight}" viewBox="0 0 ${panelWidth + 112} ${svgHeight}" role="img" aria-label="${escapeHtml(title)} 車道配置示意圖">
+            <rect x="${baseX}" y="${laneY - 18}" width="${panelWidth}" height="${laneHeight + 34}" rx="18" fill="${roadColor}" opacity="0.08" />
+            ${trafficMode === 'inner_from_left'
+              ? `<text x="${baseX}" y="22" font-size="14" font-weight="800" fill="#0f172a">內路肩護欄基準點</text>
+                 <line x1="${baseX}" y1="${laneY - 20}" x2="${baseX}" y2="${laneY + laneHeight + 18}" stroke="#0f172a" stroke-width="5" />
+                 <text x="${baseX + panelWidth}" y="22" text-anchor="end" font-size="12" fill="#475569">單位：mm / 現場配置圖</text>`
+              : `<text x="${baseX + panelWidth}" y="22" text-anchor="end" font-size="14" font-weight="800" fill="#0f172a">內路肩護欄基準點</text>
+                 <line x1="${baseX + panelWidth}" y1="${laneY - 20}" x2="${baseX + panelWidth}" y2="${laneY + laneHeight + 18}" stroke="#0f172a" stroke-width="5" />
+                 <text x="${baseX}" y="22" font-size="12" fill="#475569">單位：mm / 現場配置圖</text>`}
+            ${laneMarkup}
+            ${lidarsMarkup}
+            ${ticksMarkup}
+          </svg>
+          <div class="field-summary-grid">${fieldSummaryMarkup}</div>
+        </div>
+      `;
+    }
+
+    function renderLaneDiagram() {
+      const container = document.getElementById('lane-diagram-container');
+      const panels = [renderDiagramPanel('主 Lidar 示意圖', FORM_STATE.lidars, '#2563eb', '#bfdbfe', '#1d4ed8')];
+      if (document.getElementById('has-backup').checked) {
+        panels.push(renderDiagramPanel('備援 Lidar 示意圖', FORM_STATE.backup_lidars, '#db2777', '#fce7f3', '#be185d'));
+      }
+      container.innerHTML = panels.join('');
+    }
+
+    function syncFormCollapse(collapsed) {
+      document.getElementById('main-layout').classList.toggle('form-collapsed', collapsed);
+      document.getElementById('form-card-body').classList.toggle('hidden', collapsed);
+      document.getElementById('toggle-form-button').textContent = collapsed ? '顯示輸入' : '收起輸入';
+    }
+
+    function captureLaneState() {
+      const count = Number(document.getElementById('lane-count').value || '1');
+      FORM_STATE.lanes = Array.from({ length: count }, (_, index) => ({
+        lane_number: document.querySelector(`[name="lane_${index}_number"]`)?.value || index,
+        width_mm: document.querySelector(`[name="lane_${index}_width_mm"]`)?.value || '',
+      }));
+    }
+
+    function captureLidarState(prefix, targetKey, countFieldId) {
+      const count = Number(document.getElementById(countFieldId).value || '1');
+      FORM_STATE[targetKey] = Array.from({ length: count }, (_, index) => ({
+        lane_a: document.querySelector(`[name="${prefix}_lidar_${index}_lane_a"]`)?.value || 'none',
+        lane_b: document.querySelector(`[name="${prefix}_lidar_${index}_lane_b"]`)?.value || 'none',
+        center_distance_mm: document.querySelector(`[name="${prefix}_lidar_${index}_center_distance_mm"]`)?.value || '',
+        auto_calculate: !!document.querySelector(`[name="${prefix}_lidar_${index}_auto_calculate"]`)?.checked,
+      }));
+    }
+
+    function renderLanes() {
+      const count = Math.max(1, Number(document.getElementById('lane-count').value || '1'));
+      const container = document.getElementById('lanes-container');
+      container.innerHTML = '';
+      for (let index = 0; index < count; index += 1) {
+        const lane = cloneLane(index);
+        const box = document.createElement('div');
+        box.className = 'item-box';
+        box.innerHTML = `
+          <strong>車道設定 ${index + 1}</strong>
+          <div class="grid-2">
+            <label>Lane Number<input name="lane_${index}_number" type="number" min="0" value="${escapeHtml(lane.lane_number)}"></label>
+            <label>Width (mm)<input name="lane_${index}_width_mm" type="number" min="1" value="${escapeHtml(lane.width_mm)}"></label>
+          </div>
+        `;
+        container.appendChild(box);
+      }
+    }
+
+    function renderLidars(prefix, containerId, rows, countFieldId) {
+      const count = Math.max(0, Number(document.getElementById(countFieldId).value || '0'));
+      const container = document.getElementById(containerId);
+      container.innerHTML = '';
+      const block = document.createElement('div');
+      block.className = 'lidar-block';
+      const title = prefix === 'primary' ? 'Primary Lidar Configuration' : 'Backup Lidar Configuration';
+      const meta = prefix === 'primary'
+        ? '主 Lidar 數量變更後，區塊會即時同步更新。'
+        : '備援啟用後，可獨立調整備援數量與各組車道指派。';
+      block.innerHTML = `<div class="lidar-block-title">${title}</div><div class="group-meta">${meta}</div>`;
+      const labels = currentSlotLabels();
+      for (let index = 0; index < count; index += 1) {
+        const lidar = cloneLidar(rows, index);
+        const box = document.createElement('div');
+        box.className = 'lidar-group';
+        box.innerHTML = `
+          <div class="lidar-group-title">${prefix === 'primary' ? 'Primary' : 'Backup'} — ${displayLidarLabel(index)}</div>
+          <div class="grid-3">
+            <label>${labels.inner}
+              <select name="${prefix}_lidar_${index}_lane_a">${laneOptions(lidar.lane_a)}</select>
+            </label>
+            <label>${labels.outer}
+              <select name="${prefix}_lidar_${index}_lane_b">${laneOptions(lidar.lane_b)}</select>
+            </label>
+            <label>Center Distance (mm)
+              <input name="${prefix}_lidar_${index}_center_distance_mm" type="number" min="0" value="${escapeHtml(lidar.center_distance_mm)}">
+            </label>
+          </div>
+          <label class="checkbox-line"><input name="${prefix}_lidar_${index}_auto_calculate" type="checkbox" ${lidar.auto_calculate ? 'checked' : ''}> 自動計算有效偵測範圍</label>
+        `;
+        block.appendChild(box);
+      }
+      container.appendChild(block);
+    }
+
+    function syncBackupVisibility() {
+      const enabled = document.getElementById('has-backup').checked;
+      document.getElementById('backup-section').classList.toggle('hidden', !enabled);
+      document.getElementById('backup-count-label').classList.toggle('hidden', !enabled);
+    }
+
+    document.getElementById('lane-count').addEventListener('input', () => {
+      captureLidarState('primary', 'lidars', 'primary-lidar-count');
+      captureLidarState('backup', 'backup_lidars', 'backup-lidar-count');
+      captureLaneState();
+      renderLanes();
+      renderLidars('primary', 'primary-lidars-container', FORM_STATE.lidars, 'primary-lidar-count');
+      renderLidars('backup', 'backup-lidars-container', FORM_STATE.backup_lidars, 'backup-lidar-count');
+      renderLaneDiagram();
+    });
+
+    document.getElementById('lanes-container').addEventListener('input', () => {
+      captureLidarState('primary', 'lidars', 'primary-lidar-count');
+      captureLidarState('backup', 'backup_lidars', 'backup-lidar-count');
+      captureLaneState();
+      renderLidars('primary', 'primary-lidars-container', FORM_STATE.lidars, 'primary-lidar-count');
+      renderLidars('backup', 'backup-lidars-container', FORM_STATE.backup_lidars, 'backup-lidar-count');
+      renderLaneDiagram();
+    });
+
+    document.getElementById('primary-lidar-count').addEventListener('input', () => {
+      captureLidarState('primary', 'lidars', 'primary-lidar-count');
+      renderLidars('primary', 'primary-lidars-container', FORM_STATE.lidars, 'primary-lidar-count');
+      renderLaneDiagram();
+    });
+
+    document.getElementById('backup-lidar-count').addEventListener('input', () => {
+      captureLidarState('backup', 'backup_lidars', 'backup-lidar-count');
+      renderLidars('backup', 'backup-lidars-container', FORM_STATE.backup_lidars, 'backup-lidar-count');
+      renderLaneDiagram();
+    });
+
+    document.getElementById('traffic-mode').addEventListener('change', () => {
+      FORM_STATE.traffic_mode = currentTrafficMode();
+      renderLidars('primary', 'primary-lidars-container', FORM_STATE.lidars, 'primary-lidar-count');
+      renderLidars('backup', 'backup-lidars-container', FORM_STATE.backup_lidars, 'backup-lidar-count');
+      renderLaneDiagram();
+    });
+
+    document.getElementById('lidar-label-start').addEventListener('change', () => {
+      FORM_STATE.lidar_label_start = currentLidarLabelStart();
+      renderLidars('primary', 'primary-lidars-container', FORM_STATE.lidars, 'primary-lidar-count');
+      renderLidars('backup', 'backup-lidars-container', FORM_STATE.backup_lidars, 'backup-lidar-count');
+      renderLaneDiagram();
+    });
+
+    document.getElementById('has-backup').addEventListener('change', () => {
+      captureLidarState('backup', 'backup_lidars', 'backup-lidar-count');
+      renderLidars('backup', 'backup-lidars-container', FORM_STATE.backup_lidars, 'backup-lidar-count');
+      syncBackupVisibility();
+      renderLaneDiagram();
+    });
+
+    document.getElementById('config-form').addEventListener('input', (event) => {
+      if (!event.target.closest('#lanes-container, #primary-lidars-container, #backup-lidars-container')) {
+        return;
+      }
+      captureLaneState();
+      captureLidarState('primary', 'lidars', 'primary-lidar-count');
+      captureLidarState('backup', 'backup_lidars', 'backup-lidar-count');
+      renderLaneDiagram();
+    });
+
+    document.getElementById('config-form').addEventListener('change', (event) => {
+      if (!event.target.closest('#primary-lidars-container, #backup-lidars-container')) {
+        return;
+      }
+      captureLaneState();
+      captureLidarState('primary', 'lidars', 'primary-lidar-count');
+      captureLidarState('backup', 'backup_lidars', 'backup-lidar-count');
+      renderLaneDiagram();
+    });
+
+    document.getElementById('toggle-form-button').addEventListener('click', () => {
+      const collapsed = !document.getElementById('main-layout').classList.contains('form-collapsed');
+      syncFormCollapse(collapsed);
+    });
+
+    renderLanes();
+    renderLidars('primary', 'primary-lidars-container', FORM_STATE.lidars, 'primary-lidar-count');
+    renderLidars('backup', 'backup-lidars-container', FORM_STATE.backup_lidars, 'backup-lidar-count');
+    syncBackupVisibility();
+    syncFormCollapse(document.getElementById('main-layout').dataset.initialCollapsed === 'true');
+    renderLaneDiagram();
+  </script>
+</body>
+</html>

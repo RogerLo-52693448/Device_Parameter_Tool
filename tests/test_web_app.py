@@ -1,0 +1,322 @@
+import json
+
+from device_parameter_tool.web.app import create_app
+
+
+FORM_DATA = {
+    "site_name": "01F-台北交流道",
+    "note": "中文備註測試",
+    "traffic_mode": "inner_from_right",
+    "lidar_label_start": "1",
+    "has_backup": "on",
+    "lane_count": "2",
+    "primary_lidar_count": "1",
+    "backup_lidar_count": "1",
+    "lane_0_number": "0",
+    "lane_0_width_mm": "3500",
+    "lane_1_number": "1",
+    "lane_1_width_mm": "3300",
+    "primary_lidar_0_lane_a": "0",
+    "primary_lidar_0_lane_b": "1",
+    "primary_lidar_0_center_distance_mm": "3600",
+    "primary_lidar_0_auto_calculate": "on",
+    "backup_lidar_0_lane_a": "0",
+    "backup_lidar_0_lane_b": "1",
+    "backup_lidar_0_center_distance_mm": "3650",
+    "backup_lidar_0_auto_calculate": "on",
+}
+
+
+def test_web_save_and_history_round_trip(tmp_path):
+    app = create_app(tmp_path)
+    client = app.test_client()
+
+    response = client.post("/save", data=FORM_DATA)
+
+    assert response.status_code == 200
+    response_text = response.get_data(as_text=True)
+    assert "中文備註測試" in response_text
+    assert "設定已儲存" in response_text
+    assert 'data-initial-collapsed="true"' in response_text
+
+    history_path = tmp_path / "site_history.json"
+    history_data = json.loads(history_path.read_text(encoding="utf-8"))
+    assert history_data[0]["note"] == "中文備註測試"
+    assert history_data[0]["config"]["site_name"] == "01F-台北交流道"
+    assert history_data[0]["config"]["lidar_label_start"] == 1
+    assert history_data[0]["config"]["lanes"][0]["lane_number"] == 0
+    assert history_data[0]["config"]["has_backup"] is True
+    assert history_data[0]["config"]["backup_lidars"][0]["assigned_lanes"] == [0, 1]
+    assert "T" not in history_data[0]["saved_at"]
+    assert "Z" not in history_data[0]["saved_at"]
+
+    history_response = client.get("/history/0?history_category=%E5%9C%8B%E4%B8%80&history_site=01F-%E5%8F%B0%E5%8C%97%E4%BA%A4%E6%B5%81%E9%81%93")
+    history_text = history_response.get_data(as_text=True)
+    assert history_response.status_code == 200
+    assert "01F-台北交流道" in history_text
+    assert "中文備註測試" in history_text
+    assert "已載入歷史紀錄" in history_text
+    assert "備援 Lidar" in history_text
+    assert "Field 範圍（點擊展開）" in history_text
+    assert "Field1" in history_text
+    assert "偵錯資訊（點擊展開）" in history_text
+    assert "Primary Lidar Dtmod" in history_text
+    assert "Backup Lidar Dtmod" in history_text
+    assert "LIDAR_1" in history_text
+    assert "右</th>" in history_text or "右" in history_text
+    assert "左</th>" in history_text or "左" in history_text
+    assert "路線分類" in history_text
+    assert "Lane_info" in history_text
+    assert "Inner Boundary (mm)" in history_text
+    assert "Outer Boundary (mm)" in history_text
+
+
+def test_history_browser_form_submits_to_index_after_save(tmp_path):
+    app = create_app(tmp_path)
+    client = app.test_client()
+
+    response = client.post("/save", data=FORM_DATA)
+    text = response.get_data(as_text=True)
+
+    assert response.status_code == 200
+    assert '<form method="get" action="/" class="history-browser">' in text
+
+
+def test_web_page_uses_dynamic_lane_and_lidar_sections(tmp_path):
+    app = create_app(tmp_path)
+    client = app.test_client()
+
+    response = client.get("/")
+    text = response.get_data(as_text=True)
+
+    assert response.status_code == 200
+    assert 'id="lane-count"' in text
+    assert 'id="primary-lidar-count"' in text
+    assert 'id="backup-lidar-count"' in text
+    assert "renderLanes()" in text
+    assert "renderLidars('primary'" in text
+    assert 'id="has-backup"' in text
+    assert 'id="traffic-mode"' in text
+    assert 'id="lidar-label-start"' in text
+    assert "lidar-block-title" in text
+    assert "Primary Lidar Configuration" in text
+    assert "None" in text
+    assert "收起輸入" in text
+    assert "內線在右側（目前版）" in text
+    assert "內線在左側" in text
+    assert "Site History" in text
+    assert "國一高架 (01H)" in text
+    assert 'id="lane-diagram-container"' in text
+    assert "renderLaneDiagram()" in text
+    assert "車道 / Lidar SVG 示意圖" in text
+    assert "Lane_info" in text
+    assert "Inner Boundary (mm)" in text
+    assert "displayLidarLabel" in text
+    assert "Field 改為下方摘要列" in text
+    assert "field-summary-grid" in text
+    assert "現場配置圖" in text
+    assert "視角參考" not in text
+    assert "Field1~Field6 區段標示" not in text
+    assert "Camera" not in text
+    assert "Host" not in text
+    assert "Lane ID" not in text
+    assert "Lidar ID" not in text
+
+
+def test_web_save_invalid_input_shows_error(tmp_path):
+    app = create_app(tmp_path)
+    client = app.test_client()
+
+    bad_data = dict(FORM_DATA)
+    bad_data["primary_lidar_0_lane_a"] = "none"
+    bad_data["primary_lidar_0_lane_b"] = "none"
+
+    response = client.post("/save", data=bad_data)
+    text = response.get_data(as_text=True)
+
+    assert response.status_code == 200
+    assert "至少要負責 1 個車道" in text
+    assert "01F-台北交流道" in text
+    assert "中文備註測試" in text
+
+
+def test_web_preview_invalid_input_shows_error(tmp_path):
+    app = create_app(tmp_path)
+    client = app.test_client()
+
+    bad_data = dict(FORM_DATA)
+    bad_data["primary_lidar_0_lane_a"] = "none"
+    bad_data["primary_lidar_0_lane_b"] = "none"
+
+    response = client.post("/preview", data=bad_data)
+    text = response.get_data(as_text=True)
+
+    assert response.status_code == 200
+    assert "至少要負責 1 個車道" in text
+    assert "01F-台北交流道" in text
+
+
+def test_web_rejects_missing_rows_when_count_is_tampered(tmp_path):
+    app = create_app(tmp_path)
+    client = app.test_client()
+
+    bad_data = dict(FORM_DATA)
+    bad_data["lane_count"] = "3"
+
+    response = client.post("/save", data=bad_data)
+    text = response.get_data(as_text=True)
+
+    assert response.status_code == 200
+    assert "表單缺少必要欄位" in text
+
+
+def test_web_save_supports_dynamic_lane_numbers_and_multiple_lidars(tmp_path):
+    app = create_app(tmp_path)
+    client = app.test_client()
+
+    dynamic_data = {
+        "site_name": "03F-動態車道點位",
+        "note": "多組態測試",
+        "has_backup": "on",
+        "lane_count": "3",
+        "primary_lidar_count": "2",
+        "backup_lidar_count": "1",
+        "lane_0_number": "2",
+        "lane_0_width_mm": "3400",
+        "lane_1_number": "3",
+        "lane_1_width_mm": "3200",
+        "lane_2_number": "6",
+        "lane_2_width_mm": "3100",
+        "primary_lidar_0_lane_a": "2",
+        "primary_lidar_0_lane_b": "3",
+        "primary_lidar_0_center_distance_mm": "3500",
+        "primary_lidar_1_lane_a": "6",
+        "primary_lidar_1_lane_b": "none",
+        "primary_lidar_1_center_distance_mm": "9900",
+        "backup_lidar_0_lane_a": "2",
+        "backup_lidar_0_lane_b": "3",
+        "backup_lidar_0_center_distance_mm": "6900",
+    }
+
+    response = client.post("/save", data=dynamic_data)
+
+    assert response.status_code == 200
+    history_path = tmp_path / "site_history.json"
+    history_data = json.loads(history_path.read_text(encoding="utf-8"))
+    assert [lane["lane_number"] for lane in history_data[0]["config"]["lanes"]] == [2, 3, 6]
+    assert history_data[0]["config"]["lidars"][0]["assigned_lanes"] == [2, 3]
+    assert history_data[0]["config"]["lidars"][1]["assigned_lanes"] == [6]
+    assert history_data[0]["config"]["backup_lidars"][0]["assigned_lanes"] == [2, 3]
+
+
+def test_web_save_allows_zero_primary_lidars(tmp_path):
+    app = create_app(tmp_path)
+    client = app.test_client()
+
+    zero_data = dict(FORM_DATA)
+    zero_data.pop("has_backup", None)
+    zero_data["primary_lidar_count"] = "0"
+    zero_data["backup_lidar_count"] = "0"
+
+    response = client.post("/save", data=zero_data)
+
+    assert response.status_code == 200
+    history_path = tmp_path / "site_history.json"
+    history_data = json.loads(history_path.read_text(encoding="utf-8"))
+    assert history_data[0]["config"]["lidars"] == []
+
+
+def test_web_save_invalid_backup_input_shows_error(tmp_path):
+    app = create_app(tmp_path)
+    client = app.test_client()
+
+    bad_data = dict(FORM_DATA)
+    bad_data["backup_lidar_0_lane_a"] = "none"
+    bad_data["backup_lidar_0_lane_b"] = "none"
+
+    response = client.post("/save", data=bad_data)
+    text = response.get_data(as_text=True)
+
+    assert response.status_code == 200
+    assert "至少要負責 1 個車道" in text
+
+
+def test_web_save_preserves_left_only_lane_semantics(tmp_path):
+    app = create_app(tmp_path)
+    client = app.test_client()
+
+    left_only_data = dict(FORM_DATA)
+    left_only_data["primary_lidar_0_lane_a"] = "none"
+    left_only_data["primary_lidar_0_lane_b"] = "1"
+    left_only_data["backup_lidar_count"] = "0"
+    left_only_data.pop("has_backup", None)
+
+    response = client.post("/save", data=left_only_data)
+
+    assert response.status_code == 200
+    history_path = tmp_path / "site_history.json"
+    history_data = json.loads(history_path.read_text(encoding="utf-8"))
+    lidar = history_data[0]["config"]["lidars"][0]
+    assert lidar["right_lane"] is None
+    assert lidar["left_lane"] == 1
+    assert lidar["assigned_lanes"] == [1]
+
+
+def test_web_history_browser_shows_recent_three_records_for_selected_site(tmp_path):
+    app = create_app(tmp_path)
+    client = app.test_client()
+
+    for note in ["第一筆", "第二筆", "第三筆", "第四筆"]:
+        data = dict(FORM_DATA)
+        data["note"] = note
+        client.post("/save", data=data)
+
+    response = client.get("/?history_category=%E5%9C%8B%E4%B8%80&history_site=01F-%E5%8F%B0%E5%8C%97%E4%BA%A4%E6%B5%81%E9%81%93")
+    text = response.get_data(as_text=True)
+
+    assert response.status_code == 200
+    assert "第四筆" in text
+    assert "第三筆" in text
+    assert "第二筆" in text
+    assert "第一筆" not in text
+    assert text.count("載入設定") == 3
+
+
+def test_web_rejects_site_name_without_valid_prefix(tmp_path):
+    app = create_app(tmp_path)
+    client = app.test_client()
+
+    bad_data = dict(FORM_DATA)
+    bad_data["site_name"] = "國一-錯誤格式"
+
+    response = client.post("/save", data=bad_data)
+    text = response.get_data(as_text=True)
+
+    assert response.status_code == 200
+    assert "點位名稱開頭必須為以下搜尋索引之一" in text
+
+
+def test_web_supports_inner_from_left_mode(tmp_path):
+    app = create_app(tmp_path)
+    client = app.test_client()
+
+    right_driving_data = dict(FORM_DATA)
+    right_driving_data["traffic_mode"] = "inner_from_left"
+    right_driving_data["primary_lidar_0_lane_a"] = "0"
+    right_driving_data["primary_lidar_0_lane_b"] = "1"
+
+    response = client.post("/save", data=right_driving_data)
+    text = response.get_data(as_text=True)
+
+    assert response.status_code == 200
+    assert "內線在左側" in text
+
+    history_path = tmp_path / "site_history.json"
+    history_data = json.loads(history_path.read_text(encoding="utf-8"))
+    lidar = history_data[0]["config"]["lidars"][0]
+    assert history_data[0]["config"]["traffic_mode"] == "inner_from_left"
+    assert history_data[0]["config"]["lidar_label_start"] == 1
+    assert lidar["inner_lane"] == 0
+    assert lidar["outer_lane"] == 1
+    assert lidar["right_lane"] == 1
+    assert lidar["left_lane"] == 0
