@@ -8,6 +8,12 @@ FORM_DATA = {
     "note": "中文備註測試",
     "traffic_mode": "inner_from_right",
     "lidar_label_start": "1",
+    "field_length_mode": "slant_based",
+    "angular_resolution_deg": "1.0",
+    "slant_distance_m": "10.0",
+    "elevation_angle_deg": "51.0",
+    "installation_height_m": "0.0",
+    "fixed_field_length_mm": "200.0",
     "has_backup": "on",
     "lane_count": "2",
     "primary_lidar_count": "1",
@@ -44,6 +50,7 @@ def test_web_save_and_history_round_trip(tmp_path):
     assert history_data[0]["note"] == "中文備註測試"
     assert history_data[0]["config"]["site_name"] == "01F-台北交流道"
     assert history_data[0]["config"]["lidar_label_start"] == 1
+    assert history_data[0]["config"]["field_length_mode"] == "slant_based"
     assert history_data[0]["config"]["lanes"][0]["lane_number"] == 0
     assert history_data[0]["config"]["has_backup"] is True
     assert history_data[0]["config"]["backup_lidars"][0]["assigned_lanes"] == [0, 1]
@@ -118,6 +125,8 @@ def test_web_page_uses_dynamic_lane_and_lidar_sections(tmp_path):
     assert 'id="has-backup"' in text
     assert 'id="traffic-mode"' in text
     assert 'id="lidar-label-start"' in text
+    assert 'id="field-length-mode"' in text
+    assert 'id="angular-resolution-deg"' in text
     assert "lidar-block-title" in text
     assert "Primary Lidar Configuration" in text
     assert "None" in text
@@ -131,6 +140,7 @@ def test_web_page_uses_dynamic_lane_and_lidar_sections(tmp_path):
     assert "車道 / Lidar SVG 示意圖" in text
     assert "Lane_info" in text
     assert "Inner Boundary (mm)" in text
+    assert "Field 換算設定" in text
     assert "displayLidarLabel" in text
     assert "Field 改為下方摘要列" in text
     assert "field-summary-grid" in text

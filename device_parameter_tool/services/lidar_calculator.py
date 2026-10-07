@@ -6,7 +6,7 @@ from dataclasses import dataclass, field
 import math
 
 from device_parameter_tool.models.device_config import DeviceConfig, LaneConfig, LidarConfig
-from device_parameter_tool.utils.validators import lane_slot_labels, physical_slots_from_inner_outer, validate_traffic_mode
+from device_parameter_tool.utils.validators import lane_slot_labels, physical_slots_from_inner_outer, validate_field_length_mode, validate_traffic_mode
 SCAN_LIMIT = 5500.0
 SOPAS_MM_PER_DEGREE = 200.0
 SOPAS_CENTER_ANGLE = 90
@@ -78,6 +78,14 @@ class LaneInfo:
     outer_boundary: float
 
 
+@dataclass(slots=True)
+class FieldLengthInfo:
+    mode: str
+    field_length_mm: float
+    description: str
+    details: list[str] = field(default_factory=list)
+
+
 def _build_lane_context(lanes: list[LaneConfig]) -> tuple[list[LaneConfig], dict[int, float], dict[int, float]]:
     all_lanes_sorted = sorted(lanes, key=lambda lane: lane.lane_number)
     lane_width_map = {lane.lane_number: lane.width_mm for lane in all_lanes_sorted}
@@ -100,6 +108,57 @@ def calculate_lane_info(lanes: list[LaneConfig]) -> list[LaneInfo]:
         )
         for lane in all_lanes_sorted
     ]
+
+
+def calculate_field_length_info(
+    field_length_mode: str,
+    angular_resolution_deg: float,
+    slant_distance_m: float,
+    elevation_angle_deg: float,
+    installation_height_m: float,
+    fixed_field_length_mm: float,
+) -> FieldLengthInfo:
+    mode = validate_field_length_mode(field_length_mode)
+    if mode == "fixed":
+        return FieldLengthInfo(
+            mode=mode,
+            field_length_mm=fixed_field_length_mm,
+            description="固定值模式",
+            details=[f"固定 1 field = {fixed_field_length_mm:.1f} mm"],
+        )
+
+    angular_resolution_rad = math.radians(angular_resolution_deg)
+    if mode == "slant_based":
+        field_length_mm = slant_distance_m * 1000.0 * math.tan(angular_resolution_rad)
+        return FieldLengthInfo(
+            mode=mode,
+            field_length_mm=field_length_mm,
+            description="斜邊估算模式",
+            details=[
+                f"斜邊距離 = {slant_distance_m:.2f} m",
+                f"角度解析度 = {angular_resolution_deg:.3f}°",
+            ],
+        )
+
+    height_m = installation_height_m if installation_height_m > 0 else slant_distance_m * math.sin(math.radians(elevation_angle_deg))
+    half_step = angular_resolution_deg / 2.0
+    upper_angle = elevation_angle_deg + half_step
+    lower_angle = elevation_angle_deg - half_step
+    if lower_angle <= 0 or upper_angle >= 89.9:
+        raise ValueError("ground_projected 模式下，仰角/俯角與角度解析度組合超出可計算範圍")
+    field_length_mm = abs(
+        (height_m / math.tan(math.radians(lower_angle))) - (height_m / math.tan(math.radians(upper_angle)))
+    ) * 1000.0
+    return FieldLengthInfo(
+        mode=mode,
+        field_length_mm=field_length_mm,
+        description="地面投影模式",
+        details=[
+            f"仰角/俯角 = {elevation_angle_deg:.2f}°",
+            f"角度解析度 = {angular_resolution_deg:.3f}°",
+            f"使用高度 = {height_m:.3f} m",
+        ],
+    )
 
 
 def _ordered_lidars(
@@ -244,6 +303,12 @@ def calculate_sopas_fields(
     lanes: list[LaneConfig],
     lidars: list[LidarConfig],
     traffic_mode: str = "inner_from_right",
+    field_length_mode: str = "fixed",
+    angular_resolution_deg: float = 1.0,
+    slant_distance_m: float = 10.0,
+    elevation_angle_deg: float = 51.0,
+    installation_height_m: float = 0.0,
+    fixed_field_length_mm: float = 200.0,
 ) -> list[SopasFieldResult]:
     if not lanes:
         raise ValueError("至少需要 1 個車道")
@@ -253,6 +318,15 @@ def calculate_sopas_fields(
     results: list[SopasFieldResult] = []
     ordered_lidars = _ordered_lidars(lidars, available_lane_numbers, traffic_mode)
     inner_label, outer_label = lane_slot_labels(traffic_mode)
+    field_length_info = calculate_field_length_info(
+        field_length_mode,
+        angular_resolution_deg,
+        slant_distance_m,
+        elevation_angle_deg,
+        installation_height_m,
+        fixed_field_length_mm,
+    )
+    field_length_mm = field_length_info.field_length_mm
 
     for original_index, assigned, lidar in ordered_lidars:
         center = lidar.center_distance_mm
@@ -268,8 +342,8 @@ def calculate_sopas_fields(
         offset_primary = center - inner_boundary - primary_lane_width
         offset_left = center - outer_boundary
 
-        primary_upper = SOPAS_CENTER_ANGLE + math.ceil((primary_lane_width + offset_primary) / SOPAS_MM_PER_DEGREE)
-        primary_lower = SOPAS_CENTER_ANGLE + math.floor(offset_primary / SOPAS_MM_PER_DEGREE)
+        primary_upper = SOPAS_CENTER_ANGLE + math.ceil((primary_lane_width + offset_primary) / field_length_mm)
+        primary_lower = SOPAS_CENTER_ANGLE + math.floor(offset_primary / field_length_mm)
         if primary_lower > primary_upper:
             raise ValueError(f"LIDAR_{original_index}: Field 範圍計算失敗，請檢查中心點距離")
         primary_center = math.ceil((primary_upper + primary_lower) / 2)
@@ -295,7 +369,7 @@ def calculate_sopas_fields(
             field6 = primary_field3
         elif lidar.outer_lane is not None and lidar.inner_lane is not None:
             field4_upper = primary_lower - 1
-            field4_lower = SOPAS_CENTER_ANGLE + math.floor(offset_left / SOPAS_MM_PER_DEGREE)
+            field4_lower = SOPAS_CENTER_ANGLE + math.floor(offset_left / field_length_mm)
             if field4_lower > field4_upper:
                 raise ValueError(f"LIDAR_{original_index}: 外側車道 Field 範圍計算失敗，請檢查中心點距離")
             center_outer = math.ceil((field4_upper + field4_lower) / 2)
@@ -325,6 +399,7 @@ def calculate_sopas_fields(
                     f"外={lidar.outer_lane if lidar.outer_lane is not None else '—'} → {'Field4~Field6' if lidar.outer_lane is not None else '未配置'}",
                     f"{inner_label}半邊語意: Field2 靠{inner_label} / Field3 靠{outer_label}",
                     f"{outer_label}半邊語意: Field5 靠{inner_label} / Field6 靠{outer_label}",
+                    f"Field 模式 = {field_length_info.description} / 1 field = {field_length_mm:.1f} mm",
                     f"主 offset = {center:.0f} - {inner_boundary:.0f} - {primary_lane_width:.0f} = {offset_primary:.0f}mm",
                     (
                         f"Field1 = {field1[0]}° ~ {field1[1]}° / Field2 = {field2[0]}° ~ {field2[1]}° / Field3 = {field3[0]}° ~ {field3[1]}°"
@@ -347,7 +422,25 @@ def calculate_sopas_fields(
 
 
 def render_text_report(config: DeviceConfig, summary: LidarCalculationSummary) -> str:
-    field_results = calculate_sopas_fields(config.lanes, config.lidars, config.traffic_mode) if config.lidars else []
+    field_length_info = calculate_field_length_info(
+        config.field_length_mode,
+        config.angular_resolution_deg,
+        config.slant_distance_m,
+        config.elevation_angle_deg,
+        config.installation_height_m,
+        config.fixed_field_length_mm,
+    )
+    field_results = calculate_sopas_fields(
+        config.lanes,
+        config.lidars,
+        config.traffic_mode,
+        config.field_length_mode,
+        config.angular_resolution_deg,
+        config.slant_distance_m,
+        config.elevation_angle_deg,
+        config.installation_height_m,
+        config.fixed_field_length_mm,
+    ) if config.lidars else []
     inner_label, outer_label = lane_slot_labels(config.traffic_mode)
     lines = ["=" * 90, f"  計算結果 — {config.site_name}", "=" * 90, "", "  【車道資訊】", ""]
     lines.append("  ┌────────┬──────────┐")
@@ -361,6 +454,7 @@ def render_text_report(config: DeviceConfig, summary: LidarCalculationSummary) -
     lines.append("")
     lines.append("  [護欄]" + "".join(f" |← Lane{lane.lane_number}:{lane.width_mm:.0f} →|" for lane in sorted(config.lanes, key=lambda item: item.lane_number)) + " [外側]")
     lines.append(f"  交通模式: {config.traffic_mode} ({inner_label}=內側, {outer_label}=外側)")
+    lines.append(f"  Field 模式: {config.field_length_mode} ({field_length_info.description}) / 1 field = {field_length_info.field_length_mm:.1f} mm")
     lines.extend(["", "  【Lidar 輸入資訊】", "", f"  ┌─────────┬────────────┬────────────┬──────────────┐", f"  │ Lidar   │ {inner_label:<10} │ {outer_label:<10} │ 中心距離(mm) │", "  ├─────────┼────────────┼────────────┼──────────────┤"])
     for index, lidar in enumerate(config.lidars):
         inner_lane = f"Lane{lidar.inner_lane}" if lidar.inner_lane is not None else "—"

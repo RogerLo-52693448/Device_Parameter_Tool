@@ -8,7 +8,7 @@ from flask import Flask, redirect, render_template, request, session, url_for
 
 from device_parameter_tool.models.device_config import DeviceConfig, LaneConfig, LidarConfig
 from device_parameter_tool.services.config_service import ConfigService
-from device_parameter_tool.services.lidar_calculator import calculate_lane_info, calculate_lidar_results, calculate_sopas_fields
+from device_parameter_tool.services.lidar_calculator import calculate_field_length_info, calculate_lane_info, calculate_lidar_results, calculate_sopas_fields
 from device_parameter_tool.utils.validators import SITE_ROUTE_OPTIONS, lane_slot_labels, physical_slots_from_inner_outer, site_route_label
 
 
@@ -104,6 +104,12 @@ def _config_from_form(form) -> DeviceConfig:
         has_backup=has_backup,
         traffic_mode=form.get("traffic_mode", "inner_from_right"),
         lidar_label_start=_coerce_int(form.get("lidar_label_start"), 0),
+        field_length_mode=form.get("field_length_mode", "fixed"),
+        angular_resolution_deg=_coerce_float(form.get("angular_resolution_deg"), 1.0),
+        slant_distance_m=_coerce_float(form.get("slant_distance_m"), 10.0),
+        elevation_angle_deg=_coerce_float(form.get("elevation_angle_deg"), 51.0),
+        installation_height_m=_coerce_float(form.get("installation_height_m"), 0.0),
+        fixed_field_length_mm=_coerce_float(form.get("fixed_field_length_mm"), 200.0),
         lanes=_build_lane_rows(form, lane_count),
         lidars=_build_lidar_rows(form, lidar_count, prefix="primary"),
         backup_lidars=_build_lidar_rows(form, backup_lidar_count, prefix="backup") if has_backup else [],
@@ -147,6 +153,12 @@ def _form_defaults(config: DeviceConfig) -> dict:
         "has_backup": config.has_backup,
         "traffic_mode": config.traffic_mode,
         "lidar_label_start": config.lidar_label_start,
+        "field_length_mode": config.field_length_mode,
+        "angular_resolution_deg": config.angular_resolution_deg,
+        "slant_distance_m": config.slant_distance_m,
+        "elevation_angle_deg": config.elevation_angle_deg,
+        "installation_height_m": config.installation_height_m,
+        "fixed_field_length_mm": config.fixed_field_length_mm,
         "inner_label": inner_label,
         "outer_label": outer_label,
         "lane_count": max(1, len(lane_rows)),
@@ -198,6 +210,12 @@ def _posted_form_state(form) -> dict:
         "has_backup": has_backup,
         "traffic_mode": traffic_mode,
         "lidar_label_start": _coerce_int(form.get("lidar_label_start"), 0),
+        "field_length_mode": form.get("field_length_mode", "fixed"),
+        "angular_resolution_deg": form.get("angular_resolution_deg", "1.0"),
+        "slant_distance_m": form.get("slant_distance_m", "10.0"),
+        "elevation_angle_deg": form.get("elevation_angle_deg", "51.0"),
+        "installation_height_m": form.get("installation_height_m", "0.0"),
+        "fixed_field_length_mm": form.get("fixed_field_length_mm", "200.0"),
         "inner_label": inner_label,
         "outer_label": outer_label,
         "lane_count": lane_count,
@@ -301,21 +319,51 @@ def create_app(data_dir: str | Path | None = None) -> Flask:
     ):
         summaries = []
         lane_info = []
+        field_length_info = None
         history_records = service.load_history()
         try:
             if config and config.lanes:
                 lane_info = calculate_lane_info(config.lanes)
+            if config:
+                field_length_info = calculate_field_length_info(
+                    config.field_length_mode,
+                    config.angular_resolution_deg,
+                    config.slant_distance_m,
+                    config.elevation_angle_deg,
+                    config.installation_height_m,
+                    config.fixed_field_length_mm,
+                )
             if config and config.lanes and config.lidars:
                 summaries.append({
                     "label": "Primary Lidar Dtmod",
                     "summary": calculate_lidar_results(config.lanes, config.lidars, config.traffic_mode),
-                    "fields": calculate_sopas_fields(config.lanes, config.lidars, config.traffic_mode),
+                    "fields": calculate_sopas_fields(
+                        config.lanes,
+                        config.lidars,
+                        config.traffic_mode,
+                        config.field_length_mode,
+                        config.angular_resolution_deg,
+                        config.slant_distance_m,
+                        config.elevation_angle_deg,
+                        config.installation_height_m,
+                        config.fixed_field_length_mm,
+                    ),
                 })
             if config and config.has_backup and config.lanes and config.backup_lidars:
                 summaries.append({
                     "label": "Backup Lidar Dtmod",
                     "summary": calculate_lidar_results(config.lanes, config.backup_lidars, config.traffic_mode),
-                    "fields": calculate_sopas_fields(config.lanes, config.backup_lidars, config.traffic_mode),
+                    "fields": calculate_sopas_fields(
+                        config.lanes,
+                        config.backup_lidars,
+                        config.traffic_mode,
+                        config.field_length_mode,
+                        config.angular_resolution_deg,
+                        config.slant_distance_m,
+                        config.elevation_angle_deg,
+                        config.installation_height_m,
+                        config.fixed_field_length_mm,
+                    ),
                 })
         except ValueError as exc:
             error = str(exc)
@@ -324,6 +372,7 @@ def create_app(data_dir: str | Path | None = None) -> Flask:
             form=form_state or _form_defaults(config or DeviceConfig(site_name="", lanes=[LaneConfig(lane_number=0, width_mm=3500.0)])),
             summaries=summaries,
             lane_info=lane_info,
+            field_length_info=field_length_info,
             message=message,
             error=error,
             history_browser=_build_history_browser(history_records),

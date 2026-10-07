@@ -64,6 +64,7 @@ CLI 提供：
 - 車道 CRUD
 - 主 Lidar / 備援 Lidar CRUD
 - Lidar 負責車道使用 2 個欄位：右 / 左
+- Field 換算模式與安裝幾何參數設定
 - 設定檔讀取與儲存
 - 快速設定流程（含備援開關）
 
@@ -95,6 +96,10 @@ python -m device_parameter_tool.web.app
   - `inner_from_right`：內線在右側（目前版）
   - `inner_from_left`：內線在左側
 - 支援使用者自行選擇 Lidar 顯示起始編號（`LIDAR_0` 或 `LIDAR_1`）
+- 支援 Field 換算模式：
+  - `fixed`：固定值模式
+  - `slant_based`：依斜邊距離與角度解析度估算
+  - `ground_projected`：依仰角/俯角與高度做地面投影估算
 - Lidar 負責車道使用 2 個下拉欄位：右 / 左，選項依目前 lane number 動態更新
 - 使用同一套 `lidar_calculator` 邏輯即時預覽結果
 - 在 Web UI 顯示 `Lane_info`，包含每個車道的寬度、內側邊界與外側邊界
@@ -130,6 +135,12 @@ python -m device_parameter_tool.web.app
   "has_backup": true,
   "traffic_mode": "inner_from_right",
   "lidar_label_start": 1,
+  "field_length_mode": "slant_based",
+  "angular_resolution_deg": 1.0,
+  "slant_distance_m": 10.0,
+  "elevation_angle_deg": 51.0,
+  "installation_height_m": 0.0,
+  "fixed_field_length_mm": 200.0,
   "camera": {
     "latitude": 25.1,
     "longitude": 121.6,
@@ -227,7 +238,10 @@ scan_left  = outer_boundary - center_distance + (0 if is_outermost else 500)
 - `右` 對應 `Field1` ~ `Field3`
 - `左` 對應 `Field4` ~ `Field6`
 - 角度基準：`90°`
-- 換算規則：`1° = 200 mm`
+- 換算規則支援三種模式：
+  - `fixed`：固定使用 `fixed_field_length_mm`
+  - `slant_based`：`field_length_mm = slant_distance_m × tan(angular_resolution_deg) × 1000`
+  - `ground_projected`：使用仰角/俯角與高度估算相鄰角度在地面的投影距離
 
 當 `traffic_mode=inner_from_left` 時：
 - `Field1~Field3` 仍代表 **內側車道**

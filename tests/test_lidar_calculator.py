@@ -2,7 +2,7 @@ import pytest
 
 from device_parameter_tool.models.device_config import DeviceConfig, LaneConfig, LidarConfig
 from device_parameter_tool.services import lidar_calculator
-from device_parameter_tool.services.lidar_calculator import SCAN_LIMIT, calculate_for_config, calculate_lidar_results, calculate_sopas_fields
+from device_parameter_tool.services.lidar_calculator import SCAN_LIMIT, calculate_field_length_info, calculate_for_config, calculate_lidar_results, calculate_sopas_fields
 
 
 def test_lidar_boundary_and_compensation_scenarios():
@@ -166,3 +166,37 @@ def test_inner_from_left_swaps_physical_scan_and_field_mapping():
     assert summary.results[0].scan_left == summary.results[0].scan_inner
     assert summary.results[0].scan_right == summary.results[0].scan_outer
     assert "左半邊語意: Field2 靠左 / Field3 靠右" in fields[0].debug_lines[2]
+
+
+def test_field_length_modes_change_sopas_field_ranges():
+    lanes = [LaneConfig(0, 3500.0), LaneConfig(1, 3300.0)]
+    lidars = [LidarConfig([0, 1], 3600.0)]
+
+    fixed_fields = calculate_sopas_fields(lanes, lidars)
+    slant_fields = calculate_sopas_fields(
+        lanes,
+        lidars,
+        field_length_mode="slant_based",
+        angular_resolution_deg=1.0,
+        slant_distance_m=10.0,
+        elevation_angle_deg=51.0,
+        installation_height_m=0.0,
+        fixed_field_length_mm=200.0,
+    )
+
+    assert fixed_fields[0].field1 == (90, 108)
+    assert slant_fields[0].field1 != fixed_fields[0].field1
+    assert "Field 模式 = 斜邊估算模式" in slant_fields[0].debug_lines[4]
+
+
+def test_ground_projected_field_length_info_uses_installation_geometry():
+    info = calculate_field_length_info(
+        "ground_projected",
+        angular_resolution_deg=1.0,
+        slant_distance_m=10.0,
+        elevation_angle_deg=51.0,
+        installation_height_m=0.0,
+        fixed_field_length_mm=200.0,
+    )
+
+    assert 220.0 <= info.field_length_mm <= 230.0

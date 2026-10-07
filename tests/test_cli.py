@@ -19,3 +19,4 @@ def test_show_report_renders_primary_and_backup_sections(capsys):
     assert "內線在右側" in output or "inner_from_right" in output
     assert "Lane0" in output
     assert "Field1" in output
+    assert "Field 模式" in output

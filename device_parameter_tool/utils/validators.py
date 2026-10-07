@@ -8,6 +8,7 @@ VALID_PROTOCOLS = {"rtsp", "http", "https", "udp", "tcp"}
 VALID_LOG_LEVELS = {"DEBUG", "INFO", "WARNING", "ERROR"}
 TRAFFIC_MODES = {"inner_from_right", "inner_from_left"}
 LIDAR_LABEL_STARTS = {0, 1}
+FIELD_LENGTH_MODES = {"fixed", "slant_based", "ground_projected"}
 SITE_ROUTE_OPTIONS = [
     ("國一", "01F"),
     ("國三", "03F"),
@@ -77,6 +78,13 @@ def validate_lidar_label_start(value: int) -> int:
     if value not in LIDAR_LABEL_STARTS:
         raise ValueError("Lidar 起始編號必須為 0 或 1")
     return value
+
+
+def validate_field_length_mode(value: str) -> str:
+    mode = value.strip().lower()
+    if mode not in FIELD_LENGTH_MODES:
+        raise ValueError(f"field length mode 必須為 {', '.join(sorted(FIELD_LENGTH_MODES))}")
+    return mode
 
 
 def lane_slot_labels(traffic_mode: str) -> tuple[str, str]:

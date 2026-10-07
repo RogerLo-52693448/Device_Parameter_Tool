@@ -166,6 +166,45 @@
             </label>
           </div>
 
+          <div class="section">
+            <h3>Field 換算設定</h3>
+            <div class="grid-2">
+              <label>Field 換算模式
+                <select id="field-length-mode" name="field_length_mode">
+                  <option value="fixed" {% if form.field_length_mode == 'fixed' %}selected{% endif %}>固定值模式</option>
+                  <option value="slant_based" {% if form.field_length_mode == 'slant_based' %}selected{% endif %}>斜邊估算模式</option>
+                  <option value="ground_projected" {% if form.field_length_mode == 'ground_projected' %}selected{% endif %}>地面投影模式</option>
+                </select>
+              </label>
+              <label>固定 Field 長度 (mm)
+                <input id="fixed-field-length-mm" name="fixed_field_length_mm" type="number" min="1" step="0.1" value="{{ form.fixed_field_length_mm }}">
+              </label>
+            </div>
+            <div class="grid-2">
+              <label>角度解析度 (deg)
+                <input id="angular-resolution-deg" name="angular_resolution_deg" type="number" min="0.001" step="0.001" value="{{ form.angular_resolution_deg }}">
+              </label>
+              <label>斜邊距離 (m)
+                <input id="slant-distance-m" name="slant_distance_m" type="number" min="0.001" step="0.001" value="{{ form.slant_distance_m }}">
+              </label>
+            </div>
+            <div class="grid-2">
+              <label>仰角 / 俯角 (deg)
+                <input id="elevation-angle-deg" name="elevation_angle_deg" type="number" min="0.001" max="89.9" step="0.001" value="{{ form.elevation_angle_deg }}">
+              </label>
+              <label>安裝高度 (m，可留 0 自動推導)
+                <input id="installation-height-m" name="installation_height_m" type="number" min="0" step="0.001" value="{{ form.installation_height_m }}">
+              </label>
+            </div>
+            <p class="hint" id="field-length-summary">
+              {% if field_length_info %}
+              目前模式：{{ field_length_info.description }} / 1 field ≈ {{ '%.1f'|format(field_length_info.field_length_mm) }} mm
+              {% else %}
+              請先輸入 Field 換算參數。
+              {% endif %}
+            </p>
+          </div>
+
           <div class="grid-2">
             <label for="primary-lidar-count">主 Lidar 數量
               <input id="primary-lidar-count" aria-label="主 Lidar 數量" name="primary_lidar_count" type="number" min="0" value="{{ form.primary_lidar_count }}">
@@ -323,7 +362,7 @@
                 {% endfor %}
               </tbody>
             </table>
-            <p class="hint">{{ form.inner_label }} 對應 Field1~Field3；{{ form.outer_label }} 對應 Field4~Field6；角度基準為 90°，1° = 200 mm。</p>
+            <p class="hint">{{ form.inner_label }} 對應 Field1~Field3；{{ form.outer_label }} 對應 Field4~Field6；角度基準為 90°；目前 1 field ≈ {{ '%.1f'|format(field_length_info.field_length_mm if field_length_info else 200.0) }} mm。</p>
           </details>
           <details class="debug-details">
             <summary>偵錯資訊（點擊展開）</summary>
@@ -373,12 +412,50 @@
       return document.getElementById('traffic-mode')?.value || FORM_STATE.traffic_mode || 'inner_from_right';
     }
 
+    function currentFieldLengthMode() {
+      return document.getElementById('field-length-mode')?.value || FORM_STATE.field_length_mode || 'fixed';
+    }
+
     function currentLidarLabelStart() {
       return Number(document.getElementById('lidar-label-start')?.value ?? FORM_STATE.lidar_label_start ?? 0);
     }
 
     function displayLidarLabel(index) {
       return `LIDAR_${Number(index) + currentLidarLabelStart()}`;
+    }
+
+    function currentFieldLengthMm() {
+      const mode = currentFieldLengthMode();
+      const fixed = Number(document.getElementById('fixed-field-length-mm')?.value ?? FORM_STATE.fixed_field_length_mm ?? 200);
+      const resolution = Number(document.getElementById('angular-resolution-deg')?.value ?? FORM_STATE.angular_resolution_deg ?? 1);
+      const slant = Number(document.getElementById('slant-distance-m')?.value ?? FORM_STATE.slant_distance_m ?? 10);
+      const elevation = Number(document.getElementById('elevation-angle-deg')?.value ?? FORM_STATE.elevation_angle_deg ?? 51);
+      const heightInput = Number(document.getElementById('installation-height-m')?.value ?? FORM_STATE.installation_height_m ?? 0);
+      if (mode === 'fixed') {
+        return fixed > 0 ? fixed : 200;
+      }
+      const resolutionRad = resolution * (Math.PI / 180);
+      if (mode === 'slant_based') {
+        return slant > 0 && resolution > 0 ? slant * 1000 * Math.tan(resolutionRad) : fixed;
+      }
+      const height = heightInput > 0 ? heightInput : slant * Math.sin(elevation * (Math.PI / 180));
+      const halfStep = resolution / 2;
+      const lower = elevation - halfStep;
+      const upper = elevation + halfStep;
+      if (height <= 0 || lower <= 0 || upper >= 89.9) {
+        return fixed > 0 ? fixed : 200;
+      }
+      return Math.abs((height / Math.tan(lower * (Math.PI / 180))) - (height / Math.tan(upper * (Math.PI / 180)))) * 1000;
+    }
+
+    function syncFieldLengthSummary() {
+      const summary = document.getElementById('field-length-summary');
+      const modeMap = {
+        fixed: '固定值模式',
+        slant_based: '斜邊估算模式',
+        ground_projected: '地面投影模式',
+      };
+      summary.textContent = `目前模式：${modeMap[currentFieldLengthMode()] || currentFieldLengthMode()} / 1 field ≈ ${currentFieldLengthMm().toFixed(1)} mm`;
     }
 
     function currentSlotLabels() {
@@ -540,10 +617,11 @@
         return [];
       }
 
+      const fieldLengthMm = currentFieldLengthMm();
       const offsetPrimary = result.center_distance_mm - result.inner_boundary - result.primary_lane_width;
       const offsetLeft = result.center_distance_mm - result.outer_boundary;
-      const primaryUpper = 90 + Math.ceil((result.primary_lane_width + offsetPrimary) / 200);
-      const primaryLower = 90 + Math.floor(offsetPrimary / 200);
+      const primaryUpper = 90 + Math.ceil((result.primary_lane_width + offsetPrimary) / fieldLengthMm);
+      const primaryLower = 90 + Math.floor(offsetPrimary / fieldLengthMm);
       const primaryCenter = Math.ceil((primaryUpper + primaryLower) / 2);
       const primaryField2 = [primaryCenter - 2, result.primary_lane === result.assigned[0] && result.is_innermost ? primaryUpper : primaryUpper + 2];
       const primaryField3 = [primaryLower - 2, primaryCenter + 2];
@@ -561,7 +639,7 @@
         bands.push({ label: 'Field6', range: primaryField3, color: '#fdba74' });
       } else if (result.outer_lane !== null && result.inner_lane !== null) {
         const field4Upper = primaryLower - 1;
-        const field4Lower = 90 + Math.floor(offsetLeft / 200);
+        const field4Lower = 90 + Math.floor(offsetLeft / fieldLengthMm);
         const centerOuter = Math.ceil((field4Upper + field4Lower) / 2);
         bands.push({ label: 'Field4', range: [field4Lower, field4Upper], color: '#f97316' });
         bands.push({ label: 'Field5', range: [centerOuter - 2, field4Upper + 2], color: '#fb923c' });
@@ -798,6 +876,7 @@
       renderLidars('primary', 'primary-lidars-container', FORM_STATE.lidars, 'primary-lidar-count');
       renderLidars('backup', 'backup-lidars-container', FORM_STATE.backup_lidars, 'backup-lidar-count');
       renderLaneDiagram();
+      syncFieldLengthSummary();
     });
 
     document.getElementById('lidar-label-start').addEventListener('change', () => {
@@ -806,6 +885,18 @@
       renderLidars('backup', 'backup-lidars-container', FORM_STATE.backup_lidars, 'backup-lidar-count');
       renderLaneDiagram();
     });
+
+    ['field-length-mode', 'fixed-field-length-mm', 'angular-resolution-deg', 'slant-distance-m', 'elevation-angle-deg', 'installation-height-m']
+      .forEach((id) => {
+        document.getElementById(id).addEventListener('input', () => {
+          renderLaneDiagram();
+          syncFieldLengthSummary();
+        });
+        document.getElementById(id).addEventListener('change', () => {
+          renderLaneDiagram();
+          syncFieldLengthSummary();
+        });
+      });
 
     document.getElementById('has-backup').addEventListener('change', () => {
       captureLidarState('backup', 'backup_lidars', 'backup-lidar-count');
@@ -844,6 +935,7 @@
     renderLidars('backup', 'backup-lidars-container', FORM_STATE.backup_lidars, 'backup-lidar-count');
     syncBackupVisibility();
     syncFormCollapse(document.getElementById('main-layout').dataset.initialCollapsed === 'true');
+    syncFieldLengthSummary();
     renderLaneDiagram();
   </script>
 </body>

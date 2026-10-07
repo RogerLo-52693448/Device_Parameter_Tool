@@ -9,6 +9,7 @@ from device_parameter_tool.utils.validators import (
     inner_outer_from_physical_slots,
     physical_slots_from_inner_outer,
     validate_ip,
+    validate_field_length_mode,
     validate_lidar_assignment,
     validate_lidar_label_start,
     validate_lidar_lane_slots,
@@ -177,6 +178,12 @@ class DeviceConfig:
     has_backup: bool = False
     traffic_mode: str = "inner_from_right"
     lidar_label_start: int = 0
+    field_length_mode: str = "fixed"
+    angular_resolution_deg: float = 1.0
+    slant_distance_m: float = 10.0
+    elevation_angle_deg: float = 51.0
+    installation_height_m: float = 0.0
+    fixed_field_length_mm: float = 200.0
     camera: CameraConfig = field(default_factory=CameraConfig)
     lanes: list[LaneConfig] = field(default_factory=list)
     lidars: list[LidarConfig] = field(default_factory=list)
@@ -187,6 +194,13 @@ class DeviceConfig:
         self.site_name = validate_site_name(self.site_name)
         self.traffic_mode = validate_traffic_mode(self.traffic_mode)
         self.lidar_label_start = validate_lidar_label_start(self.lidar_label_start)
+        self.field_length_mode = validate_field_length_mode(self.field_length_mode)
+        validate_positive_number(self.angular_resolution_deg, "角度解析度")
+        validate_positive_number(self.slant_distance_m, "斜邊距離")
+        validate_non_negative_number(self.installation_height_m, "安裝高度")
+        validate_positive_number(self.fixed_field_length_mm, "固定 Field 長度")
+        if self.elevation_angle_deg <= 0 or self.elevation_angle_deg >= 89.9:
+            raise ValueError("仰角/俯角必須介於 0 到 89.9 度之間")
         if not self.has_backup:
             self.backup_lidars = []
         self.camera.validate()
@@ -242,6 +256,12 @@ class DeviceConfig:
             has_backup=bool(data.get("has_backup", bool(backup_lidars_payload))),
             traffic_mode=data.get("traffic_mode", "inner_from_right"),
             lidar_label_start=data.get("lidar_label_start", 0),
+            field_length_mode=data.get("field_length_mode", "fixed"),
+            angular_resolution_deg=data.get("angular_resolution_deg", 1.0),
+            slant_distance_m=data.get("slant_distance_m", 10.0),
+            elevation_angle_deg=data.get("elevation_angle_deg", 51.0),
+            installation_height_m=data.get("installation_height_m", 0.0),
+            fixed_field_length_mm=data.get("fixed_field_length_mm", 200.0),
             camera=CameraConfig(
                 camera_id=camera_payload.get("camera_id", "CAM-01"),
                 name=camera_payload.get("name", "Camera 1"),
