@@ -127,6 +127,7 @@ def test_web_page_uses_dynamic_lane_and_lidar_sections(tmp_path):
     assert 'id="lidar-label-start"' in text
     assert 'id="field-length-mode"' in text
     assert 'id="angular-resolution-deg"' in text
+    assert 'id="slant-distance-m"' in text
     assert "lidar-block-title" in text
     assert "Primary Lidar Configuration" in text
     assert "None" in text
@@ -141,6 +142,8 @@ def test_web_page_uses_dynamic_lane_and_lidar_sections(tmp_path):
     assert "Lane_info" in text
     assert "Inner Boundary (mm)" in text
     assert "Field 換算設定" in text
+    assert "固定值模式" not in text
+    assert "地面投影模式" not in text
     assert "displayLidarLabel" in text
     assert "Field 改為下方摘要列" in text
     assert "field-summary-grid" in text

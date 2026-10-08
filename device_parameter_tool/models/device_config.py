@@ -178,7 +178,7 @@ class DeviceConfig:
     has_backup: bool = False
     traffic_mode: str = "inner_from_right"
     lidar_label_start: int = 0
-    field_length_mode: str = "fixed"
+    field_length_mode: str = "slant_based"
     angular_resolution_deg: float = 1.0
     slant_distance_m: float = 10.0
     elevation_angle_deg: float = 51.0

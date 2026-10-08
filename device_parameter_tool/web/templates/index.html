@@ -168,32 +168,13 @@
 
           <div class="section">
             <h3>Field 換算設定</h3>
-            <div class="grid-2">
-              <label>Field 換算模式
-                <select id="field-length-mode" name="field_length_mode">
-                  <option value="fixed" {% if form.field_length_mode == 'fixed' %}selected{% endif %}>固定值模式</option>
-                  <option value="slant_based" {% if form.field_length_mode == 'slant_based' %}selected{% endif %}>斜邊估算模式</option>
-                  <option value="ground_projected" {% if form.field_length_mode == 'ground_projected' %}selected{% endif %}>地面投影模式</option>
-                </select>
-              </label>
-              <label>固定 Field 長度 (mm)
-                <input id="fixed-field-length-mm" name="fixed_field_length_mm" type="number" min="1" step="0.1" value="{{ form.fixed_field_length_mm }}">
-              </label>
-            </div>
+            <input type="hidden" id="field-length-mode" name="field_length_mode" value="slant_based">
             <div class="grid-2">
               <label>角度解析度 (deg)
                 <input id="angular-resolution-deg" name="angular_resolution_deg" type="number" min="0.001" step="0.001" value="{{ form.angular_resolution_deg }}">
               </label>
               <label>斜邊距離 (m)
                 <input id="slant-distance-m" name="slant_distance_m" type="number" min="0.001" step="0.001" value="{{ form.slant_distance_m }}">
-              </label>
-            </div>
-            <div class="grid-2">
-              <label>仰角 / 俯角 (deg)
-                <input id="elevation-angle-deg" name="elevation_angle_deg" type="number" min="0.001" max="89.9" step="0.001" value="{{ form.elevation_angle_deg }}">
-              </label>
-              <label>安裝高度 (m，可留 0 自動推導)
-                <input id="installation-height-m" name="installation_height_m" type="number" min="0" step="0.001" value="{{ form.installation_height_m }}">
               </label>
             </div>
             <p class="hint" id="field-length-summary">
@@ -413,7 +394,7 @@
     }
 
     function currentFieldLengthMode() {
-      return document.getElementById('field-length-mode')?.value || FORM_STATE.field_length_mode || 'fixed';
+      return 'slant_based';
     }
 
     function currentLidarLabelStart() {
@@ -425,37 +406,15 @@
     }
 
     function currentFieldLengthMm() {
-      const mode = currentFieldLengthMode();
-      const fixed = Number(document.getElementById('fixed-field-length-mm')?.value ?? FORM_STATE.fixed_field_length_mm ?? 200);
       const resolution = Number(document.getElementById('angular-resolution-deg')?.value ?? FORM_STATE.angular_resolution_deg ?? 1);
       const slant = Number(document.getElementById('slant-distance-m')?.value ?? FORM_STATE.slant_distance_m ?? 10);
-      const elevation = Number(document.getElementById('elevation-angle-deg')?.value ?? FORM_STATE.elevation_angle_deg ?? 51);
-      const heightInput = Number(document.getElementById('installation-height-m')?.value ?? FORM_STATE.installation_height_m ?? 0);
-      if (mode === 'fixed') {
-        return fixed > 0 ? fixed : 200;
-      }
       const resolutionRad = resolution * (Math.PI / 180);
-      if (mode === 'slant_based') {
-        return slant > 0 && resolution > 0 ? slant * 1000 * Math.tan(resolutionRad) : fixed;
-      }
-      const height = heightInput > 0 ? heightInput : slant * Math.sin(elevation * (Math.PI / 180));
-      const halfStep = resolution / 2;
-      const lower = elevation - halfStep;
-      const upper = elevation + halfStep;
-      if (height <= 0 || lower <= 0 || upper >= 89.9) {
-        return fixed > 0 ? fixed : 200;
-      }
-      return Math.abs((height / Math.tan(lower * (Math.PI / 180))) - (height / Math.tan(upper * (Math.PI / 180)))) * 1000;
+      return slant > 0 && resolution > 0 ? slant * 1000 * Math.tan(resolutionRad) : 200;
     }
 
     function syncFieldLengthSummary() {
       const summary = document.getElementById('field-length-summary');
-      const modeMap = {
-        fixed: '固定值模式',
-        slant_based: '斜邊估算模式',
-        ground_projected: '地面投影模式',
-      };
-      summary.textContent = `目前模式：${modeMap[currentFieldLengthMode()] || currentFieldLengthMode()} / 1 field ≈ ${currentFieldLengthMm().toFixed(1)} mm`;
+      summary.textContent = `目前模式：斜邊估算模式 / 1 field ≈ ${currentFieldLengthMm().toFixed(1)} mm`;
     }
 
     function currentSlotLabels() {
@@ -886,7 +845,7 @@
       renderLaneDiagram();
     });
 
-    ['field-length-mode', 'fixed-field-length-mm', 'angular-resolution-deg', 'slant-distance-m', 'elevation-angle-deg', 'installation-height-m']
+    ['angular-resolution-deg', 'slant-distance-m']
       .forEach((id) => {
         document.getElementById(id).addEventListener('input', () => {
           renderLaneDiagram();
