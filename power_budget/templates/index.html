@@ -1,0 +1,210 @@
+{% macro capacity_view(label, capacity, unit) -%}
+  {% if capacity.percent is not none %}
+    <div class="capacity">
+      <div class="capacity-line"><span>{{ label }}使用率</span><span>{{ capacity.percent|round(1) }}% · 剩餘 {{ capacity.remaining|round(2) }} {{ unit }} / {{ "%.3g"|format(capacity.limit) }} {{ unit }}</span></div>
+      <div class="capacity-track"><div class="capacity-fill {% if capacity.percent > 100 %}over{% endif %}" style="width: {{ [capacity.percent, 100]|min }}%"></div></div>
+    </div>
+  {% else %}
+    <p class="muted">未設定{{ label }}上限</p>
+  {% endif %}
+{%- endmacro %}
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>電力計算</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}">
+</head>
+<body>
+  <header class="topbar">
+    <div>
+      <p class="eyebrow">OFFLINE POWER BUDGET</p>
+      <h1>電力計算</h1>
+      <p>管理 AC / DC 電源、迴路與設備，檢查負載並檢視配線關係。</p>
+    </div>
+    <div class="toolbar">
+      <a class="button secondary" href="{{ url_for('export_project') }}">匯出 JSON</a>
+      <form action="{{ url_for('import_project') }}" method="post" enctype="multipart/form-data">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <label class="button secondary file-button">匯入 JSON<input type="file" name="file" accept=".json,application/json" required></label>
+        <button type="submit">載入設定</button>
+      </form>
+    </div>
+  </header>
+
+  <main>
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        <div class="messages" role="status">
+          {% for category, message in messages %}<p class="{{ category }}">{{ message }}</p>{% endfor %}
+        </div>
+      {% endif %}
+    {% endwith %}
+
+    {% if warnings %}
+      <section class="warnings" aria-labelledby="warning-title">
+        <h2 id="warning-title">⚠ 容量超限警告</h2>
+        <ul>{% for warning in warnings %}<li>{{ warning }}</li>{% endfor %}</ul>
+      </section>
+    {% else %}
+      <p class="notice">目前所有已設定的電源與迴路均未超過容量上限。</p>
+    {% endif %}
+
+    <section class="panel">
+      <div class="section-heading">
+        <div><p class="eyebrow">CONNECTION MAP</p><h2>配線圖與負載</h2></div>
+        <span class="muted">電源 → 迴路 → 設備</span>
+      </div>
+      {% if supply_rows %}
+        <div class="wiring">
+          {% for supply_row in supply_rows %}
+            {% set supply = supply_row.item %}
+            <article class="wire-branch">
+              <section class="node supply-node">
+                <div class="node-heading">
+                  <div><span class="tag">{{ supply.kind }}</span><h3>{{ supply.name }}</h3></div>
+                  <form action="{{ url_for('delete_item', collection='supplies', item_id=supply.id) }}" method="post" onsubmit="return confirm('刪除電源會一併移除其迴路及設備，確定繼續？')">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                    <button class="icon-button danger-text" type="submit" aria-label="刪除電源 {{ supply.name }}">刪除</button>
+                  </form>
+                </div>
+                <p>{{ "%.3g"|format(supply.voltage) }} V · {{ supply_row.load.watts|round(2) }} W
+                  · {{ supply_row.load.amps|round(2) }} A
+                  {% if supply.kind == 'AC' %}· {{ supply_row.load.va|round(2) }} VA{% endif %}</p>
+                {{ capacity_view("電流", supply_row.capacity.amps, "A") }}
+                {{ capacity_view("實功率", supply_row.capacity.watts, "W") }}
+                <details class="edit-details"><summary>編輯電源</summary>
+                  <form class="compact-form" action="{{ url_for('update_item', collection='supplies', item_id=supply.id) }}" method="post">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                    <label>名稱<input name="name" value="{{ supply.name }}" required></label>
+                    <label>類型<select name="kind"><option value="AC" {% if supply.kind == 'AC' %}selected{% endif %}>交流 AC</option><option value="DC" {% if supply.kind == 'DC' %}selected{% endif %}>直流 DC</option></select></label>
+                    <label>電壓 (V)<input type="number" name="voltage" min="0.001" step="any" value="{{ supply.voltage }}" required></label>
+                    <label>上限 (A)<input type="number" name="max_amps" min="0.001" step="any" value="{{ supply.max_amps or '' }}"></label>
+                    <label>上限 (W)<input type="number" name="max_watts" min="0.001" step="any" value="{{ supply.max_watts or '' }}"></label>
+                    <button type="submit">儲存電源</button>
+                  </form>
+                </details>
+              </section>
+              {% set linked_circuits = circuit_rows|selectattr('item.supply_id', 'equalto', supply.id)|list %}
+              {% if linked_circuits %}
+                <div class="circuit-branches">
+                  {% for circuit_row in linked_circuits %}
+                    {% set circuit = circuit_row.item %}
+                    <article class="node circuit-node">
+                      <div class="node-heading">
+                        <div><span class="tag">{{ circuit.kind }}</span><h3>{{ circuit.name }}</h3></div>
+                        <form action="{{ url_for('delete_item', collection='circuits', item_id=circuit.id) }}" method="post" onsubmit="return confirm('刪除迴路會一併移除其設備，確定繼續？')"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button class="icon-button danger-text" type="submit" aria-label="刪除迴路 {{ circuit.name }}">刪除</button></form>
+                      </div>
+                      <p>{{ "%.3g"|format(circuit.voltage) }} V · {{ circuit_row.load.watts|round(2) }} W · {{ circuit_row.load.amps|round(2) }} A{% if circuit.kind == 'AC' %} · {{ circuit_row.load.va|round(2) }} VA{% endif %}</p>
+                      {{ capacity_view("電流", circuit_row.capacity.amps, "A") }}
+                      {{ capacity_view("實功率", circuit_row.capacity.watts, "W") }}
+                      <details class="edit-details"><summary>編輯迴路</summary>
+                        <form class="compact-form" action="{{ url_for('update_item', collection='circuits', item_id=circuit.id) }}" method="post">
+                          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                          <label>名稱<input name="name" value="{{ circuit.name }}" required></label>
+                          <label>連接電源<select name="supply_id">{% for choice in project.supplies %}<option value="{{ choice.id }}" {% if choice.id == circuit.supply_id %}selected{% endif %}>{{ choice.name }}</option>{% endfor %}</select></label>
+                          <label>類型<select name="kind"><option value="AC" {% if circuit.kind == 'AC' %}selected{% endif %}>交流 AC</option><option value="DC" {% if circuit.kind == 'DC' %}selected{% endif %}>直流 DC</option></select></label>
+                          <label>電壓 (V)<input type="number" name="voltage" min="0.001" step="any" value="{{ circuit.voltage }}" required></label>
+                          <label>上限 (A)<input type="number" name="max_amps" min="0.001" step="any" value="{{ circuit.max_amps or '' }}"></label>
+                          <label>上限 (W)<input type="number" name="max_watts" min="0.001" step="any" value="{{ circuit.max_watts or '' }}"></label>
+                          <button type="submit">儲存迴路</button>
+                        </form>
+                      </details>
+                      <div class="devices">
+                        {% for device_row in devices if device_row.item.circuit_id == circuit.id %}
+                          {% set device = device_row.item %}
+                          <div class="device">
+                            <div class="node-heading">
+                              <div><span class="tag">{{ device.kind }}</span><strong>{{ device.name }} × {{ device.quantity }}</strong></div>
+                              <form action="{{ url_for('delete_item', collection='devices', item_id=device.id) }}" method="post"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button class="icon-button danger-text" type="submit" aria-label="刪除設備 {{ device.name }}">刪除</button></form>
+                            </div>
+                            <p>{{ "%.3g"|format(device.voltage) }} V · {{ device_row.load.watts|round(2) }} W · {{ device_row.load.amps|round(2) }} A{% if device_row.load.va is not none %} · {{ device_row.load.va|round(2) }} VA{% endif %}</p>
+                            <details class="edit-details"><summary>編輯設備</summary>
+                              <form class="compact-form" action="{{ url_for('update_item', collection='devices', item_id=device.id) }}" method="post">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                <label>名稱<input name="name" value="{{ device.name }}" required></label>
+                                <label>連接迴路<select name="circuit_id">{% for choice in project.circuits %}<option value="{{ choice.id }}" {% if choice.id == device.circuit_id %}selected{% endif %}>{{ choice.name }}</option>{% endfor %}</select></label>
+                                <label>類型<select name="kind"><option value="AC" {% if device.kind == 'AC' %}selected{% endif %}>交流 AC</option><option value="DC" {% if device.kind == 'DC' %}selected{% endif %}>直流 DC</option></select></label>
+                                <label>電壓 (V)<input type="number" name="voltage" min="0.001" step="any" value="{{ device.voltage }}" required></label>
+                                <label>數量<input type="number" name="quantity" min="1" step="1" value="{{ device.quantity }}" required></label>
+                                <label>額定方式<select name="rating_type"><option value="watts" {% if device.rating_type == 'watts' %}selected{% endif %}>W</option><option value="amps" {% if device.rating_type == 'amps' %}selected{% endif %}>A</option></select></label>
+                                <label>額定值<input type="number" name="rating" min="0" step="any" value="{{ device.rating }}" required></label>
+                                <label>功率因數<input type="number" name="power_factor" min="0.001" max="1" step="any" value="{{ device.power_factor }}" required></label>
+                                <button type="submit">儲存設備</button>
+                              </form>
+                            </details>
+                          </div>
+                        {% else %}
+                          <p class="muted empty-inline">此迴路尚無設備。</p>
+                        {% endfor %}
+                      </div>
+                    </article>
+                  {% endfor %}
+                </div>
+              {% else %}
+                <p class="empty-inline muted">此電源尚無迴路。</p>
+              {% endif %}
+            </article>
+          {% endfor %}
+        </div>
+      {% else %}
+        <div class="empty-state"><h3>尚無電源</h3><p>新增電源後，即可建立迴路、連接設備並查看配線圖。</p></div>
+      {% endif %}
+    </section>
+
+    <section class="forms-grid">
+      <article class="panel">
+        <p class="eyebrow">01 · SOURCE</p><h2>新增電源</h2>
+        <form class="entry-form" action="{{ url_for('add_supply') }}" method="post">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <label>名稱<input name="name" placeholder="例如：主電源" required></label>
+          <label>類型<select name="kind" required><option value="AC">交流 AC</option><option value="DC">直流 DC</option></select></label>
+          <label>額定電壓 (V)<input type="number" name="voltage" min="0.001" step="any" required></label>
+          <label>電流上限 (A，可留白)<input type="number" name="max_amps" min="0.001" step="any"></label>
+          <label>功率上限 (W，可留白)<input type="number" name="max_watts" min="0.001" step="any"></label>
+          <button type="submit">新增電源</button>
+        </form>
+      </article>
+      <article class="panel">
+        <p class="eyebrow">02 · CIRCUIT</p><h2>新增迴路</h2>
+        <form class="entry-form" action="{{ url_for('add_circuit') }}" method="post">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <label>名稱<input name="name" placeholder="例如：照明迴路" required></label>
+          <label>連接電源<select name="supply_id" required><option value="">請選擇</option>{% for supply in project.supplies %}<option value="{{ supply.id }}">{{ supply.name }} · {{ supply.kind }} {{ "%.3g"|format(supply.voltage) }} V</option>{% endfor %}</select></label>
+          <label>類型<select name="kind" required><option value="AC">交流 AC</option><option value="DC">直流 DC</option></select></label>
+          <label>額定電壓 (V)<input type="number" name="voltage" min="0.001" step="any" required></label>
+          <label>電流上限 (A，可留白)<input type="number" name="max_amps" min="0.001" step="any"></label>
+          <label>功率上限 (W，可留白)<input type="number" name="max_watts" min="0.001" step="any"></label>
+          <p class="hint">迴路的類型與電壓須符合所選電源。</p>
+          <button type="submit">新增迴路</button>
+        </form>
+      </article>
+      <article class="panel">
+        <p class="eyebrow">03 · DEVICE</p><h2>新增設備</h2>
+        <form class="entry-form" action="{{ url_for('add_device') }}" method="post">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <label>名稱<input name="name" placeholder="例如：工作燈" required></label>
+          <label>連接迴路<select name="circuit_id" required><option value="">請選擇</option>{% for circuit in project.circuits %}<option value="{{ circuit.id }}">{{ circuit.name }} · {{ circuit.kind }} {{ "%.3g"|format(circuit.voltage) }} V</option>{% endfor %}</select></label>
+          <label>類型<select name="kind" required><option value="AC">交流 AC</option><option value="DC">直流 DC</option></select></label>
+          <label>額定電壓 (V)<input type="number" name="voltage" min="0.001" step="any" required></label>
+          <label>數量<input type="number" name="quantity" min="1" step="1" value="1" required></label>
+          <label>額定方式<select name="rating_type" required><option value="watts">輸入瓦特 (W)</option><option value="amps">輸入安培 (A)</option></select></label>
+          <label>每台額定值<input type="number" name="rating" min="0" step="any" required></label>
+          <label>功率因數 (AC，DC 請用 1)<input type="number" name="power_factor" min="0.001" max="1" step="any" value="1" required></label>
+          <p class="hint">設備類型及電壓須符合所連接的迴路；額定值可為 0。</p>
+          <button type="submit">新增設備</button>
+        </form>
+      </article>
+    </section>
+
+    <section class="panel formulas">
+      <h2>計算方式</h2>
+      <p><strong>DC：</strong>W = V × A；A = W ÷ V。</p>
+      <p><strong>AC 單相：</strong>VA = V × A；W = VA × PF；若輸入 W，A = W ÷ (V × PF)。</p>
+      <p>額定值乘以數量後累加至迴路，再累加至電源；容量使用率與剩餘容量依 A、W 上限計算。</p>
+    </section>
+    <footer>設定儲存於本機 JSON 檔案；匯出/匯入採用 UTF-8 與 schema_version {{ project.schema_version }}。</footer>
+  </main>
+</body>
+</html>
