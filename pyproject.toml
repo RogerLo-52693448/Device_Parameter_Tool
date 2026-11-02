@@ -24,3 +24,6 @@ dev = [
 [tool.pytest.ini_options]
 pythonpath = ["."]
 testpaths = ["tests"]
+
+[tool.setuptools.package-data]
+"device_parameter_tool.web" = ["templates/*.html"]

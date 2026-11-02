@@ -4,7 +4,13 @@ import pytest
 
 from device_parameter_tool.models.device_config import DeviceConfig
 from device_parameter_tool.services.config_service import ConfigService
-from device_parameter_tool.utils.validators import validate_lidar_assignment, validate_port, validate_site_name
+from device_parameter_tool.utils.validators import (
+    validate_lidar_assignment,
+    validate_non_negative_number,
+    validate_port,
+    validate_positive_number,
+    validate_site_name,
+)
 
 
 def sample_config(note: str = "測試備註") -> DeviceConfig:
@@ -272,3 +278,33 @@ def test_invalid_lidar_label_start_is_rejected():
                 "lanes": [{"lane_number": 0, "width_mm": 3500.0}],
             }
         )
+
+
+@pytest.mark.parametrize("value", [float("nan"), float("inf"), float("-inf"), True, "3500", None])
+@pytest.mark.parametrize("validator", [validate_positive_number, validate_non_negative_number])
+def test_numeric_validators_reject_non_finite_or_non_numeric_values(value, validator):
+    with pytest.raises(ValueError, match="必須為有限數字"):
+        validator(value, "測試數值")
+
+
+@pytest.mark.parametrize("field_name", ["angular_resolution_deg", "slant_distance_m", "elevation_angle_deg"])
+def test_config_rejects_non_finite_geometry(field_name):
+    config = sample_config()
+    setattr(config, field_name, float("nan"))
+
+    with pytest.raises(ValueError, match="必須為有限數字"):
+        config.validate()
+
+
+def test_invalid_config_does_not_overwrite_saved_file_or_backup(tmp_path):
+    service = ConfigService(config_path=tmp_path / "config.json")
+    config = sample_config()
+    service.save_config(config)
+    original = service.config_path.read_bytes()
+    config.lanes[0].width_mm = float("nan")
+
+    with pytest.raises(ValueError, match="必須為有限數字"):
+        service.save_config(config)
+
+    assert service.config_path.read_bytes() == original
+    assert not (tmp_path / "config.json.bak").exists()

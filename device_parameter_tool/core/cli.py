@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from copy import deepcopy
 from pathlib import Path
 
 from device_parameter_tool.models.device_config import DeviceConfig, LaneConfig, LidarConfig
@@ -45,7 +46,7 @@ def prompt_bool(message: str, default: bool = True) -> bool:
 
 
 def config_clone(config: DeviceConfig) -> DeviceConfig:
-    return DeviceConfig.from_dict(config.to_dict())
+    return deepcopy(config)
 
 
 def print_lanes(config: DeviceConfig) -> None:

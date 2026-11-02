@@ -44,6 +44,7 @@ class ConfigService:
         self.history_path = Path(history_path)
 
     def save_config(self, config: DeviceConfig, path: Path | None = None) -> Path:
+        config.validate()
         target_path = Path(path or self.config_path)
         target_path.parent.mkdir(parents=True, exist_ok=True)
         if target_path.exists():

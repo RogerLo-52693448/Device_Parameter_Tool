@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from ipaddress import ip_address
+import math
 
 VALID_PROTOCOLS = {"rtsp", "http", "https", "udp", "tcp"}
 VALID_LOG_LEVELS = {"DEBUG", "INFO", "WARNING", "ERROR"}
@@ -42,14 +43,22 @@ def validate_port(value: int, field_name: str = "Port") -> int:
 
 
 def validate_non_negative_number(value: float, field_name: str) -> float:
+    validate_finite_number(value, field_name)
     if value < 0:
         raise ValueError(f"{field_name} 不可為負數")
     return value
 
 
 def validate_positive_number(value: float, field_name: str) -> float:
+    validate_finite_number(value, field_name)
     if value <= 0:
         raise ValueError(f"{field_name} 必須大於 0")
+    return value
+
+
+def validate_finite_number(value: float, field_name: str) -> float:
+    if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value):
+        raise ValueError(f"{field_name} 必須為有限數字")
     return value
 
 

@@ -48,6 +48,8 @@ python -m pip install -e ".[dev]"
 
 > 說明：Windows `cmd.exe` 不會像 Bash / PowerShell 一樣處理單引號，若使用 `'.[dev]'`，pip 會把單引號一起當成路徑字串，導致安裝失敗。
 
+Python 需求為 **3.12 以上**。建置的 wheel 亦包含 Web HTML 模板，可使用 `python -m pip install .` 安裝後執行 CLI 與 Web UI，不必使用 editable 模式。
+
 ## CLI 使用方式
 
 ```bash
@@ -72,6 +74,7 @@ CLI 提供：
 
 - 設定檔格式為 JSON
 - 若目標檔案已存在，存檔時會自動備份為 `*.bak`
+- 存檔前會驗證設定；驗證失敗不會覆寫既有檔案或建立備份
 
 ## Web UI 使用方式
 
@@ -227,6 +230,8 @@ scan_left  = outer_boundary - center_distance + (0 if is_outermost else 500)
 
 - 若 `scan_right` 或 `scan_left` 超過 `5500mm`，會顯示警告並建議拆分車道、增加 Lidar
 - 若 `scan_right` 或 `scan_left` 為負值，視為設定錯誤
+- 寬度、距離與 Field 幾何參數必須為有限數字，不接受 `NaN` 或無限大
+- Web 表單驗證失敗時會顯示錯誤並保留可恢復的輸入，不會寫入設定或歷史紀錄
 
 ## SOPAS Field 範圍
 

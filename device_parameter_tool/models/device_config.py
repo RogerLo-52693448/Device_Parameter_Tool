@@ -9,6 +9,7 @@ from device_parameter_tool.utils.validators import (
     inner_outer_from_physical_slots,
     physical_slots_from_inner_outer,
     validate_ip,
+    validate_finite_number,
     validate_field_length_mode,
     validate_lidar_assignment,
     validate_lidar_label_start,
@@ -199,6 +200,7 @@ class DeviceConfig:
         validate_positive_number(self.slant_distance_m, "斜邊距離")
         validate_non_negative_number(self.installation_height_m, "安裝高度")
         validate_positive_number(self.fixed_field_length_mm, "固定 Field 長度")
+        validate_finite_number(self.elevation_angle_deg, "仰角/俯角")
         if self.elevation_angle_deg <= 0 or self.elevation_angle_deg >= 89.9:
             raise ValueError("仰角/俯角必須介於 0 到 89.9 度之間")
         if not self.has_backup:

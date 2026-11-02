@@ -172,12 +172,21 @@ def _form_defaults(config: DeviceConfig) -> dict:
 
 
 def _posted_form_state(form) -> dict:
-    lane_count = max(1, _coerce_int(form.get("lane_count"), 1))
-    primary_lidar_count = max(0, _coerce_int(form.get("primary_lidar_count"), 1))
-    backup_lidar_count = max(0, _coerce_int(form.get("backup_lidar_count"), primary_lidar_count))
+    def recovery_count(field_name: str, default: int, minimum: int) -> int:
+        try:
+            return max(minimum, _coerce_int(form.get(field_name), default))
+        except ValueError:
+            return default
+
+    lane_count = recovery_count("lane_count", 1, 1)
+    primary_lidar_count = recovery_count("primary_lidar_count", 1, 0)
+    backup_lidar_count = recovery_count("backup_lidar_count", primary_lidar_count, 0)
     has_backup = _coerce_bool(form.get("has_backup"))
     traffic_mode = form.get("traffic_mode", "inner_from_right")
-    inner_label, outer_label = _traffic_mode_labels(traffic_mode)
+    try:
+        inner_label, outer_label = _traffic_mode_labels(traffic_mode)
+    except ValueError:
+        inner_label, outer_label = _traffic_mode_labels("inner_from_right")
     lanes = [
         {
             "lane_number": form.get(f"lane_{index}_number", index),
@@ -209,7 +218,7 @@ def _posted_form_state(form) -> dict:
         "note": form.get("note", ""),
         "has_backup": has_backup,
         "traffic_mode": traffic_mode,
-        "lidar_label_start": _coerce_int(form.get("lidar_label_start"), 0),
+        "lidar_label_start": form.get("lidar_label_start", "0"),
         "field_length_mode": "slant_based",
         "angular_resolution_deg": form.get("angular_resolution_deg", "1.0"),
         "slant_distance_m": form.get("slant_distance_m", "10.0"),

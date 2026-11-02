@@ -4,3 +4,6 @@ __pycache__/
 *.bak
 *.egg-info/
 data/
+.venv/
+build/
+dist/

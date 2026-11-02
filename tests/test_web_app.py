@@ -1,5 +1,7 @@
 import json
 
+import pytest
+
 from device_parameter_tool.web.app import create_app
 
 
@@ -31,6 +33,37 @@ FORM_DATA = {
     "backup_lidar_0_center_distance_mm": "3650",
     "backup_lidar_0_auto_calculate": "on",
 }
+
+
+@pytest.mark.parametrize("endpoint", ["/preview", "/save"])
+@pytest.mark.parametrize(
+    ("field_name", "value"),
+    [
+        ("lane_count", "invalid"),
+        ("primary_lidar_count", "invalid"),
+        ("backup_lidar_count", "invalid"),
+        ("lidar_label_start", "invalid"),
+        ("traffic_mode", "invalid"),
+        ("lane_0_width_mm", "nan"),
+        ("primary_lidar_0_center_distance_mm", "inf"),
+        ("angular_resolution_deg", "nan"),
+    ],
+)
+def test_invalid_form_recovers_without_saving(tmp_path, endpoint, field_name, value):
+    app = create_app(tmp_path)
+    app.testing = True
+    data = dict(FORM_DATA, **{field_name: value})
+
+    response = app.test_client().post(endpoint, data=data, follow_redirects=True)
+
+    assert response.status_code == 200
+    text = response.get_data(as_text=True)
+    assert 'class="error" role="alert"' in text
+    assert "中文備註測試" in text
+    assert "已更新預覽" not in text
+    assert "設定已儲存" not in text
+    assert not (tmp_path / "current_config.json").exists()
+    assert not (tmp_path / "site_history.json").exists()
 
 
 def test_web_save_and_history_round_trip(tmp_path):
