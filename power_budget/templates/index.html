@@ -43,9 +43,17 @@
     {% endwith %}
 
     <section class="vendor-summary">
-      <p class="eyebrow">VENDOR POWER REQUIREMENT · AC 380 V INPUT</p>
-      <h2>設備最大功率需求估算：{{ summary.watts|round(2) }} W</h2>
+      <p class="eyebrow">PROJECT POWER REQUIREMENT</p>
+      <h2>專案設備合計最大功率估算：{{ summary.watts|round(2) }} W</h2>
       <p>設備端視在功率合計：{{ summary.va|round(2) }} VA</p>
+      <p>相關供電端：
+        {% if summary.supply_inputs %}
+          {% for kind, voltage in summary.supply_inputs %}{{ kind }} {{ "%.3g"|format(voltage) }} V{% if not loop.last %}、{% endif %}{% endfor %}
+        {% else %}
+          尚無設備
+        {% endif %}
+      </p>
+      <p class="summary-note">若所有設備由同一供電端供應，此合計可作為提供給該廠商的設備端需求；若有不同供電來源，合計包含所有設備。</p>
       {% if summary.has_estimated_watts %}
         <p class="summary-note">以電壓 × 電流估算，該設備採 PF=1（功率因數 1）計算最大 W；實際耗電瓦數需設備功率因數確認。</p>
       {% else %}
@@ -207,7 +215,7 @@
           <label>數量<input type="number" name="quantity" min="1" step="1" value="1" required></label>
           <label>規格輸入方式<select name="rating_type" required><option value="voltage_current">輸入電壓 × 電流 (PF=1 最大 W 估算)</option><option value="watts">已知輸入瓦數 (W)</option><option value="amps">只輸入電流 (A)，以 PF 換算</option></select></label>
           <label>每台電流或瓦數<input type="number" name="rating" min="0" step="any" required></label>
-          <label>功率因數（已知 A 模式；未知請採電壓×電流模式）<input type="number" name="power_factor" min="0.001" max="1" step="any" value="1"></label>
+          <label>功率因數（已知 W/A 模式必填；電壓×電流模式免填）<input type="number" name="power_factor" min="0.001" max="1" step="any" value="1"></label>
           <p class="hint">輸入設備規格的電壓與電流，可得到 VA 及 PF=1 的最大 W 估算；有數量時會自動乘上數量。設備電壓須符合迴路電壓。</p>
           <button type="submit">新增設備</button>
         </form>

@@ -52,6 +52,7 @@ class CalculationTests(unittest.TestCase):
         self.assertEqual(results["summary"]["watts"], 176)
         self.assertEqual(results["summary"]["va"], 176)
         self.assertTrue(results["summary"]["has_estimated_watts"])
+        self.assertEqual(results["summary"]["supply_inputs"], [("AC", 380.0)])
         self.assertIsNone(results["supplies"][ac_supply["id"]]["amps"])
 
     def test_device_voltage_and_current_estimate_maximum_watts_at_pf_one(self):
@@ -163,7 +164,7 @@ class StorageAndWebTests(unittest.TestCase):
         self.assertIn("配線圖與負載", page)
         self.assertIn("工作燈", page)
         self.assertIn("剩餘", page)
-        self.assertIn("設備最大功率需求估算", page)
+        self.assertIn("專案設備合計最大功率估算", page)
         self.assertIn("380 V", page)
         self.assertIn("PF=1", page)
 
@@ -191,6 +192,28 @@ class StorageAndWebTests(unittest.TestCase):
         self.assertEqual(response.status_code, 302)
         device = self.app.extensions["power_budget_project"]["devices"][-1]
         self.assertEqual(device_load(device)["watts"], 660)
+
+    def test_current_only_device_requires_power_factor(self):
+        project = self.app.extensions["power_budget_project"]
+        circuit = project["circuits"][0]
+        initial_count = len(project["devices"])
+        response = self.client.post(
+            "/devices",
+            data={
+                "csrf_token": self.csrf_token,
+                "name": "PF 未知設備",
+                "circuit_id": circuit["id"],
+                "kind": "AC",
+                "voltage": str(circuit["voltage"]),
+                "quantity": "1",
+                "rating_type": "amps",
+                "rating": "1",
+                "power_factor": "",
+            },
+        )
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(len(project["devices"]), initial_count)
+        self.assertIn("功率因數", self.client.get("/").get_data(as_text=True))
 
     def test_export_and_import_round_trip_json(self):
         export = self.client.get("/export")

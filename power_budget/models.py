@@ -189,6 +189,8 @@ def device_load(device):
 
 def calculate_project(project):
     validate_project(project)
+    circuit_by_id = {circuit["id"]: circuit for circuit in project["circuits"]}
+    supplies_by_id = {supply["id"]: supply for supply in project["supplies"]}
     circuit_loads = {
         circuit["id"]: {"watts": 0.0, "amps": 0.0, "va": 0.0}
         for circuit in project["circuits"]
@@ -228,6 +230,21 @@ def calculate_project(project):
         "has_estimated_watts": any(
             device["kind"] == "AC" and device["rating_type"] == "voltage_current"
             for device in project["devices"]
+        ),
+        "supply_inputs": sorted(
+            {
+                (
+                    supplies_by_id[
+                        circuit_by_id[device["circuit_id"]]["supply_id"]
+                    ]["kind"],
+                    float(
+                        supplies_by_id[
+                            circuit_by_id[device["circuit_id"]]["supply_id"]
+                        ]["voltage"]
+                    ),
+                )
+                for device in project["devices"]
+            }
         ),
     }
 
