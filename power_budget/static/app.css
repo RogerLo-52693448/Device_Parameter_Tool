@@ -54,6 +54,13 @@ button:hover, .button:hover { background: #0d5176; }
 .vendor-summary h2 { margin: .2rem 0 .45rem; color: #123553; font-size: 1.55rem; }
 .vendor-summary p { margin: .35rem 0; }
 .summary-note { color: #536b7d; font-size: .88rem; }
+.summary-metrics { display: flex; flex-wrap: wrap; gap: .75rem; margin: 1rem 0; }
+.summary-metrics p { display: grid; min-width: 10rem; gap: .2rem; margin: 0; padding: .8rem 1rem; border: 1px solid #d5e5ef; border-radius: .5rem; background: #fff; }
+.summary-metrics strong { color: #123553; font-size: 1.3rem; }
+.summary-metrics span { color: #63798a; font-size: .8rem; }
+.device-list { display: grid; gap: .6rem; }
+.device-form { grid-template-columns: repeat(4, minmax(0, 1fr)); align-items: end; }
+.add-device { margin-top: 1rem; }
 .notice { color: #245f42; background: #e6f5ed; }
 .warnings { margin: 1rem 0; color: #792c1d; border: 1px solid #eab8aa; background: #fff0ec; }
 .warnings h2 { margin: 0 0 .5rem; font-size: 1.1rem; }
@@ -103,10 +110,12 @@ footer { padding: 1.5rem .25rem; text-align: center; font-size: .85rem; }
   .wire-branch { grid-template-columns: 1fr; gap: .5rem; }
   .circuit-branches { margin-left: .75rem; padding-left: .75rem; border-left: 2px solid #dce6ee; }
   .forms-grid { grid-template-columns: 1fr; }
+  .device-form { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 @media (max-width: 480px) {
   .toolbar { flex-wrap: wrap; }
   .compact-form { grid-template-columns: 1fr; }
+  .device-form { grid-template-columns: 1fr; }
   main { width: min(100% - 1rem, 1240px); }
   .panel { padding: .9rem; }
 }

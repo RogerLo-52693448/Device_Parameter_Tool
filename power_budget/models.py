@@ -16,36 +16,36 @@ def example_project():
         "supplies": [
             {
                 "id": supply_ac,
-                "name": "廠商交流電源",
+                "name": "110 V 電源",
                 "kind": "AC",
-                "voltage": 380,
-                "output_min_voltage": 110,
-                "output_max_voltage": 220,
+                "voltage": 110,
+                "output_min_voltage": None,
+                "output_max_voltage": None,
                 "max_amps": None,
-                "max_watts": 1500,
+                "max_watts": None,
             },
         ],
         "circuits": [
             {
                 "id": circuit_ac,
-                "name": "照明迴路",
+                "name": "110 V 迴路",
                 "supply_id": supply_ac,
                 "kind": "AC",
                 "voltage": 110,
-                "max_amps": 10,
-                "max_watts": 1000,
+                "max_amps": None,
+                "max_watts": None,
             },
         ],
         "devices": [
             {
                 "id": new_id(),
-                "name": "工作燈",
+                "name": "設備 1",
                 "circuit_id": circuit_ac,
                 "kind": "AC",
                 "voltage": 110,
                 "quantity": 2,
                 "rating_type": "voltage_current",
-                "rating": 0.8,
+                "rating": 1,
                 "power_factor": 1,
             },
         ],
@@ -227,6 +227,7 @@ def calculate_project(project):
     summary = {
         "watts": sum(load["watts"] for load in device_results.values()),
         "va": sum(load["va"] or 0 for load in device_results.values()),
+        "amps": sum(load["amps"] for load in device_results.values()),
         "has_estimated_watts": any(
             device["kind"] == "AC" and device["rating_type"] == "voltage_current"
             for device in project["devices"]
