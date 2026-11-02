@@ -14,7 +14,7 @@
       <p>輸入設備電壓、電流和數量，計算連接至 110V 電源的負載。</p>
     </div>
     <div class="toolbar">
-      <a class="button secondary" href="{{ url_for('export_project') }}">匯出 JSON</a>
+      {% if not load_error %}<a class="button secondary" href="{{ url_for('export_project') }}">匯出 JSON</a>{% endif %}
       <form action="{{ url_for('import_project') }}" method="post" enctype="multipart/form-data">
         <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
         <label class="button secondary file-button">匯入 JSON<input type="file" name="file" accept=".json,application/json" required></label>
@@ -28,6 +28,12 @@
         <div class="messages" role="status">{% for category, message in messages %}<p class="{{ category }}">{{ message }}</p>{% endfor %}</div>
       {% endif %}
     {% endwith %}
+    {% if load_error %}
+      <section class="warnings" role="alert">
+        <h2>原設定尚未載入</h2>
+        <p>目前檔案不是 110 V 設定。畫面顯示的是暫用範例；原設定檔不會被覆蓋。請匯入有效的 110 V JSON 後再繼續。</p>
+      </section>
+    {% endif %}
 
     <section class="vendor-summary">
       <p class="eyebrow">POWER SUPPLY · AC 110 V</p>
@@ -35,7 +41,7 @@
       <div class="summary-metrics">
         <p><strong>{{ summary.amps|round(2) }} A</strong><span>設備總電流</span></p>
         <p><strong>{{ summary.va|round(2) }} VA</strong><span>視在功率（110 V × 總電流）</span></p>
-        <p><strong>{{ summary.watts|round(2) }} W</strong><span>PF=1 瓦數估算</span></p>
+        <p><strong>{{ summary.watts|round(2) }} W</strong><span>{% if summary.has_estimated_watts and summary.has_known_watts %}包含已知 W 與 PF=1 估算{% elif summary.has_estimated_watts %}PF=1 瓦數估算{% else %}輸入規格瓦數{% endif %}</span></p>
       </div>
       <p class="summary-note">PF=1 時 W = VA；若設備功率因數未知，實際耗電瓦數可能不同。此頁只計算 110 V 設備負載，不設定或判斷電源供應容量。</p>
     </section>

@@ -1,6 +1,7 @@
 import copy
 from io import BytesIO
 import json
+import re
 import tempfile
 import unittest
 from pathlib import Path
@@ -52,9 +53,10 @@ class CalculationTests(unittest.TestCase):
         self.assertEqual(results["summary"]["watts"], 220)
         self.assertEqual(results["summary"]["va"], 220)
         self.assertEqual(results["summary"]["amps"], 2)
+        self.assertEqual(results["summary"]["va"], 110 * results["summary"]["amps"])
         self.assertTrue(results["summary"]["has_estimated_watts"])
         self.assertEqual(results["summary"]["supply_inputs"], [("AC", 110.0)])
-        self.assertIsNone(results["supplies"][ac_supply["id"]]["amps"])
+        self.assertEqual(results["supplies"][ac_supply["id"]]["amps"], 2)
 
     def test_device_voltage_and_current_estimate_maximum_watts_at_pf_one(self):
         device = {
@@ -78,37 +80,44 @@ class ValidationTests(unittest.TestCase):
         project = copy.deepcopy(self.project)
         ac_device = next(item for item in project["devices"] if item["kind"] == "AC")
         ac_device["kind"] = "DC"
-        with self.assertRaisesRegex(ValueError, "設備類型"):
+        with self.assertRaisesRegex(ValueError, "設備僅支援 AC 110 V"):
             validate_project(project)
 
-    def test_accepts_circuit_in_ac_converter_output_range(self):
+    def test_rejects_non_110v_power_supply(self):
         project = copy.deepcopy(self.project)
         ac_supply = next(item for item in project["supplies"] if item["kind"] == "AC")
-        ac_circuit = next(item for item in project["circuits"] if item["kind"] == "AC")
-        ac_supply.update(
-            voltage=380,
-            output_min_voltage=110,
-            output_max_voltage=220,
-            max_amps=None,
-        )
-        ac_circuit["voltage"] = 220
-        ac_device = next(item for item in project["devices"] if item["kind"] == "AC")
-        ac_device["voltage"] = 220
-        validate_project(project)
-        ac_circuit["voltage"] = 230
-        with self.assertRaisesRegex(ValueError, "轉換輸出電壓範圍"):
+        ac_supply["voltage"] = 380
+        with self.assertRaisesRegex(ValueError, "僅計算 AC 110 V"):
             validate_project(project)
 
-    def test_rejects_nonfinite_negative_and_invalid_capacity_values(self):
+    def test_summary_discloses_mixed_known_watts_and_estimates(self):
+        project = copy.deepcopy(self.project)
+        device = project["devices"][0]
+        device["rating_type"] = "watts"
+        device["rating"] = 100
+        device["power_factor"] = 0.8
+        second = copy.deepcopy(device)
+        second.update(id="other-device", rating_type="voltage_current", rating=1)
+        project["devices"].append(second)
+        summary = calculate_project(project)["summary"]
+        self.assertTrue(summary["has_estimated_watts"])
+        self.assertTrue(summary["has_known_watts"])
+
+    def test_rejects_device_not_rated_for_110v(self):
+        project = copy.deepcopy(self.project)
+        project["devices"][0]["voltage"] = 220
+        with self.assertRaisesRegex(ValueError, "設備電壓必須是 AC 110 V"):
+            validate_project(project)
+
+    def test_rejects_nonfinite_negative_and_non_110v_circuit_values(self):
         for invalid in (-1, float("nan"), float("inf")):
             project = copy.deepcopy(self.project)
             project["devices"][0]["rating"] = invalid
             with self.subTest(value=invalid), self.assertRaises(ValueError):
                 validate_project(project)
         project = copy.deepcopy(self.project)
-        circuit = project["circuits"][0]
-        circuit["max_amps"] = 0
-        with self.assertRaisesRegex(ValueError, "大於 0"):
+        project["circuits"][0]["voltage"] = 220
+        with self.assertRaisesRegex(ValueError, "迴路僅支援 AC 110 V"):
             validate_project(project)
 
     def test_allows_zero_load_but_requires_positive_integer_quantity(self):
@@ -144,8 +153,6 @@ class StorageAndWebTests(unittest.TestCase):
     def test_existing_schema_one_project_without_converter_fields_still_renders(self):
         project = example_project()
         supply = project["supplies"][0]
-        supply.pop("output_min_voltage")
-        supply.pop("output_max_voltage")
         supply["voltage"] = 110
         supply["max_amps"] = 15
         device = project["devices"][0]
@@ -157,16 +164,64 @@ class StorageAndWebTests(unittest.TestCase):
         response = legacy_app.test_client().get("/")
         self.assertEqual(response.status_code, 200)
 
+    def test_incompatible_saved_project_is_not_overwritten_or_exported_as_example(self):
+        project = example_project()
+        project["supplies"][0]["voltage"] = 380
+        self.project_path.write_text(json.dumps(project), encoding="utf-8")
+        original_contents = self.project_path.read_text(encoding="utf-8")
+        blocked_app = create_app(
+            {"TESTING": True, "PROJECT_PATH": str(self.project_path), "SECRET_KEY": "test"}
+        )
+        blocked_client = blocked_app.test_client()
+        page = blocked_client.get("/").get_data(as_text=True)
+        self.assertIn("原設定檔不會被覆蓋", page)
+        self.assertEqual(blocked_client.get("/export").status_code, 409)
+        token = blocked_client.get("/")
+        token = re.search(
+            r'name="csrf_token" value="([^"]+)"', token.get_data(as_text=True)
+        ).group(1)
+        blocked_client.post(
+            "/devices",
+            data={
+                "csrf_token": token,
+                "name": "暫用設備",
+                "circuit_id": blocked_app.extensions["power_budget_project"]["circuits"][0]["id"],
+                "kind": "AC",
+                "voltage": "110",
+                "quantity": "1",
+                "rating_type": "voltage_current",
+                "rating": "1",
+            },
+        )
+        self.assertEqual(self.project_path.read_text(encoding="utf-8"), original_contents)
+        valid_project = example_project()
+        response = blocked_client.post(
+            "/import",
+            data={
+                "csrf_token": token,
+                "file": (
+                    BytesIO(json.dumps(valid_project, ensure_ascii=False).encode("utf-8")),
+                    "110v.json",
+                ),
+            },
+            content_type="multipart/form-data",
+        )
+        self.assertEqual(response.status_code, 302)
+        self.assertIsNone(blocked_app.extensions["power_budget_load_error"])
+        self.assertEqual(load_project(self.project_path, {})["supplies"][0]["voltage"], 110)
+
     def test_dashboard_is_localized_and_shows_wiring_and_capacity(self):
         response = self.client.get("/")
         page = response.get_data(as_text=True)
         self.assertEqual(response.status_code, 200)
-        self.assertIn("電力計算", page)
-        self.assertIn("配線圖與負載", page)
+        self.assertIn("110V 電源計算", page)
+        self.assertIn("設備清單", page)
         self.assertIn("設備 1", page)
         self.assertIn("電源電壓：110 V", page)
         self.assertIn("設備總電流", page)
         self.assertIn("PF=1", page)
+        self.assertNotIn("380 V", page)
+        self.assertNotIn("轉換輸出", page)
 
     def test_post_without_csrf_token_is_rejected(self):
         response = self.client.post("/supplies", data={"name": "未授權電源"})
@@ -256,7 +311,7 @@ class StorageAndWebTests(unittest.TestCase):
             },
         )
         self.assertEqual(response.status_code, 302)
-        self.assertEqual(device["name"], "工作燈")
+        self.assertEqual(device["name"], "設備 1")
         self.assertFalse(self.project_path.exists())
 
     def test_deleting_supply_removes_its_circuits_and_devices(self):

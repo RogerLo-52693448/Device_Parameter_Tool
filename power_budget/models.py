@@ -19,10 +19,6 @@ def example_project():
                 "name": "110 V 電源",
                 "kind": "AC",
                 "voltage": 110,
-                "output_min_voltage": None,
-                "output_max_voltage": None,
-                "max_amps": None,
-                "max_watts": None,
             },
         ],
         "circuits": [
@@ -32,8 +28,6 @@ def example_project():
                 "supply_id": supply_ac,
                 "kind": "AC",
                 "voltage": 110,
-                "max_amps": None,
-                "max_watts": None,
             },
         ],
         "devices": [
@@ -97,57 +91,26 @@ def validate_project(project):
     supplies = {item["id"]: item for item in project["supplies"]}
     circuits = {item["id"]: item for item in project["circuits"]}
     for supply in project["supplies"]:
-        if supply.get("kind") not in ("AC", "DC"):
-            raise ValueError("電源類型必須是 AC 或 DC")
-        _number(supply.get("voltage"), "電源電壓", positive=True)
-        output_min = supply.get("output_min_voltage")
-        output_max = supply.get("output_max_voltage")
-        if (output_min is None) != (output_max is None):
-            raise ValueError("轉換輸出電壓範圍必須同時設定最低與最高電壓")
-        if output_min is not None:
-            if supply["kind"] != "AC":
-                raise ValueError("只有 AC 電源可設定轉換輸出電壓")
-            output_min = _number(output_min, "轉換輸出最低電壓", positive=True)
-            output_max = _number(output_max, "轉換輸出最高電壓", positive=True)
-            if output_min > output_max:
-                raise ValueError("轉換輸出最低電壓不可高於最高電壓")
-            if supply.get("max_amps") is not None:
-                raise ValueError("轉換前的 380 V 電流需由廠商確認，請改以瓦數設定電源上限")
-        for limit in ("max_amps", "max_watts"):
-            if supply.get(limit) is not None:
-                _number(supply[limit], "電源容量上限", positive=True)
+        if supply.get("kind") != "AC" or _number(supply.get("voltage"), "電源電壓", positive=True) != 110:
+            raise ValueError("本工具僅計算 AC 110 V 電源")
 
     for circuit in project["circuits"]:
-        if circuit.get("kind") not in ("AC", "DC"):
-            raise ValueError("迴路類型必須是 AC 或 DC")
         voltage = _number(circuit.get("voltage"), "迴路電壓", positive=True)
         supply = supplies.get(circuit.get("supply_id"))
         if supply is None:
             raise ValueError("迴路必須連接至現有電源")
-        if circuit["kind"] != supply["kind"]:
-            raise ValueError("迴路類型必須符合所連接的電源")
-        output_min = supply.get("output_min_voltage")
-        output_max = supply.get("output_max_voltage")
-        if output_min is not None:
-            if not float(output_min) <= voltage <= float(output_max):
-                raise ValueError("迴路電壓必須位於電源的轉換輸出電壓範圍內")
-        elif voltage != float(supply["voltage"]):
-            raise ValueError("迴路電壓必須符合所連接的電源")
-        for limit in ("max_amps", "max_watts"):
-            if circuit.get(limit) is not None:
-                _number(circuit[limit], "迴路容量上限", positive=True)
+        if circuit.get("kind") != "AC" or voltage != 110:
+            raise ValueError("迴路僅支援 AC 110 V")
 
     for device in project["devices"]:
         circuit = circuits.get(device.get("circuit_id"))
         if circuit is None:
             raise ValueError("設備必須連接至現有迴路")
-        if device.get("kind") not in ("AC", "DC"):
-            raise ValueError("設備類型必須是 AC 或 DC")
-        if device["kind"] != circuit["kind"]:
-            raise ValueError("設備類型必須符合所連接的迴路")
+        if device.get("kind") != "AC":
+            raise ValueError("設備僅支援 AC 110 V")
         voltage = _number(device.get("voltage"), "設備電壓", positive=True)
-        if voltage != float(circuit["voltage"]):
-            raise ValueError("設備電壓必須符合所連接的迴路")
+        if voltage != 110 or voltage != float(circuit["voltage"]):
+            raise ValueError("設備電壓必須是 AC 110 V")
         quantity = device.get("quantity")
         if isinstance(quantity, bool) or not isinstance(quantity, int) or quantity <= 0:
             raise ValueError("設備數量必須是正整數")
@@ -215,10 +178,6 @@ def calculate_project(project):
         for metric in ("watts", "amps", "va"):
             source[metric] += load[metric]
 
-    for supply in project["supplies"]:
-        if supply.get("output_min_voltage") is not None:
-            supply_loads[supply["id"]]["amps"] = None
-
     for load_group in (device_results, circuit_loads, supply_loads):
         for load in load_group.values():
             if any(value is not None and not math.isfinite(value) for value in load.values()):
@@ -231,6 +190,9 @@ def calculate_project(project):
         "has_estimated_watts": any(
             device["kind"] == "AC" and device["rating_type"] == "voltage_current"
             for device in project["devices"]
+        ),
+        "has_known_watts": any(
+            device["rating_type"] in ("watts", "amps") for device in project["devices"]
         ),
         "supply_inputs": sorted(
             {

@@ -54,12 +54,17 @@ def create_app(test_config=None):
 
     try:
         project = load_project(app.config["PROJECT_PATH"], example_project())
+        load_error = None
     except ValueError as exc:
         app.logger.warning("%s", exc)
         project = example_project()
+        load_error = str(exc)
     app.extensions["power_budget_project"] = project
+    app.extensions["power_budget_load_error"] = load_error
 
     def persist(candidate):
+        if app.extensions["power_budget_load_error"]:
+            raise ValueError("原設定檔不是 110 V 設定，請先匯入有效的 110 V JSON，原檔不會被覆蓋")
         validate_project(candidate)
         save_project(app.config["PROJECT_PATH"], candidate)
         app.extensions["power_budget_project"] = candidate
@@ -115,6 +120,7 @@ def create_app(test_config=None):
             "index.html",
             project=project,
             summary=results["summary"],
+            load_error=app.extensions["power_budget_load_error"],
             supply_rows=supply_rows,
             circuit_rows=circuit_rows,
             devices=devices,
@@ -283,7 +289,9 @@ def create_app(test_config=None):
             return redirect(url_for("index"))
         try:
             candidate = validate_project(json.loads(uploaded.read().decode("utf-8")))
-            persist(candidate)
+            save_project(app.config["PROJECT_PATH"], candidate)
+            app.extensions["power_budget_project"] = candidate
+            app.extensions["power_budget_load_error"] = None
             flash("JSON 設定已匯入並儲存。", "success")
         except (UnicodeDecodeError, json.JSONDecodeError, TypeError, ValueError) as exc:
             flash(f"匯入失敗：{exc}", "error")
@@ -291,6 +299,8 @@ def create_app(test_config=None):
 
     @app.get("/export")
     def export_project():
+        if app.extensions["power_budget_load_error"]:
+            return "原設定檔不是 110 V 設定。請先匯入有效的 110 V JSON；原檔未變更。", 409
         project_json = json.dumps(
             app.extensions["power_budget_project"],
             ensure_ascii=False,

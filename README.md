@@ -18,12 +18,12 @@ python -m power_budget
 
 瀏覽器開啟 <http://127.0.0.1:5000/>。服務預設只監聽本機回環位址。也可執行 `python app.py` 啟動。
 
-設定預設儲存在 `instance/power_budget.json`，首次啟動會載入 AC/DC 範例。可透過 `POWER_BUDGET_DATA` 環境變數指定其他本機 JSON 檔案位置。介面可新增、編輯、刪除電源、迴路及設備，並匯入或匯出含 `schema_version` 的 UTF-8 JSON。
+設定預設儲存在 `instance/power_budget.json`，首次啟動會載入 110 V 設備範例。可透過 `POWER_BUDGET_DATA` 環境變數指定其他本機 JSON 檔案位置。介面可新增、刪除設備，並匯入或匯出含 `schema_version` 的 UTF-8 JSON。
+
+若載入先前的非 110 V 設定，程式會保留原檔並暫時以範例顯示；請匯入 110 V 設定後再繼續，避免將舊資料覆蓋。
 
 ## 計算
 
-- DC：`W = V × A`、`A = W ÷ V`。
-- AC 單相：`VA = V × A`、`W = VA × PF`；輸入實功率時以 `A = W ÷ (V × PF)` 換算。
 - 使用固定 110 V AC 供電；輸入設備電壓、電流及數量，設備電壓需為 110 V。
 - 設備總電流為各設備電流乘數量後加總；`VA = 110 V × 總 A`。
 - 顯示的 W 以 PF=1 估算，僅供簡易參考；功率因數未知時，實際耗電 W 不一定等於 VA。
