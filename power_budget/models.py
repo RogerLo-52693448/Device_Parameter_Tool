@@ -187,7 +187,7 @@ def calculate_project(project):
     if any(device["rating_type"] == "watts" for device in project["devices"]):
         watts_basis.append("設備標示 W")
     if any(device["rating_type"] == "amps" for device in project["devices"]):
-        watts_basis.append("輸入 A × PF 換算")
+        watts_basis.append("V × 輸入 A × PF 換算")
     if any(device["rating_type"] == "voltage_current" for device in project["devices"]):
         watts_basis.append("V × A（PF=1 估算）")
 
