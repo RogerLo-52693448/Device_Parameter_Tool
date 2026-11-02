@@ -45,14 +45,27 @@ class CalculationTests(unittest.TestCase):
         project = example_project()
         results = calculate_project(project)
         ac_circuit = next(item for item in project["circuits"] if item["kind"] == "AC")
-        dc_circuit = next(item for item in project["circuits"] if item["kind"] == "DC")
         ac_supply = next(item for item in project["supplies"] if item["kind"] == "AC")
-        dc_supply = next(item for item in project["supplies"] if item["kind"] == "DC")
-        self.assertEqual(results["circuits"][ac_circuit["id"]]["watts"], 120)
-        self.assertAlmostEqual(results["circuits"][ac_circuit["id"]]["amps"], 120 / (110 * 0.9))
-        self.assertEqual(results["supplies"][ac_supply["id"]]["va"], 120 / 0.9)
-        self.assertEqual(results["supplies"][dc_supply["id"]]["watts"], 36)
-        self.assertEqual(results["circuits"][dc_circuit["id"]]["va"], 0)
+        self.assertEqual(results["circuits"][ac_circuit["id"]]["watts"], 176)
+        self.assertAlmostEqual(results["circuits"][ac_circuit["id"]]["amps"], 1.6)
+        self.assertEqual(results["supplies"][ac_supply["id"]]["va"], 176)
+        self.assertEqual(results["summary"]["watts"], 176)
+        self.assertEqual(results["summary"]["va"], 176)
+        self.assertTrue(results["summary"]["has_estimated_watts"])
+        self.assertIsNone(results["supplies"][ac_supply["id"]]["amps"])
+
+    def test_device_voltage_and_current_estimate_maximum_watts_at_pf_one(self):
+        device = {
+            "kind": "AC",
+            "voltage": 220,
+            "rating_type": "voltage_current",
+            "rating": 2.5,
+            "quantity": 3,
+        }
+        self.assertEqual(
+            device_load(device),
+            {"watts": 1650.0, "amps": 7.5, "va": 1650.0},
+        )
 
 
 class ValidationTests(unittest.TestCase):
@@ -66,6 +79,24 @@ class ValidationTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "設備類型"):
             validate_project(project)
 
+    def test_accepts_circuit_in_ac_converter_output_range(self):
+        project = copy.deepcopy(self.project)
+        ac_supply = next(item for item in project["supplies"] if item["kind"] == "AC")
+        ac_circuit = next(item for item in project["circuits"] if item["kind"] == "AC")
+        ac_supply.update(
+            voltage=380,
+            output_min_voltage=110,
+            output_max_voltage=220,
+            max_amps=None,
+        )
+        ac_circuit["voltage"] = 220
+        ac_device = next(item for item in project["devices"] if item["kind"] == "AC")
+        ac_device["voltage"] = 220
+        validate_project(project)
+        ac_circuit["voltage"] = 230
+        with self.assertRaisesRegex(ValueError, "轉換輸出電壓範圍"):
+            validate_project(project)
+
     def test_rejects_nonfinite_negative_and_invalid_capacity_values(self):
         for invalid in (-1, float("nan"), float("inf")):
             project = copy.deepcopy(self.project)
@@ -73,7 +104,8 @@ class ValidationTests(unittest.TestCase):
             with self.subTest(value=invalid), self.assertRaises(ValueError):
                 validate_project(project)
         project = copy.deepcopy(self.project)
-        project["supplies"][0]["max_amps"] = 0
+        circuit = project["circuits"][0]
+        circuit["max_amps"] = 0
         with self.assertRaisesRegex(ValueError, "大於 0"):
             validate_project(project)
 
@@ -107,6 +139,22 @@ class StorageAndWebTests(unittest.TestCase):
         self.assertEqual(loaded, project)
         self.assertIn("中文交流電源", self.project_path.read_text(encoding="utf-8"))
 
+    def test_existing_schema_one_project_without_converter_fields_still_renders(self):
+        project = example_project()
+        supply = project["supplies"][0]
+        supply.pop("output_min_voltage")
+        supply.pop("output_max_voltage")
+        supply["voltage"] = 110
+        supply["max_amps"] = 15
+        device = project["devices"][0]
+        device.update(rating_type="watts", rating=60, power_factor=0.9)
+        save_project(self.project_path, project)
+        legacy_app = create_app(
+            {"TESTING": True, "PROJECT_PATH": str(self.project_path), "SECRET_KEY": "test"}
+        )
+        response = legacy_app.test_client().get("/")
+        self.assertEqual(response.status_code, 200)
+
     def test_dashboard_is_localized_and_shows_wiring_and_capacity(self):
         response = self.client.get("/")
         page = response.get_data(as_text=True)
@@ -115,10 +163,34 @@ class StorageAndWebTests(unittest.TestCase):
         self.assertIn("配線圖與負載", page)
         self.assertIn("工作燈", page)
         self.assertIn("剩餘", page)
+        self.assertIn("設備最大功率需求估算", page)
+        self.assertIn("380 V", page)
+        self.assertIn("PF=1", page)
 
     def test_post_without_csrf_token_is_rejected(self):
         response = self.client.post("/supplies", data={"name": "未授權電源"})
         self.assertEqual(response.status_code, 400)
+
+    def test_add_device_from_voltage_current_spec(self):
+        project = self.app.extensions["power_budget_project"]
+        circuit = next(item for item in project["circuits"] if item["kind"] == "AC")
+        response = self.client.post(
+            "/devices",
+            data={
+                "csrf_token": self.csrf_token,
+                "name": "真空幫浦",
+                "circuit_id": circuit["id"],
+                "kind": "AC",
+                "voltage": "110",
+                "quantity": "2",
+                "rating_type": "voltage_current",
+                "rating": "3",
+                "power_factor": "",
+            },
+        )
+        self.assertEqual(response.status_code, 302)
+        device = self.app.extensions["power_budget_project"]["devices"][-1]
+        self.assertEqual(device_load(device)["watts"], 660)
 
     def test_export_and_import_round_trip_json(self):
         export = self.client.get("/export")
@@ -150,10 +222,8 @@ class StorageAndWebTests(unittest.TestCase):
             f"/update/devices/{device['id']}",
             data={
                 "name": "錯誤連接",
-                "circuit_id": next(
-                    item["id"] for item in project["circuits"] if item["kind"] == "DC"
-                ),
-                "kind": "AC",
+                "circuit_id": device["circuit_id"],
+                "kind": "DC",
                 "voltage": "110",
                 "quantity": "1",
                 "rating_type": "watts",
@@ -174,7 +244,7 @@ class StorageAndWebTests(unittest.TestCase):
         )
         updated = self.app.extensions["power_budget_project"]
         self.assertFalse(any(item["supply_id"] == supply["id"] for item in updated["circuits"]))
-        self.assertEqual(len(updated["devices"]), 1)
+        self.assertEqual(len(updated["devices"]), 0)
 
 
 if __name__ == "__main__":

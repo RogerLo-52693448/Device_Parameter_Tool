@@ -42,6 +42,18 @@
       {% endif %}
     {% endwith %}
 
+    <section class="vendor-summary">
+      <p class="eyebrow">VENDOR POWER REQUIREMENT · AC 380 V INPUT</p>
+      <h2>設備最大功率需求估算：{{ summary.watts|round(2) }} W</h2>
+      <p>設備端視在功率合計：{{ summary.va|round(2) }} VA</p>
+      {% if summary.has_estimated_watts %}
+        <p class="summary-note">以電壓 × 電流估算，該設備採 PF=1（功率因數 1）計算最大 W；實際耗電瓦數需設備功率因數確認。</p>
+      {% else %}
+        <p class="summary-note">依已輸入設備額定瓦數加總。</p>
+      {% endif %}
+      <p class="summary-note">380 V 為供電端電壓；降壓不會按電壓比例改變設備所需功率。此估算未含變壓器損耗，請向廠商確認效率及容量預留。</p>
+    </section>
+
     {% if warnings %}
       <section class="warnings" aria-labelledby="warning-title">
         <h2 id="warning-title">⚠ 容量超限警告</h2>
@@ -69,10 +81,10 @@
                     <button class="icon-button danger-text" type="submit" aria-label="刪除電源 {{ supply.name }}">刪除</button>
                   </form>
                 </div>
-                <p>{{ "%.3g"|format(supply.voltage) }} V · {{ supply_row.load.watts|round(2) }} W
-                  · {{ supply_row.load.amps|round(2) }} A
-                  {% if supply.kind == 'AC' %}· {{ supply_row.load.va|round(2) }} VA{% endif %}</p>
-                {{ capacity_view("電流", supply_row.capacity.amps, "A") }}
+                <p>{{ "%.3g"|format(supply.voltage) }} V 供電端 · 設備需求 {{ supply_row.load.watts|round(2) }} W
+                  {% if supply.kind == 'AC' %}· {{ supply_row.load.va|round(2) }} VA{% endif %}
+                  {% if supply.get('output_min_voltage') is not none %}<br>轉換輸出 {{ "%.3g"|format(supply.output_min_voltage) }}–{{ "%.3g"|format(supply.output_max_voltage) }} V{% endif %}</p>
+                {% if supply.get('output_min_voltage') is none %}{{ capacity_view("電流", supply_row.capacity.amps, "A") }}{% endif %}
                 {{ capacity_view("實功率", supply_row.capacity.watts, "W") }}
                 <details class="edit-details"><summary>編輯電源</summary>
                   <form class="compact-form" action="{{ url_for('update_item', collection='supplies', item_id=supply.id) }}" method="post">
@@ -80,7 +92,9 @@
                     <label>名稱<input name="name" value="{{ supply.name }}" required></label>
                     <label>類型<select name="kind"><option value="AC" {% if supply.kind == 'AC' %}selected{% endif %}>交流 AC</option><option value="DC" {% if supply.kind == 'DC' %}selected{% endif %}>直流 DC</option></select></label>
                     <label>電壓 (V)<input type="number" name="voltage" min="0.001" step="any" value="{{ supply.voltage }}" required></label>
-                    <label>上限 (A)<input type="number" name="max_amps" min="0.001" step="any" value="{{ supply.max_amps or '' }}"></label>
+                    {% if supply.get('output_min_voltage') is none %}<label>上限 (A)<input type="number" name="max_amps" min="0.001" step="any" value="{{ supply.max_amps or '' }}"></label>{% else %}<input type="hidden" name="max_amps" value="">{% endif %}
+                    <label>轉換輸出最低電壓 (V，可留白)<input type="number" name="output_min_voltage" min="0.001" step="any" value="{{ supply.get('output_min_voltage', '') or '' }}"></label>
+                    <label>轉換輸出最高電壓 (V，可留白)<input type="number" name="output_max_voltage" min="0.001" step="any" value="{{ supply.get('output_max_voltage', '') or '' }}"></label>
                     <label>上限 (W)<input type="number" name="max_watts" min="0.001" step="any" value="{{ supply.max_watts or '' }}"></label>
                     <button type="submit">儲存電源</button>
                   </form>
@@ -119,7 +133,7 @@
                               <div><span class="tag">{{ device.kind }}</span><strong>{{ device.name }} × {{ device.quantity }}</strong></div>
                               <form action="{{ url_for('delete_item', collection='devices', item_id=device.id) }}" method="post"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button class="icon-button danger-text" type="submit" aria-label="刪除設備 {{ device.name }}">刪除</button></form>
                             </div>
-                            <p>{{ "%.3g"|format(device.voltage) }} V · {{ device_row.load.watts|round(2) }} W · {{ device_row.load.amps|round(2) }} A{% if device_row.load.va is not none %} · {{ device_row.load.va|round(2) }} VA{% endif %}</p>
+                            <p>{{ "%.3g"|format(device.voltage) }} V · {% if device.kind == 'AC' and device.rating_type == 'voltage_current' %}最大 W 估算 {{ device_row.load.watts|round(2) }}{% else %}{{ device_row.load.watts|round(2) }} W{% endif %} · {{ device_row.load.amps|round(2) }} A{% if device_row.load.va is not none %} · {{ device_row.load.va|round(2) }} VA{% endif %}</p>
                             <details class="edit-details"><summary>編輯設備</summary>
                               <form class="compact-form" action="{{ url_for('update_item', collection='devices', item_id=device.id) }}" method="post">
                                 <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
@@ -128,9 +142,9 @@
                                 <label>類型<select name="kind"><option value="AC" {% if device.kind == 'AC' %}selected{% endif %}>交流 AC</option><option value="DC" {% if device.kind == 'DC' %}selected{% endif %}>直流 DC</option></select></label>
                                 <label>電壓 (V)<input type="number" name="voltage" min="0.001" step="any" value="{{ device.voltage }}" required></label>
                                 <label>數量<input type="number" name="quantity" min="1" step="1" value="{{ device.quantity }}" required></label>
-                                <label>額定方式<select name="rating_type"><option value="watts" {% if device.rating_type == 'watts' %}selected{% endif %}>W</option><option value="amps" {% if device.rating_type == 'amps' %}selected{% endif %}>A</option></select></label>
-                                <label>額定值<input type="number" name="rating" min="0" step="any" value="{{ device.rating }}" required></label>
-                                <label>功率因數<input type="number" name="power_factor" min="0.001" max="1" step="any" value="{{ device.power_factor }}" required></label>
+                                <label>規格輸入方式<select name="rating_type"><option value="watts" {% if device.rating_type == 'watts' %}selected{% endif %}>已知瓦數 (W)</option><option value="amps" {% if device.rating_type == 'amps' %}selected{% endif %}>電流 (A)，以 PF 換算</option><option value="voltage_current" {% if device.rating_type == 'voltage_current' %}selected{% endif %}>電壓 × 電流 (PF=1 最大 W 估算)</option></select></label>
+                                <label>規格數值<input type="number" name="rating" min="0" step="any" value="{{ device.rating }}" required></label>
+                                <label>功率因數（已知 A 模式）<input type="number" name="power_factor" min="0.001" max="1" step="any" value="{{ device.power_factor }}"></label>
                                 <button type="submit">儲存設備</button>
                               </form>
                             </details>
@@ -160,8 +174,11 @@
           <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
           <label>名稱<input name="name" placeholder="例如：主電源" required></label>
           <label>類型<select name="kind" required><option value="AC">交流 AC</option><option value="DC">直流 DC</option></select></label>
-          <label>額定電壓 (V)<input type="number" name="voltage" min="0.001" step="any" required></label>
-          <label>電流上限 (A，可留白)<input type="number" name="max_amps" min="0.001" step="any"></label>
+          <label>供電端額定電壓 (V)<input type="number" name="voltage" min="0.001" step="any" value="380" required></label>
+          <label>轉換輸出最低電壓 (V，可留白)<input type="number" name="output_min_voltage" min="0.001" step="any"></label>
+          <label>轉換輸出最高電壓 (V，可留白)<input type="number" name="output_max_voltage" min="0.001" step="any"></label>
+          <p class="hint">例如廠商供電 AC 380 V、設備端轉換輸出 AC 110–220 V；設定輸出範圍後，迴路電壓可在範圍內選擇。輸出範圍模式請用 W 上限，不填供電端 A。</p>
+          <label>電流上限 (A，可留白；設定轉換範圍時請留白)<input type="number" name="max_amps" min="0.001" step="any"></label>
           <label>功率上限 (W，可留白)<input type="number" name="max_watts" min="0.001" step="any"></label>
           <button type="submit">新增電源</button>
         </form>
@@ -171,10 +188,9 @@
         <form class="entry-form" action="{{ url_for('add_circuit') }}" method="post">
           <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
           <label>名稱<input name="name" placeholder="例如：照明迴路" required></label>
-          <label>連接電源<select name="supply_id" required><option value="">請選擇</option>{% for supply in project.supplies %}<option value="{{ supply.id }}">{{ supply.name }} · {{ supply.kind }} {{ "%.3g"|format(supply.voltage) }} V</option>{% endfor %}</select></label>
+          <label>連接電源<select name="supply_id" required><option value="">請選擇</option>{% for supply in project.supplies %}<option value="{{ supply.id }}">{{ supply.name }} · {{ supply.kind }} {{ "%.3g"|format(supply.voltage) }} V{% if supply.get('output_min_voltage') is not none %} → {{ "%.3g"|format(supply.output_min_voltage) }}–{{ "%.3g"|format(supply.output_max_voltage) }} V{% endif %}</option>{% endfor %}</select></label>
           <label>類型<select name="kind" required><option value="AC">交流 AC</option><option value="DC">直流 DC</option></select></label>
           <label>額定電壓 (V)<input type="number" name="voltage" min="0.001" step="any" required></label>
-          <label>電流上限 (A，可留白)<input type="number" name="max_amps" min="0.001" step="any"></label>
           <label>功率上限 (W，可留白)<input type="number" name="max_watts" min="0.001" step="any"></label>
           <p class="hint">迴路的類型與電壓須符合所選電源。</p>
           <button type="submit">新增迴路</button>
@@ -189,10 +205,10 @@
           <label>類型<select name="kind" required><option value="AC">交流 AC</option><option value="DC">直流 DC</option></select></label>
           <label>額定電壓 (V)<input type="number" name="voltage" min="0.001" step="any" required></label>
           <label>數量<input type="number" name="quantity" min="1" step="1" value="1" required></label>
-          <label>額定方式<select name="rating_type" required><option value="watts">輸入瓦特 (W)</option><option value="amps">輸入安培 (A)</option></select></label>
-          <label>每台額定值<input type="number" name="rating" min="0" step="any" required></label>
-          <label>功率因數 (AC，DC 請用 1)<input type="number" name="power_factor" min="0.001" max="1" step="any" value="1" required></label>
-          <p class="hint">設備類型及電壓須符合所連接的迴路；額定值可為 0。</p>
+          <label>規格輸入方式<select name="rating_type" required><option value="voltage_current">輸入電壓 × 電流 (PF=1 最大 W 估算)</option><option value="watts">已知輸入瓦數 (W)</option><option value="amps">只輸入電流 (A)，以 PF 換算</option></select></label>
+          <label>每台電流或瓦數<input type="number" name="rating" min="0" step="any" required></label>
+          <label>功率因數（已知 A 模式；未知請採電壓×電流模式）<input type="number" name="power_factor" min="0.001" max="1" step="any" value="1"></label>
+          <p class="hint">輸入設備規格的電壓與電流，可得到 VA 及 PF=1 的最大 W 估算；有數量時會自動乘上數量。設備電壓須符合迴路電壓。</p>
           <button type="submit">新增設備</button>
         </form>
       </article>
@@ -201,10 +217,10 @@
     <section class="panel formulas">
       <h2>計算方式</h2>
       <p><strong>DC：</strong>W = V × A；A = W ÷ V。</p>
-      <p><strong>AC 單相：</strong>VA = V × A；W = VA × PF；若輸入 W，A = W ÷ (V × PF)。</p>
+      <p><strong>AC 單相：</strong>VA = V × A；W = VA × PF。僅有電壓、電流時，PF 未知，畫面以 PF=1 顯示最大 W 估算，而非實際耗電瓦數。</p>
       <p>額定值乘以數量後累加至迴路，再累加至電源；容量使用率與剩餘容量依 A、W 上限計算。</p>
     </section>
-    <footer>設定儲存於本機 JSON 檔案；匯出/匯入採用 UTF-8 與 schema_version {{ project.schema_version }}。</footer>
+    <footer>設定儲存於本機 JSON 檔案；匯出/匯入採用 UTF-8 與 schema_version {{ project.schema_version }}。變壓器效率與廠商側相數未提供，因此不估算 380 V 輸入電流或轉換損耗。</footer>
   </main>
 </body>
 </html>

@@ -50,6 +50,10 @@ button:hover, .button:hover { background: #0d5176; }
 .muted, .hint, footer { color: #63798a; }
 .muted { font-size: .9rem; }
 .notice, .warnings, .messages { padding: .75rem 1rem; border-radius: .5rem; }
+.vendor-summary { margin: 1rem 0; padding: 1.25rem 1.5rem; border: 1px solid #b9d5e5; border-radius: .75rem; background: linear-gradient(120deg, #eaf5fb, #fff); }
+.vendor-summary h2 { margin: .2rem 0 .45rem; color: #123553; font-size: 1.55rem; }
+.vendor-summary p { margin: .35rem 0; }
+.summary-note { color: #536b7d; font-size: .88rem; }
 .notice { color: #245f42; background: #e6f5ed; }
 .warnings { margin: 1rem 0; color: #792c1d; border: 1px solid #eab8aa; background: #fff0ec; }
 .warnings h2 { margin: 0 0 .5rem; font-size: 1.1rem; }

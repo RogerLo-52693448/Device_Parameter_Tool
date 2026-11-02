@@ -102,17 +102,19 @@ def create_app(test_config=None):
         warnings = []
         for kind, rows in (("電源", supply_rows), ("迴路", circuit_rows)):
             for row in rows:
-                for metric, label in (("amps", "電流"), ("watts", "實功率")):
+                for metric, label in (("amps", "電流"), ("watts", "功率")):
                     limit = row["item"].get(f"max_{metric}")
-                    if limit is not None and row["load"][metric] > limit:
+                    used = row["load"][metric]
+                    if limit is not None and used is not None and used > limit:
                         warnings.append(
                             f"{kind}「{row['item']['name']}」{label}超出上限 "
-                            f"{row['load'][metric]:.2f} / {limit:g}"
+                            f"{used:.2f} / {limit:g}"
                             f"{' A' if metric == 'amps' else ' W'}"
                         )
         return render_template(
             "index.html",
             project=project,
+            summary=results["summary"],
             supply_rows=supply_rows,
             circuit_rows=circuit_rows,
             devices=devices,
@@ -129,6 +131,12 @@ def create_app(test_config=None):
                     "name": request.form.get("name", "").strip(),
                     "kind": request.form.get("kind"),
                     "voltage": float(request.form.get("voltage", "")),
+                    "output_min_voltage": _optional_limit(
+                        request.form.get("output_min_voltage", ""), "轉換輸出最低電壓"
+                    ),
+                    "output_max_voltage": _optional_limit(
+                        request.form.get("output_max_voltage", ""), "轉換輸出最高電壓"
+                    ),
                     "max_amps": _optional_limit(request.form.get("max_amps", ""), "電流上限"),
                     "max_watts": _optional_limit(request.form.get("max_watts", ""), "功率上限"),
                 }
@@ -174,7 +182,7 @@ def create_app(test_config=None):
                     "quantity": int(request.form.get("quantity", "")),
                     "rating_type": request.form.get("rating_type"),
                     "rating": float(request.form.get("rating", "")),
-                    "power_factor": float(request.form.get("power_factor", "1")),
+                    "power_factor": _optional_limit(request.form.get("power_factor", "1"), "功率因數"),
                 }
             )
             persist(candidate)
@@ -240,6 +248,15 @@ def create_app(test_config=None):
                     max_amps=_optional_limit(request.form.get("max_amps", ""), "電流上限"),
                     max_watts=_optional_limit(request.form.get("max_watts", ""), "功率上限"),
                 )
+            if collection == "supplies":
+                item.update(
+                    output_min_voltage=_optional_limit(
+                        request.form.get("output_min_voltage", ""), "轉換輸出最低電壓"
+                    ),
+                    output_max_voltage=_optional_limit(
+                        request.form.get("output_max_voltage", ""), "轉換輸出最高電壓"
+                    ),
+                )
             if collection == "circuits":
                 item["supply_id"] = request.form.get("supply_id", "")
             elif collection == "devices":
@@ -250,7 +267,7 @@ def create_app(test_config=None):
                     quantity=int(request.form.get("quantity", "")),
                     rating_type=request.form.get("rating_type"),
                     rating=float(request.form.get("rating", "")),
-                    power_factor=float(request.form.get("power_factor", "1")),
+                    power_factor=_optional_limit(request.form.get("power_factor", "1"), "功率因數"),
                 )
             persist(candidate)
             flash("設定已更新。", "success")
@@ -299,7 +316,7 @@ def _capacity(item, load):
         used = load[metric]
         values[metric] = {
             "limit": limit,
-            "percent": used / limit * 100 if limit is not None else None,
-            "remaining": limit - used if limit is not None else None,
+            "percent": used / limit * 100 if limit is not None and used is not None else None,
+            "remaining": limit - used if limit is not None and used is not None else None,
         }
     return values
