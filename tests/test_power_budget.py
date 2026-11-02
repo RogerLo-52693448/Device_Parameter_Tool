@@ -98,10 +98,15 @@ class ValidationTests(unittest.TestCase):
         device["power_factor"] = 0.8
         second = copy.deepcopy(device)
         second.update(id="other-device", rating_type="voltage_current", rating=1)
-        project["devices"].append(second)
+        third = copy.deepcopy(device)
+        third.update(id="current-device", rating_type="amps", rating=1, power_factor=0.8)
+        project["devices"].extend((second, third))
         summary = calculate_project(project)["summary"]
         self.assertTrue(summary["has_estimated_watts"])
         self.assertTrue(summary["has_input_watts"])
+        self.assertIn("V × A", summary["watts_basis"])
+        self.assertIn("設備標示 W", summary["watts_basis"])
+        self.assertIn("輸入 A × PF", summary["watts_basis"])
 
     def test_amp_rated_summary_does_not_claim_watts_were_input(self):
         project = copy.deepcopy(self.project)

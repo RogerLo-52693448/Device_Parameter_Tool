@@ -183,10 +183,19 @@ def calculate_project(project):
             if any(value is not None and not math.isfinite(value) for value in load.values()):
                 raise ValueError("計算結果超出可表示範圍")
 
+    watts_basis = []
+    if any(device["rating_type"] == "watts" for device in project["devices"]):
+        watts_basis.append("設備標示 W")
+    if any(device["rating_type"] == "amps" for device in project["devices"]):
+        watts_basis.append("輸入 A × PF 換算")
+    if any(device["rating_type"] == "voltage_current" for device in project["devices"]):
+        watts_basis.append("V × A（PF=1 估算）")
+
     summary = {
         "watts": sum(load["watts"] for load in device_results.values()),
         "va": sum(load["va"] or 0 for load in device_results.values()),
         "amps": sum(load["amps"] for load in device_results.values()),
+        "watts_basis": "、".join(watts_basis) if watts_basis else "無設備",
         "has_estimated_watts": any(
             device["kind"] == "AC" and device["rating_type"] == "voltage_current"
             for device in project["devices"]
