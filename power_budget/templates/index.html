@@ -41,7 +41,7 @@
       <div class="summary-metrics">
         <p><strong>{{ summary.amps|round(2) }} A</strong><span>設備總電流</span></p>
         <p><strong>{{ summary.va|round(2) }} VA</strong><span>視在功率（110 V × 總電流）</span></p>
-        <p><strong>{{ summary.watts|round(2) }} W</strong><span>{% if summary.has_estimated_watts and summary.has_known_watts %}包含已知 W 與 PF=1 估算{% elif summary.has_estimated_watts %}PF=1 瓦數估算{% else %}輸入規格瓦數{% endif %}</span></p>
+        <p><strong>{{ summary.watts|round(2) }} W</strong><span>{% if summary.has_estimated_watts and summary.has_input_watts %}包含已知 W 與 PF=1 估算{% elif summary.has_estimated_watts and summary.has_current_rating %}包含電流×PF換算與 PF=1 估算{% elif summary.has_estimated_watts %}PF=1 瓦數估算{% elif summary.has_input_watts %}輸入規格瓦數{% else %}依輸入電流與 PF 換算{% endif %}</span></p>
       </div>
       <p class="summary-note">PF=1 時 W = VA；若設備功率因數未知，實際耗電瓦數可能不同。此頁只計算 110 V 設備負載，不設定或判斷電源供應容量。</p>
     </section>

@@ -191,8 +191,11 @@ def calculate_project(project):
             device["kind"] == "AC" and device["rating_type"] == "voltage_current"
             for device in project["devices"]
         ),
-        "has_known_watts": any(
-            device["rating_type"] in ("watts", "amps") for device in project["devices"]
+        "has_input_watts": any(
+            device["rating_type"] == "watts" for device in project["devices"]
+        ),
+        "has_current_rating": any(
+            device["rating_type"] == "amps" for device in project["devices"]
         ),
         "supply_inputs": sorted(
             {

@@ -101,7 +101,14 @@ class ValidationTests(unittest.TestCase):
         project["devices"].append(second)
         summary = calculate_project(project)["summary"]
         self.assertTrue(summary["has_estimated_watts"])
-        self.assertTrue(summary["has_known_watts"])
+        self.assertTrue(summary["has_input_watts"])
+
+    def test_amp_rated_summary_does_not_claim_watts_were_input(self):
+        project = copy.deepcopy(self.project)
+        project["devices"][0].update(rating_type="amps", rating=1, power_factor=0.8)
+        summary = calculate_project(project)["summary"]
+        self.assertFalse(summary["has_input_watts"])
+        self.assertTrue(summary["has_current_rating"])
 
     def test_rejects_device_not_rated_for_110v(self):
         project = copy.deepcopy(self.project)
